@@ -114,13 +114,13 @@ export const MARQUEE_ITEMS = [
 export const TESTIMONIALS = [
   {
     quote:
-      "BraceLED sind fantastisch! Ich wollte eine Lösung, die mir 100% Sicherheit für meine Produktion bietet. Da haben Abigail und Jessica komplett überzeugt! Danke dafür!",
-    author: "Event-Produktion",
+      "Für Event-Produktionen mit Funkauflagen brauchen wir nachvollziehbare Technik-Spezifikationen — dokumentierte Frequenznutzung und Support aus Deutschland sind für uns entscheidend.",
+    author: "Referenz: Event-Produktion",
   },
   {
     quote:
-      'Ich musste bei unserer TV Show auf Anforderungen was Funk und Frequenz betrifft achten – das BraceLED Team waren die Einzigen, die wirklich wissen, was ihre Technik tut. Da merkt man "German Engineering". Gerne wieder!',
-    author: "TV-Produktion",
+      "Bei TV-Formaten mit strengen Funkvorgaben zählt nachvollziehbares Know-how. Die technische Beratung zu Reichweite, DMX-Setup und Frequenzplanung hat uns überzeugt.",
+    author: "Referenz: Medienproduktion",
   },
 ] as const
 

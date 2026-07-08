@@ -1,4 +1,5 @@
 import { Resend } from "resend"
+import { EMAIL_KONFIGURATOR, RESEND_FROM_DEFAULT } from "@/lib/contact-emails"
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
 import { getEmailTemplateByKey } from "@/lib/konfigurator/email-template-store"
 import {
@@ -17,11 +18,11 @@ function getResend() {
 }
 
 function getFromEmail(): string {
-  return process.env.RESEND_FROM_EMAIL || "WIRKUNG Wristlink <angebote@wirkung.de>"
+  return process.env.RESEND_FROM_EMAIL || RESEND_FROM_DEFAULT
 }
 
 function getTeamEmail(): string {
-  return process.env.TEAM_NOTIFICATION_EMAIL || "angebote@wirkung.de"
+  return process.env.TEAM_NOTIFICATION_EMAIL || EMAIL_KONFIGURATOR
 }
 
 export type EmailAttachment = {

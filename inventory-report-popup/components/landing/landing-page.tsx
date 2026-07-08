@@ -38,6 +38,7 @@ import {
   USP_ITEMS,
 } from "@/lib/landing/content"
 import type { LandingPriceTier } from "@/lib/landing/pricing"
+import { EMAIL_INFO } from "@/lib/contact-emails"
 import { cn } from "@/lib/utils"
 
 const BENEFIT_ICONS = [Truck, Palette, Headphones]
@@ -171,7 +172,7 @@ function AboutSection() {
           <div className="lp-prose">
             <p>
               Wir haben BraceLED selbst entwickelt, weil wir ein Festival-Leucht-Armband wollten, das
-              möglichst viele Features unterstützt, 100% legal in Deutschland &amp; Europa zu betreiben
+              möglichst viele Features unterstützt, für den Einsatz in Deutschland &amp; Europa konzipiert
               ist und unseren Qualitätsansprüchen entspricht.
             </p>
             <p>
@@ -456,12 +457,12 @@ function TestimonialsSection() {
     <section className="lp-section">
       <div className="lp-container">
         <SectionHeader
-          label="Kundenstimmen"
+          label="Anwendungsbeispiele"
           title={
             <>
-              Glückliche Kunden
+              So setzen Kunden
               <br />
-              von BraceLED
+              BraceLED ein
             </>
           }
         />
@@ -469,9 +470,8 @@ function TestimonialsSection() {
           {TESTIMONIALS.map((t, i) => (
             <LandingReveal key={t.author} delay={i * 100}>
               <blockquote className="lp-testimonial">
-                <div className="lp-testimonial-stars">★★★★★</div>
                 <p>&ldquo;{t.quote}&rdquo;</p>
-                <footer>— {t.author}</footer>
+                <footer>{t.author}</footer>
               </blockquote>
             </LandingReveal>
           ))}
@@ -523,7 +523,7 @@ function FinalCta() {
             <LandingButton href="/konfigurator" size="lg">
               Zum Konfigurator <ArrowRight size={18} />
             </LandingButton>
-            <LandingButton href="mailto:info@wirkung-digital.de" variant="outline-white" size="lg">
+            <LandingButton href={`mailto:${EMAIL_INFO}`} variant="outline-white" size="lg">
               <Mail size={18} /> Kontakt
             </LandingButton>
           </div>
@@ -540,14 +540,15 @@ function LandingFooter() {
         <div className="lp-footer-top">
           <BraceledLogo size="footer" showByline={false} />
           <div className="lp-footer-links">
-            <a href="mailto:info@wirkung-digital.de">
-              <Mail size={16} /> info@wirkung-digital.de
+            <a href={`mailto:${EMAIL_INFO}`}>
+              <Mail size={16} /> {EMAIL_INFO}
             </a>
             <span>
               <MapPin size={16} /> Rhein-Main-Gebiet
             </span>
             <Link href="/impressum">Impressum</Link>
             <Link href="/datenschutz">Datenschutz</Link>
+            <Link href="/agb">AGB</Link>
             <Link href="/konfigurator">Konfigurator</Link>
           </div>
         </div>

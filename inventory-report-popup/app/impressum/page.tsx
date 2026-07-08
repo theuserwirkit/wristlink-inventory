@@ -1,5 +1,6 @@
 import Link from "next/link"
 import type { Metadata } from "next"
+import { EMAIL_INFO, EMAIL_LEGAL } from "@/lib/contact-emails"
 
 export const metadata: Metadata = {
   title: "Impressum – BraceLED",
@@ -33,8 +34,8 @@ export default function ImpressumPage() {
             </p>
             <p className="mt-4">
               E-Mail:{" "}
-              <a href="mailto:info@wirkung-digital.de" className="text-cyan-400 hover:underline">
-                info@wirkung-digital.de
+              <a href={`mailto:${EMAIL_INFO}`} className="text-cyan-400 hover:underline">
+                {EMAIL_INFO}
               </a>
               <br />
               Telefon: 0800 WIRKUNG
@@ -79,18 +80,8 @@ export default function ImpressumPage() {
               Verbraucherstreitbeilegung / Universalschlichtungsstelle
             </h2>
             <p>
-              Wir nehmen an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teil.
-              Zuständig ist die Universalschlichtungsstelle des Zentrums für Schlichtung e.V., Straßburger
-              Straße 8, 77694 Kehl am Rhein (
-              <a
-                href="https://www.verbraucher-schlichter.de"
-                className="text-cyan-400 hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                www.verbraucher-schlichter.de
-              </a>
-              ).
+              Unser Angebot richtet sich ausschließlich an Unternehmer (B2B). Wir sind weder verpflichtet noch
+              bereit, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.
             </p>
           </section>
 
@@ -151,9 +142,13 @@ export default function ImpressumPage() {
             </p>
             <p className="mt-4">
               Für rechtliche Anfragen:{" "}
-              <a href="mailto:legal@wirkung.digital" className="text-cyan-400 hover:underline">
-                legal@wirkung.digital
+              <a href={`mailto:${EMAIL_LEGAL}`} className="text-cyan-400 hover:underline">
+                {EMAIL_LEGAL}
               </a>
+              {" · "}
+              <Link href="/agb" className="text-cyan-400 hover:underline">
+                AGB (B2B)
+              </Link>
             </p>
           </section>
         </div>

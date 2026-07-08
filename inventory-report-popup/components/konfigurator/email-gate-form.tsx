@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Mail, Loader2 } from "lucide-react"
-import { CRM_CONSENT_TEXT, MARKETING_CONSENT_TEXT } from "@/lib/konfigurator/consent"
+import { CRM_CONSENT_TEXT, MARKETING_CONSENT_TEXT, B2B_CONFIRMATION_TEXT } from "@/lib/konfigurator/consent"
+import Link from "next/link"
 
 export function EmailGateForm({ onVerified }: { onVerified?: () => void }) {
   const [name, setName] = useState("")
@@ -16,6 +17,7 @@ export function EmailGateForm({ onVerified }: { onVerified?: () => void }) {
   const [telefon, setTelefon] = useState("")
   const [email, setEmail] = useState("")
   const [marketing, setMarketing] = useState(false)
+  const [b2bConfirmed, setB2bConfirmed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,6 +62,8 @@ export function EmailGateForm({ onVerified }: { onVerified?: () => void }) {
     }
   }
 
+  const showTestmode = process.env.NODE_ENV !== "production"
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -76,6 +80,7 @@ export function EmailGateForm({ onVerified }: { onVerified?: () => void }) {
           firma,
           telefon,
           marketingConsent: marketing,
+          b2bConfirmed,
         }),
       })
       const data = await res.json()
@@ -168,7 +173,24 @@ export function EmailGateForm({ onVerified }: { onVerified?: () => void }) {
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground leading-relaxed">{CRM_CONSENT_TEXT}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {CRM_CONSENT_TEXT}{" "}
+            <Link href="/datenschutz" className="underline hover:text-foreground">
+              Datenschutzerklärung
+            </Link>
+          </p>
+
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="b2b"
+              checked={b2bConfirmed}
+              onCheckedChange={(v) => setB2bConfirmed(v === true)}
+              required
+            />
+            <Label htmlFor="b2b" className="text-sm font-normal leading-snug">
+              {B2B_CONFIRMATION_TEXT}
+            </Label>
+          </div>
 
           <div className="flex items-start gap-2">
             <Checkbox
@@ -187,19 +209,21 @@ export function EmailGateForm({ onVerified }: { onVerified?: () => void }) {
             </Alert>
           )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full" disabled={loading || !b2bConfirmed}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Bestätigungslink senden"}
           </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full border-dashed text-muted-foreground"
-            disabled={testmodeLoading || loading}
-            onClick={handleTestmode}
-          >
-            {testmodeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Testmode"}
-          </Button>
+          {showTestmode && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-dashed text-muted-foreground"
+              disabled={testmodeLoading || loading}
+              onClick={handleTestmode}
+            >
+              {testmodeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Testmode"}
+            </Button>
+          )}
         </form>
       </CardContent>
     </Card>

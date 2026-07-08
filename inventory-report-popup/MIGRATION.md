@@ -19,6 +19,20 @@ Auf der neuen Instanz müssen mindestens diese Variablen gesetzt sein:
 
 Zusätzlich je nach Feature: Stripe, Resend, Telegram, `WRISTLINK_PRODUCT_MAPPING`, etc. (siehe `env.konfigurator.example` / Vercel-Projekt).
 
+### E-Mail & Kontakt
+
+Zentrale Konstanten: `lib/contact-emails.ts`
+
+| Variable | Default / Zweck |
+|----------|-----------------|
+| `RESEND_FROM_EMAIL` | `BraceLED <angebote@braceled-led-armband.com>` – Absender Konfigurator/Transaktionsmails |
+| `TEAM_NOTIFICATION_EMAIL` | `angebote@braceled-led-armband.com` – interne Anfrage-Benachrichtigungen |
+| `RESEND_API_KEY` | Resend API (Double-Opt-In, Freigabe, Fulfillment) |
+
+Allgemeine Firmenadressen (Impressum, Datenschutz): `@wirkung-digital.de` (`info@`, `legal@`, `datenschutz@`).
+
+> **Resend:** Domain `braceled-led-armband.com` muss in Resend verifiziert sein (SPF/DKIM).
+
 > **Auth-Modell:** Es gibt keine User-Tabelle in Benutzung. Login erfolgt über **ein**
 > gemeinsames Passwort. Nach erfolgreichem Login wird ein signierter Cookie
 > `wristlink_auth` (7 Tage gültig) gesetzt. Alle eingeloggten Nutzer haben
@@ -29,7 +43,7 @@ Zusätzlich je nach Feature: Stripe, Resend, Telegram, `WRISTLINK_PRODUCT_MAPPIN
 > Vercel Environment Variables. Optional getrennt: `WRISTLINK_SESSION_SECRET` für die
 > Cookie-Signatur (Fallback: `WRISTLINK_PASSWORD`).
 >
-> **Lokal starten:** `npm run dev` aus `inventory-report-popup/` (setzt intern
+> **Lokal starten:** `pnpm dev` aus `inventory-report-popup/` (setzt intern
 > `env -u WRISTLINK_PASSWORD`, damit ein leerer Shell-Wert `.env.local` nicht blockiert).
 
 ---
@@ -49,8 +63,8 @@ Zusätzlich je nach Feature: Stripe, Resend, Telegram, `WRISTLINK_PRODUCT_MAPPIN
 | `bookings` | Buchungskopf (Typ, Kunde, Daten, `status`, Bemerkung) |
 | `booking_items` | Buchungspositionen (Menge, Defekte, Basen) |
 | `system_settings` | Konfigurierbare Parameter (Key-Value, z. B. Puffer, `product_mapping`) |
-| `leads` | Konfigurator-Leads (E-Mail, DOI, Kontaktdaten) |
-| `email_verification_tokens` | DOI-Tokens |
+| `leads` | Konfigurator-Leads (E-Mail, DOI, Kontaktdaten, `b2b_confirmed`, Consent) |
+| `email_verification_tokens` | DOI-Tokens inkl. `marketing_consent_pending` |
 | `quote_requests` | Angebotsanfragen (`config_json`, Preis-Snapshot, Stripe, Status, Fulfillment) |
 | `quote_fulfillment_events` | Historie der Fulfillment-Schritte je Anfrage (Kommentar, Tracking, Mail) |
 | `email_templates` | Editierbare E-Mail-Vorlagen (Freigabe, Zahlung, Fulfillment) |
@@ -135,17 +149,20 @@ psql "$DATABASE_URL" -f scripts/migration/01-schema.sql
 | `07-base-station-typ.sql` | `bases.station_typ` (falls ältere DB ohne Spalte) |
 | `08-groups-kanalanzahl.sql` | `groups.kanalanzahl` (falls ältere DB ohne Spalte) |
 | `09-fulfillment-email-templates.sql` | Fulfillment-Spalten, `quote_fulfillment_events`, `email_templates` + Seed |
+| `10-offer-pdf.sql` | Angebots-PDF-Speicherung |
+| `11-lead-consent-doi.sql` | `leads.b2b_confirmed`, `email_verification_tokens.marketing_consent_pending` |
+| `12-sevdesk-offer.sql` | `quote_requests.sevdesk_order_id`, `sevdesk_order_number` |
 
 Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op).
 
 ```bash
-npm run db:migrate
+pnpm db:migrate
 ```
 
 Alternativ per `psql`:
 
 ```bash
-for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates; do
+for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer; do
   psql "$DATABASE_URL" -f "scripts/migration/${f}.sql"
 done
 ```
@@ -191,6 +208,7 @@ psql "$DATABASE_URL" -f dump.sql
 | **Freigeben ohne Stripe** | Status → `approved`, E-Mail mit Angebotslink (`quote_approved_manual`) |
 | **Ablehnen** | Status → `rejected`, E-Mail mit Grund (`quote_rejected`), Hold wird freigegeben |
 | **Mail-Vorschau** | Vor dem Senden Betreff/Text der Template-Mail anzeigen |
+| **Angebots-PDF** | Manuell: „In sevDesk erstellen“ oder PDF-Upload – Anhang bei Freigabe/Zahlung (siehe `docs/sevdesk-angebote.md`) |
 
 ### Zahlung
 
@@ -227,7 +245,10 @@ Pro Schritt: Kommentar, optionale Kunden-Mail aus `email_templates` (`fulfillmen
 | `components/admin/quote-approval-actions.tsx` | Freigabe-UI |
 | `components/admin/quote-payment-actions.tsx` | Manueller Zahlungseingang |
 | `components/admin/quote-fulfillment-workflow.tsx` | Stepper + Historie |
+| `components/admin/quote-offer-pdf-upload.tsx` | sevDesk-Angebot + PDF-Upload |
 | `components/admin/email-template-editor.tsx` | Template-Editor |
+
+Details zum sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
 
 ---
 
@@ -236,9 +257,12 @@ Pro Schritt: Kommentar, optionale Kunden-Mail aus `email_templates` (`fulfillmen
 | Datei | Zweck |
 |-------|--------|
 | `scripts/migration/01-schema.sql` | Konsolidiertes Basisschema |
-| `scripts/migration/02`–`09-*.sql` | Inkrementelle Feature-Migrationen |
+| `scripts/migration/02`–`12-*.sql` | Inkrementelle Feature-Migrationen |
 | `scripts/migration/02-export-data.js` | Exportiert alle Daten als `INSERT`-SQL |
 | `docs/konfigurator.md` | Fachliche Konfigurator-Dokumentation |
+| `docs/sevdesk-angebote.md` | sevDesk-Angebote: wann erstellt, PDF an Kunden |
+| `docs/TODO.md` | Offene Betriebs-, Sicherheits- und Rechtstasks |
+| `lib/contact-emails.ts` | E-Mail-Domain-Konstanten (B2B-Firma vs. BraceLED-Absender) |
 | `MIGRATION.md` | Dieser Leitfaden |
 
-> Historische Einzelskripte unter `scripts/` bleiben als Referenz; Neuinstallationen nutzen `01-schema.sql` + `02`–`09` oder `npm run db:migrate`.
+> Historische Einzelskripte unter `scripts/` bleiben als Referenz; Neuinstallationen nutzen `01-schema.sql` + `02`–`12` oder `pnpm db:migrate`.

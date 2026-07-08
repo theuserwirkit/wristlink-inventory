@@ -13,7 +13,7 @@ import { fileURLToPath } from "url"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const WRISTLINK_API_URL =
-  process.env.WRISTLINK_API_URL || "https://inventory-report-popup.vercel.app"
+  process.env.WRISTLINK_API_URL || "https://braceled-led-armband.com"
 const WORKFLOW_ID = process.env.N8N_WORKFLOW_ID || "gVl5dVqvTN61D4Fc"
 
 function loadEnvFile(path) {

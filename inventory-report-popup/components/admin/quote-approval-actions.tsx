@@ -32,6 +32,8 @@ export function QuoteApprovalActions({
   source,
   stripeConfigured,
   offerPdfFilename,
+  sevdeskConfigured = false,
+  sevdeskOrderNumber,
   embedded = false,
 }: {
   quoteId: number
@@ -39,6 +41,8 @@ export function QuoteApprovalActions({
   source: QuoteSource
   stripeConfigured: boolean
   offerPdfFilename?: string | null
+  sevdeskConfigured?: boolean
+  sevdeskOrderNumber?: string | null
   embedded?: boolean
 }) {
   const router = useRouter()
@@ -175,7 +179,12 @@ export function QuoteApprovalActions({
             </div>
           )}
 
-          <QuoteOfferPdfUpload quoteId={quoteId} filename={offerPdfFilename ?? null} />
+          <QuoteOfferPdfUpload
+            quoteId={quoteId}
+            filename={offerPdfFilename ?? null}
+            sevdeskConfigured={sevdeskConfigured}
+            sevdeskOrderNumber={sevdeskOrderNumber}
+          />
 
           {source === "n8n_email" && (
             <p className="text-sm text-muted-foreground">

@@ -6,6 +6,7 @@ import { ArrowRight, Menu, X } from "lucide-react"
 import { LandingButton } from "@/components/landing/landing-ui"
 import { BraceledLogo } from "@/components/landing/braceled-logo"
 import { HERO_COPY, NAV_LINKS } from "@/lib/landing/content"
+import { EMAIL_INFO } from "@/lib/contact-emails"
 import { cn } from "@/lib/utils"
 
 export function LandingNav() {
@@ -75,8 +76,8 @@ export function LandingNav() {
           <LandingButton href="/konfigurator" className="lp-btn-block" onClick={closeMenu}>
             {HERO_COPY.ctaPrimary} <ArrowRight size={18} />
           </LandingButton>
-          <a href="mailto:info@wirkung-digital.de" className="lp-mobile-menu-mail" onClick={closeMenu}>
-            info@wirkung-digital.de
+          <a href={`mailto:${EMAIL_INFO}`} className="lp-mobile-menu-mail" onClick={closeMenu}>
+            {EMAIL_INFO}
           </a>
         </div>
       </div>

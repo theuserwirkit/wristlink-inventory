@@ -9,6 +9,7 @@ import {
   setLeadSession,
 } from "@/lib/konfigurator/lead-auth"
 import { CONSENT_TEXT_VERSION } from "@/lib/konfigurator/consent"
+import { EMAIL_TESTMODE_DEFAULT } from "@/lib/contact-emails"
 import { sendVerificationEmail } from "@/lib/konfigurator/email"
 import type { Lead } from "@/lib/konfigurator/types"
 
@@ -20,6 +21,7 @@ export async function requestEmailVerification(
   marketingConsent: boolean,
   consentIp?: string,
   contact?: { name?: string; firma?: string; telefon?: string },
+  b2bConfirmed?: boolean,
 ): Promise<{ success: boolean; error?: string }> {
   const normalized = email.trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
@@ -31,6 +33,9 @@ export async function requestEmailVerification(
   const contactTelefon = contact?.telefon?.trim() || null
   if (!contactName || !contactFirma || !contactTelefon) {
     return { success: false, error: "Bitte Name, Firma und Telefon angeben" }
+  }
+  if (!b2bConfirmed) {
+    return { success: false, error: "Bitte bestätigen Sie die B2B-Erklärung" }
   }
 
   const sql = getDb()
@@ -57,20 +62,23 @@ export async function requestEmailVerification(
         name = ${contactName},
         firma = ${contactFirma},
         telefon = ${contactTelefon},
-        marketing_consent = ${marketingConsent},
+        b2b_confirmed = true,
         consent_text_version = ${CONSENT_TEXT_VERSION},
         consent_ip = ${consentIp || null},
         updated_at = NOW()
       WHERE id = ${leadId}
     `
     if (existing[0].verified_at) {
+      if (marketingConsent) {
+        await sql`UPDATE leads SET marketing_consent = true, updated_at = NOW() WHERE id = ${leadId}`
+      }
       await setLeadSession(leadId, normalized)
       return { success: true }
     }
   } else {
     const created = await sql`
-      INSERT INTO leads (email, name, firma, telefon, marketing_consent, consent_text_version, consent_ip)
-      VALUES (${normalized}, ${contactName}, ${contactFirma}, ${contactTelefon}, ${marketingConsent}, ${CONSENT_TEXT_VERSION}, ${consentIp || null})
+      INSERT INTO leads (email, name, firma, telefon, marketing_consent, b2b_confirmed, consent_text_version, consent_ip)
+      VALUES (${normalized}, ${contactName}, ${contactFirma}, ${contactTelefon}, false, true, ${CONSENT_TEXT_VERSION}, ${consentIp || null})
       RETURNING id
     `
     leadId = created[0].id
@@ -81,8 +89,8 @@ export async function requestEmailVerification(
   const expiresAt = new Date(Date.now() + TOKEN_TTL_HOURS * 60 * 60 * 1000)
 
   await sql`
-    INSERT INTO email_verification_tokens (lead_id, token_hash, expires_at)
-    VALUES (${leadId}, ${tokenHash}, ${expiresAt.toISOString()})
+    INSERT INTO email_verification_tokens (lead_id, token_hash, expires_at, marketing_consent_pending)
+    VALUES (${leadId}, ${tokenHash}, ${expiresAt.toISOString()}, ${marketingConsent})
   `
 
   try {
@@ -104,7 +112,7 @@ export async function verifyEmailToken(
   const sql = getDb()
 
   const rows = await sql`
-    SELECT evt.id AS token_id, evt.lead_id, evt.expires_at, evt.used_at, l.email
+    SELECT evt.id AS token_id, evt.lead_id, evt.expires_at, evt.used_at, evt.marketing_consent_pending, l.email
     FROM email_verification_tokens evt
     JOIN leads l ON l.id = evt.lead_id
     WHERE evt.token_hash = ${tokenHash}
@@ -127,14 +135,18 @@ export async function verifyEmailToken(
     UPDATE email_verification_tokens SET used_at = NOW() WHERE id = ${row.token_id}
   `
   await sql`
-    UPDATE leads SET verified_at = NOW(), updated_at = NOW() WHERE id = ${row.lead_id}
+    UPDATE leads SET
+      verified_at = NOW(),
+      marketing_consent = ${Boolean(row.marketing_consent_pending)},
+      updated_at = NOW()
+    WHERE id = ${row.lead_id}
   `
 
   await setLeadSession(row.lead_id, row.email)
   return { success: true }
 }
 
-const TESTMODE_DEFAULT_EMAIL = "test@wirkung.de"
+const TESTMODE_DEFAULT_EMAIL = EMAIL_TESTMODE_DEFAULT
 
 /**
  * Testmode ist nur außerhalb von Production erlaubt – oder wenn er in Production

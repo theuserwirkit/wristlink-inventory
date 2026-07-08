@@ -47,6 +47,8 @@ export function mapQuoteRow(row: Record<string, unknown>): QuoteRequest {
     payment_note: (row.payment_note as string | null) ?? null,
     return_booking_id: (row.return_booking_id as number | null) ?? null,
     offer_pdf_filename: (row.offer_pdf_filename as string | null) ?? null,
+    sevdesk_order_id: (row.sevdesk_order_id as string | null) ?? null,
+    sevdesk_order_number: (row.sevdesk_order_number as string | null) ?? null,
     config_json: typeof row.config_json === "string" ? JSON.parse(row.config_json) : row.config_json,
     price_snapshot_json:
       typeof row.price_snapshot_json === "string"

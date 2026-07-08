@@ -13,6 +13,7 @@ import {
   getInventoryLots,
 } from "@/lib/actions/bookings"
 import { isStripeConfigured } from "@/lib/konfigurator/stripe"
+import { isSevdeskConfigured } from "@/lib/konfigurator/sevdesk"
 
 export const dynamic = "force-dynamic"
 import { formatEur } from "@/lib/pricing/preis-engine"
@@ -118,6 +119,7 @@ export default async function AnfrageDetailPage({
           leadEmail={quote.lead_email || ""}
           events={events}
           stripeConfigured={isStripeConfigured()}
+          sevdeskConfigured={isSevdeskConfigured()}
         />
 
         {(quote.fulfillment_status === "zurueckgepackt" || quote.return_booking_id) &&

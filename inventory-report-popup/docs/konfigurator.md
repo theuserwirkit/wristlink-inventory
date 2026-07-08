@@ -15,9 +15,19 @@ Diese Datei beschreibt Logik, Berechnungen und interne Regeln des B2B-Konfigurat
 | 4 | Extras | Lieferland (nur DE), Lieferpakete (Regulär / Express / Eilauftrag), Flex-Rückgabe, Techniker |
 | 5 | Angebot | Zusammenfassung, Preis, Absenden |
 
-Vor dem Konfigurator: E-Mail-Gate (B2B-Bestätigung, DOI).
+Vor dem Konfigurator: **E-Mail-Gate** mit:
 
-**Hinweis:** Die Kanalanzahl (40/80 CH) wird in keinem Schritt vom Kunden gewählt. Sie wird bei jeder API-Aktion und beim Submit über `resolveKanalanzahlForConfig()` aufgelöst.
+- Pflichtfelder: Name, Firma, Telefon, geschäftliche E-Mail
+- **B2B-Pflicht-Checkbox** (`B2B_CONFIRMATION_TEXT` in `lib/konfigurator/consent.ts`)
+- CRM-Hinweis + Link zur Datenschutzerklärung
+- Optionale Marketing-Einwilligung (wirksam **erst nach** Double-Opt-In)
+- Double-Opt-In per E-Mail (`/konfigurator/verify?token=…`)
+
+Consent-Versionierung: `CONSENT_TEXT_VERSION` (aktuell 1.4), Speicherung von `consent_ip` und `consent_text_version` auf `leads`. Marketing-Intent bis DOI in `email_verification_tokens.marketing_consent_pending` (Migration 11).
+
+**E-Mail-Domains:** Allgemein `@wirkung-digital.de` · Absender/Team `@braceled-led-armband.com` → `lib/contact-emails.ts`
+
+**Testmode:** DOI-Bypass nur in Development oder mit `KONFIGURATOR_TESTMODE_ENABLED` + Secret in Production; UI-Button nur außerhalb Production.
 
 ---
 
@@ -304,6 +314,7 @@ Bearbeiten: `EditableBaseRow` – Bezeichnung und `station_typ` änderbar.
 | `07-base-station-typ.sql` | `bases.station_typ` (eco/pro/keine), Backfill aus Bezeichnung |
 | `08-groups-kanalanzahl.sql` | `groups.kanalanzahl` (Default 40) |
 | `09-fulfillment-email-templates.sql` | Fulfillment, E-Mail-Templates, Zahlungsfelder |
+| `11-lead-consent-doi.sql` | B2B-Bestätigung, Marketing nach DOI |
 
 ---
 
@@ -321,6 +332,7 @@ submitted → approved (ohne Stripe) / payment_pending (mit Stripe)
 
 - **Freigabe ohne Stripe:** für Überweisungen / Rechnung vorab – Kunde erhält Angebotslink, Admin markiert Zahlung manuell.
 - **Freigabe mit Stripe:** Checkout-Link per E-Mail; Webhook setzt `paid`.
+- **Angebots-PDF:** vor Freigabe manuell anlegen (sevDesk-Button oder Upload); Anhang bei Freigabe- und Zahlungs-Mail – siehe **`docs/sevdesk-angebote.md`**.
 - **Fulfillment** startet erst nach `paid` (nicht bei Freigabe).
 - **Bestandsbuchung** (Miete): Hold bei Submit; `BESTAETIGT` erst bei Zahlung.
 
@@ -347,10 +359,11 @@ Vorlagen editierbar unter `/admin/einstellungen/e-mails`. Platzhalter: `{{anfrag
 | `/admin/anfragen/[id]` | Detail: Freigabe, Zahlung, Fulfillment, Rückgabe |
 | `quote-approval-actions` | Annehmen/Ablehnen, Stripe-Toggle, Mail-Vorschau |
 | `quote-payment-actions` | „Zahlung eingegangen“ (Überweisung) |
+| `quote-offer-pdf-upload` | sevDesk-Angebot erstellen / PDF hochladen |
 | `quote-fulfillment-workflow` | Stepper, Kommentare, Tracking, Historie |
 | `quote-return-section` | Rückgabe bei `zurueckgepackt` |
 
-Details: `MIGRATION.md` Abschnitt 5.
+Details: `MIGRATION.md` Abschnitt 5 · sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
 
 ---
 
@@ -398,6 +411,10 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 
 | Datei | Zweck |
 |-------|--------|
+| `components/konfigurator/email-gate-form.tsx` | E-Mail-Gate, B2B-Checkbox, DOI-Formular |
+| `lib/konfigurator/consent.ts` | Consent-Texte, B2B-Hinweise |
+| `lib/contact-emails.ts` | E-Mail-Domain-Konstanten |
+| `lib/actions/leads.ts` | DOI, Marketing nach Bestätigung, Testmode |
 | `components/konfigurator/configurator-wizard.tsx` | UI-Wizard, Gruppen-Schieber, API-Aufrufe |
 | `components/konfigurator/availability-indicator.tsx` | Bänder-Stress-Balken (ohne Stk.) |
 | `components/konfigurator/station-availability-indicator.tsx` | Controller-Stress-Balken (ohne Stk.) |
@@ -427,10 +444,12 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 
 ---
 
-## B2B & Preisanzeige
+## B2B, Consent & Preisanzeige
 
 - `PRICING_NOTICE_B2B`: „Alle Preise in EUR, netto (B2B). zzgl. 19 % MwSt. bei Zahlung in Deutschland.“
 - Stripe-Zahlungsbetrag: Netto + 19 % MwSt.
+- Rechtliche Seiten: `/impressum`, `/datenschutz`, `/agb` (B2B)
+- Consent-Texte: `lib/konfigurator/consent.ts` · E-Mail-Konstanten: `lib/contact-emails.ts`
 
 ---
 

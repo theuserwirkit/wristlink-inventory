@@ -63,7 +63,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/konfigurator") ||
     pathname.startsWith("/angebot/") ||
     pathname === "/impressum" ||
-    pathname === "/datenschutz"
+    pathname === "/datenschutz" ||
+    pathname === "/agb"
 
   if (!isAuthenticated && !isPublicRoute) {
     return NextResponse.redirect(new URL("/login", request.url))

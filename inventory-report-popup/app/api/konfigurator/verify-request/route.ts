@@ -5,6 +5,7 @@ export async function POST(request: NextRequest) {
   let body: {
     email?: string
     marketingConsent?: boolean
+    b2bConfirmed?: boolean
     name?: string
     firma?: string
     telefon?: string
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
       firma: body.firma,
       telefon: body.telefon,
     },
+    Boolean(body.b2bConfirmed),
   )
   if (!result.success) {
     return Response.json({ error: result.error }, { status: 400 })

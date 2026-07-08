@@ -29,11 +29,13 @@ export function QuoteOrderWorkflow({
   leadEmail,
   events,
   stripeConfigured,
+  sevdeskConfigured,
 }: {
   quote: QuoteRequest
   leadEmail: string
   events: QuoteFulfillmentEvent[]
   stripeConfigured: boolean
+  sevdeskConfigured: boolean
 }) {
   if (["rejected", "expired", "cancelled", "draft"].includes(quote.status)) {
     return null
@@ -70,6 +72,8 @@ export function QuoteOrderWorkflow({
             source={quote.source}
             stripeConfigured={stripeConfigured}
             offerPdfFilename={quote.offer_pdf_filename}
+            sevdeskConfigured={sevdeskConfigured}
+            sevdeskOrderNumber={quote.sevdesk_order_number}
             embedded
           />
         )}
@@ -81,6 +85,8 @@ export function QuoteOrderWorkflow({
               status={quote.status}
               stripePaymentLinkUrl={quote.stripe_payment_link_url}
               offerPdfFilename={quote.offer_pdf_filename}
+              sevdeskConfigured={sevdeskConfigured}
+              sevdeskOrderNumber={quote.sevdesk_order_number}
               embedded
             />
             <QuoteApprovalActions
@@ -89,6 +95,8 @@ export function QuoteOrderWorkflow({
               source={quote.source}
               stripeConfigured={stripeConfigured}
               offerPdfFilename={quote.offer_pdf_filename}
+              sevdeskConfigured={sevdeskConfigured}
+              sevdeskOrderNumber={quote.sevdesk_order_number}
               embedded
             />
           </>

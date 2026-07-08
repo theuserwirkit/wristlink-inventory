@@ -297,7 +297,7 @@
     },
     {
       "parameters": {
-        "content": "## Setup\\n\\nCredentials / Env:\\n- Gmail (OAuth2)\\n- Anthropic ($env.ANTHROPIC_API_KEY)\\n- WRISTLINK_API_URL (Vercel-App)\\n- WRISTLINK_API_KEY (Bearer)\\n\\nAnfragen: POST /api/quote-requests\\nFreigabe: Telegram-Buttons der App (Webhook)",
+        "content": "## Setup\\n\\nCredentials / Env:\\n- Gmail (OAuth2)\\n- Anthropic ($env.ANTHROPIC_API_KEY)\\n- WRISTLINK_API_URL (https://braceled-led-armband.com)\\n- WRISTLINK_API_KEY (Bearer)\\n\\nAnfragen: POST /api/quote-requests\\nFreigabe: Telegram-Buttons der App (Webhook)",
         "height": 300,
         "width": 340,
         "color": 5

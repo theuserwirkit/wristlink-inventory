@@ -124,6 +124,8 @@ export type QuoteRequest = {
   payment_note: string | null
   return_booking_id: number | null
   offer_pdf_filename: string | null
+  sevdesk_order_id: string | null
+  sevdesk_order_number: string | null
   created_at: string
   lead_email?: string
 }

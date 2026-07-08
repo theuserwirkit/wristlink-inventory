@@ -53,7 +53,7 @@ Diese Checkliste beschreibt, welche Secrets **manuell** rotiert werden müssen
 - **Wo eintragen:** `WRISTLINK_PASSWORD` in Vercel + `.env.local` (Zeile **ohne** Anführungszeichen, auch bei Sonderzeichen wie `!`).
 - **Nicht eintragen:** `next.config.mjs` → `env` (würde Secret beim Build ins Bundle schreiben).
 - **Optional getrennt:** `WRISTLINK_SESSION_SECRET` für Cookie-HMAC (`lib/auth-core.ts`); Fallback: `WRISTLINK_PASSWORD`.
-- **Lokal:** `npm run dev` aus `inventory-report-popup/` – entfernt ggf. leeren Shell-Wert via `env -u WRISTLINK_PASSWORD`.
+- **Lokal:** `pnpm dev` aus `inventory-report-popup/` – entfernt ggf. leeren Shell-Wert via `env -u WRISTLINK_PASSWORD`.
 - **Hinweis:** Wird ggf. auch als Fallback für die Lead-Session-Verschlüsselung genutzt
   (siehe `LEAD_SESSION_SECRET`). Nach Rotation bestehende Lead-Sessions ggf. ungültig.
 - **Verifikation:** Login unter `/login` → Redirect auf `/warenverwaltung`.
@@ -62,7 +62,14 @@ Diese Checkliste beschreibt, welche Secrets **manuell** rotiert werden müssen
 
 - `LEAD_SESSION_SECRET` – Signierung/Verschlüsselung der Lead-Session.
 - `RESEND_API_KEY` – Versand von Double-Opt-In-/Transaktionsmails.
+- `RESEND_FROM_EMAIL` – Absender (Default: `BraceLED <angebote@braceled-led-armband.com>`). Wert mit `<` in Anführungszeichen in `.env`.
+- `TEAM_NOTIFICATION_EMAIL` – interne Anfrage-Mails (Default: `angebote@braceled-led-armband.com`).
+  - **Wo eintragen:** `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `TEAM_NOTIFICATION_EMAIL` in Vercel + `.env.local`.
+  - **Verifikation:** DOI-Mail im Konfigurator, Freigabe-/Fulfillment-Mails; Absender `@braceled-led-armband.com`.
+  - **Domain:** `braceled-led-armband.com` in Resend verifiziert halten (SPF/DKIM).
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` – Zahlungsabwicklung.
+- `SEVDESK_API_TOKEN` – sevDesk API (Angebote/Rechnungen). Token in sevDesk unter
+  Einstellungen → Benutzer → API-Token neu generieren; alter Token ist sofort ungültig.
 - `KONFIGURATOR_TESTMODE_SECRET` – nur relevant, wenn Testmode in Production
   aktiviert ist (`KONFIGURATOR_TESTMODE_ENABLED=true`).
 

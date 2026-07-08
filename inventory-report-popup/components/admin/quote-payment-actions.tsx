@@ -23,12 +23,16 @@ export function QuotePaymentActions({
   status,
   stripePaymentLinkUrl,
   offerPdfFilename,
+  sevdeskConfigured = false,
+  sevdeskOrderNumber,
   embedded = false,
 }: {
   quoteId: number
   status: QuoteStatus
   stripePaymentLinkUrl?: string | null
   offerPdfFilename?: string | null
+  sevdeskConfigured?: boolean
+  sevdeskOrderNumber?: string | null
   embedded?: boolean
 }) {
   const router = useRouter()
@@ -96,7 +100,12 @@ export function QuotePaymentActions({
         </div>
       )}
 
-      <QuoteOfferPdfUpload quoteId={quoteId} filename={offerPdfFilename ?? null} />
+      <QuoteOfferPdfUpload
+        quoteId={quoteId}
+        filename={offerPdfFilename ?? null}
+        sevdeskConfigured={sevdeskConfigured}
+        sevdeskOrderNumber={sevdeskOrderNumber}
+      />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="space-y-2">
