@@ -1,0 +1,632 @@
+import "server-only"
+
+import { randomUUID } from "crypto"
+import { revalidatePath } from "next/cache"
+import { getDb } from "@/lib/db"
+import { checkProductAvailability, createN8nBooking } from "@/lib/actions/n8n-api"
+import {
+  confirmQuoteBooking,
+  createQuoteHoldBooking,
+  releaseQuoteBooking,
+} from "@/lib/actions/quote-booking"
+import { getLeadById, getOrCreateVerifiedLeadForEmail } from "@/lib/actions/leads"
+import { rechnePreis } from "@/lib/pricing/preis-engine"
+import {
+  sendCustomerApprovedEmail,
+  sendCustomerPaidEmail,
+  sendCustomerRejectedEmail,
+  sendCustomerSubmittedEmail,
+  sendN8nApprovedOfferEmail,
+  sendTeamQuoteNotification,
+} from "@/lib/konfigurator/email"
+import { sendQuoteTelegramNotification, isTelegramConfigured } from "@/lib/konfigurator/telegram"
+import { createCheckoutSessionForQuote, isStripeConfigured } from "@/lib/konfigurator/stripe"
+import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
+import type { PaymentMethod, QuoteConfig, QuoteRequest, QuoteSource } from "@/lib/konfigurator/types"
+import { getProbedruckLabel, normalizeProbedruckOption } from "@/lib/konfigurator/product-info"
+import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"
+import { normalizeGruppenGroessen } from "@/lib/konfigurator/gruppen-config"
+import { getRejectionMessage, type RejectionReasonId } from "@/lib/konfigurator/rejection-reasons"
+import { priceSnapshotSchema, quoteConfigSchema, formatZodError } from "@/lib/api-schemas"
+import { getQuoteOfferPdfForEmail } from "@/lib/actions/quote-offer-pdf"
+
+const PAYMENT_EXPIRY_DAYS = 7
+
+export function mapQuoteRow(row: Record<string, unknown>): QuoteRequest {
+  return {
+    ...row,
+    source: (row.source as QuoteSource) || "konfigurator",
+    booking_id: (row.booking_id as number | null) ?? null,
+    external_ref: (row.external_ref as string | null) ?? null,
+    notes: (row.notes as string | null) ?? null,
+    expires_at: (row.expires_at as string | null) ?? null,
+    cancelled_at: (row.cancelled_at as string | null) ?? null,
+    fulfillment_status: (row.fulfillment_status as QuoteRequest["fulfillment_status"]) ?? null,
+    tracking_number: (row.tracking_number as string | null) ?? null,
+    payment_method: (row.payment_method as QuoteRequest["payment_method"]) ?? null,
+    payment_note: (row.payment_note as string | null) ?? null,
+    return_booking_id: (row.return_booking_id as number | null) ?? null,
+    offer_pdf_filename: (row.offer_pdf_filename as string | null) ?? null,
+    config_json: typeof row.config_json === "string" ? JSON.parse(row.config_json) : row.config_json,
+    price_snapshot_json:
+      typeof row.price_snapshot_json === "string"
+        ? JSON.parse(row.price_snapshot_json)
+        : row.price_snapshot_json,
+  } as QuoteRequest
+}
+
+function configSummary(config: QuoteConfig): string {
+  const lines: string[] = []
+  if (config.kontaktName) lines.push(`Ansprechpartner: ${config.kontaktName}`)
+  if (config.kontaktFirma) lines.push(`Firma: ${config.kontaktFirma}`)
+  if (config.kontaktTelefon) lines.push(`Telefon: ${config.kontaktTelefon}`)
+  if (config.szenario) lines.push(`Event: ${config.szenario}`)
+  if (config.von) {
+    lines.push(`Eventzeitraum: ${config.von} – ${config.bis || config.von}`)
+  }
+  if (config.technikerAdresse) {
+    lines.push(`Eventadresse: ${config.technikerAdresse}`)
+  }
+  lines.push(
+    `Produkt: ${config.produkt}`,
+    `Modus: ${config.modus}`,
+    `Menge: ${config.menge}`,
+  )
+  if (config.produkt === "armband" && config.variante) {
+    lines.push(`Variante: ${config.variante}`)
+  }
+  if (config.produkt === "armband" && config.kanalanzahl) {
+    lines.push(`Kanalanzahl: ${config.kanalanzahl} CH`)
+  }
+  if (config.modus === "miete" && config.von) {
+    lines.push(`Zeitraum: ${config.von} – ${config.bis || config.von}`)
+  }
+  lines.push(
+    `Druck: ${config.druck ? "ja" : "nein"}`,
+    config.logoId ? `Logo: ${config.logoId}` : "",
+    `Probedruck: ${getProbedruckLabel(normalizeProbedruckOption(config)) ?? "nein"}`,
+    `Lieferpaket: ${getLieferpaketLabel(normalizeLieferpaket(config))}`,
+    `Flex-Rückgabe: ${config.flexRueckgabe || config.flex ? "ja" : "nein"}`,
+    `Lieferland: Deutschland`,
+    `Gruppen: ${config.gruppen ?? 0}`,
+    (config.gruppen ?? 0) > 0
+      ? `Gruppengrößen: ${normalizeGruppenGroessen(config).map((n, i) => `G${i + 1}: ${n}`).join(", ")}`
+      : "",
+    `Basis-Station: ${config.station}${config.station !== "keine" ? ` (${config.stationModus || config.modus})` : ""}`,
+  )
+  if (config.techniker) {
+    lines.push(
+      `Techniker: ${config.technikerTage} Tag(e)`,
+      `Eventadresse: ${config.technikerAdresse || "–"}`,
+      `Fahrt: ${config.technikerKm ?? 0} km`,
+    )
+  }
+  return lines.join("\n")
+}
+
+async function notifyTeamAboutQuote(
+  quoteId: number,
+  email: string,
+  config: QuoteConfig,
+  price: { gesamt_netto: number; gesamt_brutto: number },
+  source: QuoteSource = "konfigurator",
+) {
+  const adminUrl = `${getAppBaseUrl()}/admin/anfragen/${quoteId}`
+  const notificationTasks: Array<{ name: string; task: Promise<unknown> }> = [
+    {
+      name: "team-email",
+      task: sendTeamQuoteNotification({
+        quoteId,
+        email,
+        configSummary: configSummary(config),
+        totalNetto: price.gesamt_netto,
+        totalBrutto: price.gesamt_brutto,
+        adminUrl,
+      }),
+    },
+  ]
+  if (isTelegramConfigured()) {
+    notificationTasks.push({
+      name: "telegram",
+      task: sendQuoteTelegramNotification({
+        quoteId,
+        email,
+        summary: configSummary(config),
+        totalNetto: price.gesamt_netto,
+        totalBrutto: price.gesamt_brutto,
+        source,
+      }),
+    })
+  }
+
+  const settled = await Promise.allSettled(notificationTasks.map((entry) => entry.task))
+  settled.forEach((result, index) => {
+    if (result.status === "rejected") {
+      console.error(`Quote notification ${notificationTasks[index].name} failed:`, result.reason)
+    }
+  })
+}
+
+export async function createQuoteWithHold(input: {
+  leadId: number
+  config: QuoteConfig
+  price: ReturnType<typeof rechnePreis>
+  source: QuoteSource
+  externalRef?: string
+  notes?: string
+  sendCustomerEmail?: boolean
+  skipNotifications?: boolean
+}): Promise<{ success: boolean; error?: string; quoteId?: number; publicToken?: string }> {
+  const publicToken = randomUUID()
+  const sql = getDb()
+
+  const inserted = await sql`
+    INSERT INTO quote_requests (
+      lead_id, public_token, config_json, price_snapshot_json, status, source,
+      external_ref, notes, submitted_at
+    ) VALUES (
+      ${input.leadId},
+      ${publicToken},
+      ${JSON.stringify(input.config)},
+      ${JSON.stringify(input.price)},
+      'submitted',
+      ${input.source},
+      ${input.externalRef || null},
+      ${input.notes || null},
+      NOW()
+    )
+    RETURNING id
+  `
+
+  const quoteId = inserted[0].id as number
+  const lead = await getLeadById(input.leadId)
+
+  const hold = await createQuoteHoldBooking(quoteId, input.config, lead?.email)
+  if (!hold.success) {
+    await sql`DELETE FROM quote_requests WHERE id = ${quoteId}`
+    return { success: false, error: hold.error || "Reservierung fehlgeschlagen" }
+  }
+
+  if (hold.bookingId) {
+    await sql`UPDATE quote_requests SET booking_id = ${hold.bookingId}, updated_at = NOW() WHERE id = ${quoteId}`
+  }
+
+  const notificationTasks: Array<{ name: string; task: Promise<unknown> }> = []
+
+  if (input.sendCustomerEmail && lead) {
+    const offerUrl = `${getAppBaseUrl()}/angebot/${publicToken}`
+    notificationTasks.push({
+      name: "customer-submitted-email",
+      task: sendCustomerSubmittedEmail({ email: lead.email, quoteId, offerUrl }),
+    })
+  }
+
+  if (lead && !input.skipNotifications) {
+    const priceNotify = {
+      gesamt_netto: Number((input.price as { gesamt_netto?: number }).gesamt_netto) || 0,
+      gesamt_brutto: Number((input.price as { gesamt_brutto?: number }).gesamt_brutto) || 0,
+    }
+    notificationTasks.push({
+      name: "team-notifications",
+      task: notifyTeamAboutQuote(quoteId, lead.email, input.config, priceNotify, input.source),
+    })
+  }
+
+  if (notificationTasks.length > 0) {
+    const settled = await Promise.allSettled(notificationTasks.map((entry) => entry.task))
+    settled.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error(`Quote notification ${notificationTasks[index].name} failed:`, result.reason)
+      }
+    })
+  }
+
+  revalidatePath("/admin/anfragen")
+  return { success: true, quoteId, publicToken }
+}
+
+export type ExternalQuoteInput = {
+  email: string
+  config: QuoteConfig
+  price_snapshot?: Record<string, unknown>
+  external_ref?: string
+  notes?: string
+  skip_notifications?: boolean
+}
+
+export async function createExternalQuoteRequest(
+  input: ExternalQuoteInput,
+): Promise<{ success: boolean; error?: string; quoteId?: number }> {
+  const configResult = quoteConfigSchema.safeParse(input.config)
+  if (!configResult.success) {
+    return { success: false, error: `Ungültige Konfiguration: ${formatZodError(configResult.error)}` }
+  }
+
+  if (input.price_snapshot !== undefined) {
+    const priceSnapshotResult = priceSnapshotSchema.safeParse(input.price_snapshot)
+    if (!priceSnapshotResult.success) {
+      return {
+        success: false,
+        error: `Ungültiger price_snapshot: ${formatZodError(priceSnapshotResult.error)}`,
+      }
+    }
+  }
+
+  const lead = await getOrCreateVerifiedLeadForEmail(input.email)
+  const price = input.price_snapshot
+    ? { ...input.price_snapshot, gueltig: true }
+    : rechnePreis(input.config)
+
+  if (!input.price_snapshot) {
+    const computed = price as ReturnType<typeof rechnePreis>
+    if (!computed.gueltig) {
+      return { success: false, error: computed.fehler.join("; ") }
+    }
+  }
+
+  if (input.config.modus === "miete" && input.config.von) {
+    // createQuoteWithHold erzeugt die Reservierung direkt und validiert dabei die Verfügbarkeit.
+  }
+
+  return createQuoteWithHold({
+    leadId: lead.id,
+    config: input.config,
+    price: price as ReturnType<typeof rechnePreis>,
+    source: "n8n_email",
+    externalRef: input.external_ref,
+    notes: input.notes,
+    sendCustomerEmail: false,
+    skipNotifications: input.skip_notifications ?? false,
+  })
+}
+
+export async function expireStaleQuotes(): Promise<number> {
+  const sql = getDb()
+  const stale = await sql`
+    SELECT id, booking_id FROM quote_requests
+    WHERE status = 'payment_pending'
+      AND expires_at IS NOT NULL
+      AND expires_at < NOW()
+  `
+
+  for (const row of stale) {
+    await releaseQuoteBooking(row.booking_id as number | null)
+    await sql`
+      UPDATE quote_requests SET
+        status = 'expired',
+        booking_id = NULL,
+        updated_at = NOW()
+      WHERE id = ${row.id}
+    `
+  }
+
+  if (stale.length > 0) {
+    revalidatePath("/admin/anfragen")
+  }
+
+  return stale.length
+}
+
+export async function getQuoteByIdInternal(id: number): Promise<QuoteRequest | null> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT qr.*, l.email AS lead_email
+    FROM quote_requests qr
+    JOIN leads l ON l.id = qr.lead_id
+    WHERE qr.id = ${id}
+    LIMIT 1
+  `
+  if (!rows.length) return null
+  return mapQuoteRow(rows[0])
+}
+
+async function revalidateAvailability(quote: QuoteRequest): Promise<string | null> {
+  const config = quote.config_json
+  if (config.modus !== "miete") return null
+
+  const availability = await checkProductAvailability({
+    produkt: config.produkt,
+    modus: config.modus,
+    menge: config.menge,
+    von: config.von,
+    bis: config.bis || config.von,
+  })
+
+  if (!availability.verfuegbar) {
+    return `Nicht mehr verfügbar. Frei: ${availability.frei ?? 0}`
+  }
+  return null
+}
+
+export async function approveQuoteRequest(
+  quoteId: number,
+  options?: { skipStripe?: boolean },
+): Promise<{ success: boolean; error?: string }> {
+  const quote = await getQuoteByIdInternal(quoteId)
+  if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
+  if (quote.status !== "submitted") {
+    return { success: false, error: `Status ${quote.status} kann nicht freigegeben werden` }
+  }
+
+  const availError = await revalidateAvailability(quote)
+  if (availError) return { success: false, error: availError }
+
+  const lead = await getLeadById(quote.lead_id)
+  if (!lead) return { success: false, error: "Lead nicht gefunden" }
+
+  const sql = getDb()
+
+  if (quote.source === "n8n_email") {
+    await sql`
+      UPDATE quote_requests SET
+        status = 'approved',
+        approved_at = NOW(),
+        updated_at = NOW()
+      WHERE id = ${quoteId}
+    `
+
+    if (lead && quote.notes) {
+      try {
+        await sendN8nApprovedOfferEmail({ email: lead.email, offerText: quote.notes })
+      } catch (e) {
+        console.error("n8n offer email failed:", e)
+      }
+    }
+
+    revalidatePath("/admin/anfragen")
+    revalidatePath(`/admin/anfragen/${quoteId}`)
+    return { success: true }
+  }
+
+  const useStripe = !options?.skipStripe && isStripeConfigured()
+
+  if (!useStripe) {
+    await sql`
+      UPDATE quote_requests SET
+        status = 'approved',
+        approved_at = NOW(),
+        updated_at = NOW()
+      WHERE id = ${quoteId}
+    `
+
+    const updatedQuote = { ...quote, status: "approved" as const }
+    try {
+      const pdf = await getQuoteOfferPdfForEmail(quoteId)
+      const mailResult = await sendCustomerApprovedEmail({
+        email: lead.email,
+        quote: updatedQuote,
+        attachments: pdf ? [{ filename: pdf.filename, content: pdf.data }] : undefined,
+      })
+      if (!mailResult.success) {
+        console.error("Approval email failed:", mailResult.error)
+      }
+    } catch (e) {
+      console.error("Approval email failed:", e)
+    }
+
+    revalidatePath("/admin/anfragen")
+    revalidatePath(`/admin/anfragen/${quoteId}`)
+    return { success: true }
+  }
+
+  const { sessionId, url } = await createCheckoutSessionForQuote(quote, lead.email)
+  const expiresAt = new Date(Date.now() + PAYMENT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+
+  await sql`
+    UPDATE quote_requests SET
+      status = 'payment_pending',
+      approved_at = NOW(),
+      expires_at = ${expiresAt.toISOString()},
+      stripe_checkout_session_id = ${sessionId},
+      stripe_payment_link_url = ${url},
+      updated_at = NOW()
+    WHERE id = ${quoteId}
+  `
+
+  try {
+    const pdf = await getQuoteOfferPdfForEmail(quoteId)
+    const mailResult = await sendCustomerApprovedEmail({
+      email: lead.email,
+      quote: { ...quote, status: "payment_pending" },
+      paymentUrl: url,
+      attachments: pdf ? [{ filename: pdf.filename, content: pdf.data }] : undefined,
+    })
+    if (!mailResult.success) {
+      console.error("Approval email failed:", mailResult.error)
+    }
+  } catch (e) {
+    console.error("Approval email failed:", e)
+  }
+
+  revalidatePath("/admin/anfragen")
+  revalidatePath(`/admin/anfragen/${quoteId}`)
+  return { success: true }
+}
+
+async function finalizeRejectedQuote(quote: QuoteRequest, reasonMessage: string) {
+  const sql = getDb()
+  await releaseQuoteBooking(quote.booking_id)
+
+  await sql`
+    UPDATE quote_requests SET
+      status = 'rejected',
+      rejection_reason = ${reasonMessage},
+      booking_id = NULL,
+      updated_at = NOW()
+    WHERE id = ${quote.id}
+  `
+
+  revalidatePath("/admin/anfragen")
+}
+
+export async function rejectQuoteRequest(
+  quoteId: number,
+  reasonId: RejectionReasonId = "nicht_lieferbar",
+): Promise<{ success: boolean; error?: string }> {
+  const quote = await getQuoteByIdInternal(quoteId)
+  if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
+  if (quote.status !== "submitted") {
+    return { success: false, error: `Status ${quote.status} kann nicht abgelehnt werden` }
+  }
+
+  const reasonMessage = getRejectionMessage(reasonId)
+  const lead = await getLeadById(quote.lead_id)
+
+  await finalizeRejectedQuote(quote, reasonMessage)
+
+  if (lead && quote.source === "konfigurator") {
+    try {
+      await sendCustomerRejectedEmail({
+        email: lead.email,
+        quote,
+        reason: reasonMessage,
+      })
+    } catch (e) {
+      console.error("Rejection email failed:", e)
+    }
+  }
+
+  return { success: true }
+}
+
+export async function cancelQuoteRequest(
+  quoteId: number,
+  reason?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const quote = await getQuoteByIdInternal(quoteId)
+  if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
+
+  const cancellable = ["submitted", "payment_pending", "approved"]
+  if (!cancellable.includes(quote.status)) {
+    return { success: false, error: `Status ${quote.status} kann nicht storniert werden` }
+  }
+
+  const sql = getDb()
+  await releaseQuoteBooking(quote.booking_id)
+
+  await sql`
+    UPDATE quote_requests SET
+      status = 'cancelled',
+      rejection_reason = ${reason || "Manuell storniert"},
+      booking_id = NULL,
+      cancelled_at = NOW(),
+      updated_at = NOW()
+    WHERE id = ${quoteId}
+  `
+
+  revalidatePath("/admin/anfragen")
+  return { success: true }
+}
+
+export async function processPaidQuote(quoteId: number, stripeEventId: string) {
+  const sql = getDb()
+
+  const existing = await sql`
+    SELECT event_id FROM stripe_webhook_events WHERE event_id = ${stripeEventId}
+  `
+  if (existing.length > 0) return { alreadyProcessed: true }
+
+  const quote = await getQuoteByIdInternal(quoteId)
+  if (!quote) return { success: false, error: "Quote not found" }
+  if (quote.status === "paid") return { alreadyProcessed: true }
+
+  await sql`INSERT INTO stripe_webhook_events (event_id) VALUES (${stripeEventId})`
+
+  return finalizeQuoteAsPaid(quoteId, {
+    paymentMethod: "stripe",
+    stripeEventId,
+  })
+}
+
+export async function finalizeQuoteAsPaid(
+  quoteId: number,
+  options: {
+    paymentMethod: PaymentMethod
+    paymentNote?: string
+    stripeEventId?: string
+    sendMail?: boolean
+  },
+): Promise<{ success: boolean; error?: string; alreadyProcessed?: boolean }> {
+  const quote = await getQuoteByIdInternal(quoteId)
+  if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
+  if (quote.status === "paid") return { success: true, alreadyProcessed: true }
+
+  const payable = ["payment_pending", "approved"]
+  if (!payable.includes(quote.status)) {
+    return { success: false, error: `Status ${quote.status} kann nicht als bezahlt markiert werden` }
+  }
+
+  const sql = getDb()
+  await sql`
+    UPDATE quote_requests SET
+      status = 'paid',
+      paid_at = NOW(),
+      payment_method = ${options.paymentMethod},
+      payment_note = ${options.paymentNote?.trim() || null},
+      stripe_event_id = ${options.stripeEventId || null},
+      fulfillment_status = 'angenommen',
+      updated_at = NOW()
+    WHERE id = ${quoteId}
+  `
+
+  const config = quote.config_json
+  const lead = await getLeadById(quote.lead_id)
+
+  if (config.modus === "miete" && config.von) {
+    if (quote.booking_id) {
+      await confirmQuoteBooking(quote.booking_id)
+    } else {
+      await createN8nBooking({
+        produkt: config.produkt,
+        modus: config.modus,
+        menge: config.menge,
+        von: config.von,
+        bis: config.bis || config.von,
+        kunde_email: lead?.email,
+        event: `Konfigurator #${quoteId}`,
+        status: "BESTAETIGT",
+      })
+    }
+  }
+
+  const paidQuote = await getQuoteByIdInternal(quoteId)
+  const shouldSendMail = options.sendMail ?? true
+  let mailSent = false
+
+  if (shouldSendMail && lead && paidQuote) {
+    try {
+      const pdf = await getQuoteOfferPdfForEmail(quoteId)
+      const mailResult = await sendCustomerPaidEmail({
+        email: lead.email,
+        quote: paidQuote,
+        paymentNote: options.paymentNote,
+        attachments: pdf ? [{ filename: pdf.filename, content: pdf.data }] : undefined,
+      })
+      mailSent = mailResult.success
+      if (!mailResult.success) {
+        console.error("Paid email failed:", mailResult.error)
+      }
+    } catch (e) {
+      console.error("Paid email failed:", e)
+    }
+  }
+
+  await sql`
+    INSERT INTO quote_fulfillment_events (
+      quote_id, from_status, to_status, comment, mail_sent, mail_subject, created_by
+    ) VALUES (
+      ${quoteId},
+      NULL,
+      'angenommen',
+      'Zahlung eingegangen',
+      ${mailSent},
+      ${mailSent ? "Zahlung eingegangen" : null},
+      ${options.paymentMethod === "stripe" ? "stripe" : "admin"}
+    )
+  `
+
+  revalidatePath("/admin/anfragen")
+  revalidatePath(`/admin/anfragen/${quoteId}`)
+  return { success: true }
+}
+

@@ -1,0 +1,460 @@
+{
+  "name": "WIRKUNG Wristlink - Anfragen, Verfuegbarkeit & Angebote",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "in:inbox -subject:\"Ihr WIRKUNG Wristlink Angebot\" -subject:\"Rueckfrage zu Ihrer WIRKUNG Wristlink Anfrage\""
+        }
+      },
+      "id": "Gmail_Trigger",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "no-angebot-reply",
+              "leftValue": "={{ $json.subject || '' }}",
+              "rightValue": "Ihr WIRKUNG Wristlink Angebot",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "no-rueckfrage-reply",
+              "leftValue": "={{ $json.subject || '' }}",
+              "rightValue": "Rueckfrage zu Ihrer WIRKUNG Wristlink",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "IF_echte_Anfrage",
+      "name": "IF: echte Anfrage",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        110,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-sonnet-4-6\", max_tokens: 2048, system: \"Du bist der Anfrage-Parser für WIRKUNG Wristlink (LED-Eventprodukte: Armbänder, Zauberstäbe, Lichter).\\n\\nAufgabe: Lies die Kunden-E-Mail und extrahiere strukturierte Felder. Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Fliesstext).\\n\\n## Pflichtfelder\\n\\n| Feld | Werte / Regeln |\\n|------|----------------|\\n| produkt | armband \\\\| zauberstab \\\\| licht |\\n| modus | kauf \\\\| miete |\\n| menge | Zahl 100–2500, nur 50er-Schritte |\\n| von | YYYY-MM-DD — Mietbeginn / Event-Start; bei Eintages-Event = bis |\\n| bis | YYYY-MM-DD — Mietende / Event-Ende |\\n| druck | boolean — individueller Druck (nur bei Kauf) |\\n| gruppen | Zahl 0–20 — Gruppenprogrammierung |\\n| station | keine \\\\| eco \\\\| pro — Basis-Station |\\n| lieferzeit | standard \\\\| express \\\\| hyperexpress |\\n| land | DE (aktuell nur Deutschland) |\\n| missing_fields | Array der fehlenden Pflichtfelder (leer wenn vollständig) |\\n\\n## Regeln\\n\\n- Synonyme erkennen: „Miete\\\"/„Leihe\\\"/„Event\\\" → modus miete; „Kauf\\\"/„Bestellung\\\" → modus kauf.\\n- Produkt aus Kontext: Armband/Band/Wristband → armband; Zauberstab/Stab → zauberstab; Licht/LED-Licht → licht.\\n- Menge aus Text extrahieren; wenn unklar oder ausserhalb 100–2500 → in missing_fields aufnehmen.\\n- Datumsangaben normalisieren auf YYYY-MM-DD. Relative Angaben („nächsten Freitag\\\") nur wenn eindeutig, sonst missing_fields.\\n- Bei Miete ohne Zeitraum: von und bis in missing_fields.\\n- Bei Kauf: von/bis optional (leerer String erlaubt).\\n- druck default false; gruppen default 0; station default keine; lieferzeit default standard; land default DE.\\n- Fehlende Pflichtfelder ehrlich listen — nicht raten oder defaults für fehlende Infos erfinden.\\n\\n## missing_fields – strikte Konsistenz\\n\\n- Ein Feld das einen gültigen Wert hat, darf **niemals** gleichzeitig in `missing_fields` stehen.\\n- `station: \\\"keine\\\"` ist ein **gültiger Wert** — nicht als fehlend markieren.\\n- `modus` nur in `missing_fields`, wenn weder Kauf noch Miete aus dem Text erkennbar ist. „Logodruck“/„bedruckt“ → modus **kauf** (nicht fehlend).\\n- Produktfragen (z. B. „Wie werden Bänder angesteuert?“) sind **keine** fehlenden Angebotsfelder — dazu kein Eintrag in `missing_fields`.\\n- Bei **kauf**: `von`/`bis` optional (Eventdatum in `von` erlaubt, `bis` = `von` oder leer).\\n- Bei **miete**: `von` und `bis` Pflicht — sonst beide in `missing_fields`.\\n\\n## Ausgabeformat (exakt)\\n\\n```json\\n{\\n  \\\"produkt\\\": \\\"armband\\\",\\n  \\\"modus\\\": \\\"miete\\\",\\n  \\\"menge\\\": 500,\\n  \\\"von\\\": \\\"2026-09-12\\\",\\n  \\\"bis\\\": \\\"2026-09-13\\\",\\n  \\\"druck\\\": false,\\n  \\\"gruppen\\\": 0,\\n  \\\"station\\\": \\\"pro\\\",\\n  \\\"lieferzeit\\\": \\\"standard\\\",\\n  \\\"land\\\": \\\"DE\\\",\\n  \\\"missing_fields\\\": []\\n}\\n```\", messages: [{ role: \"user\", content: 'Betreff: ' + ($json.subject || '') + '\\n\\n' + ($json.text || $json.snippet || $json.textPlain || JSON.stringify($json)) }] }) }}"
+      },
+      "id": "KI_Klassifizieren",
+      "name": "KI: Klassifizieren",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        480
+      ],
+      "notes": "Header Auth Credential optional – alternativ x-api-key via $env"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Anthropic-Antwort -> sauberes JSON-Objekt\nconst blocks = $json.content || [];\nconst text = blocks.filter(b => b.type === 'text').map(b => b.text).join('\\n');\ntry {\n  const data = JSON.parse(text.replace(/```json|```/g, '').trim());\n  return [{ json: data }];\n} catch (e) {\n  return [{ json: { gueltig: false, fehler: ['KI-Antwort war kein gueltiges JSON'], raw: text, missing_fields: ['produkt','modus','menge'] } }];\n}\n"
+      },
+      "id": "Felder_parsen",
+      "name": "Felder parsen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.WRISTLINK_API_URL}}/api/availability",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "Verfuegbarkeit_API",
+      "name": "Verfuegbarkeit API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        480
+      ],
+      "notes": "Header Auth: Authorization Bearer + WRISTLINK_API_KEY"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-missing",
+              "leftValue": "={{ ($json.missing_fields || []).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-verfuegbar",
+              "leftValue": "={{ $json.verfuegbar }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "IF_vollst_&_verfuegbar",
+      "name": "IF: vollst & verfuegbar",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// WIRKUNG Wristlink – Preis-Engine\n// n8n Code-Node | Modus: \"Run Once for All Items\"\n// ============================================================\n//\n// Erwartete Eingabefelder pro Item (aus der KI-Extraktion):\n//   produkt:    'armband' | 'zauberstab' | 'licht'\n//   modus:      'kauf' | 'miete'\n//   menge:      Zahl 100..2500 (Schritte 50)\n//   druck:      boolean\n//   gruppen:    Zahl 0..20\n//   station:    'keine' | 'eco' | 'pro'\n//   stationModus: 'kauf' | 'miete'  (unabhängig vom Produktmodus; PRO nur miete)\n//   lieferzeit: 'standard' | 'express' | 'hyperexpress'\n//   land:       'DE'   (aktuell nur Deutschland)\n//\n// Rückgabe:\n//   { gueltig: true,  positionen: [...], gesamt_netto, mwst_19, gesamt_brutto }\n//   { gueltig: false, fehler: [...] }   -> im IF-Node in Rückfrage-Strecke leiten\n// ============================================================\n\n// ---- Preistabellen [min, max, kauf, miete] ----\nconst PREISE = {\n  armband:    [[100,300,4.20,3.90],[301,500,3.98,3.85],[501,1000,3.83,3.82],[1001,2500,3.76,3.80]],\n  zauberstab: [[100,300,4.10,3.90],[301,500,3.89,3.85],[501,1000,3.74,3.82],[1001,2500,3.66,3.80]],\n  licht:      [[100,300,4.90,3.95],[301,500,4.89,3.90],[501,1000,4.74,3.85],[1001,2500,4.66,3.80]],\n};\n\n// ---- Druck (nur Kauf) [min, max, eur_pro_stueck] ----\nconst DRUCK_PRO_STK = [[100,300,2.12],[301,500,1.80],[501,1000,0.97],[1001,2500,0.95]];\nconst DRUCK_SETUP   = 120.00;\n\n// ---- Pauschalen ----\nconst GRUPPE     = 65.00;\nconst STATION_KAUF  = { keine: 0, eco: 399.00, pro: 0 };\nconst STATION_MIETE = { keine: 0, eco: 250.00, pro: 649.00 };\nconst LIEFERZEIT = { standard: 79.00, express: 349.00, hyperexpress: 620.00 };\nconst VERSAND    = { DE: 90.00 };\n\nfunction stationPreis(station, modus) {\n  const s = String(station || 'keine').toLowerCase();\n  const m = String(modus || '').toLowerCase();\n  if (s === 'keine') return 0;\n  return m === 'kauf' ? (STATION_KAUF[s] || 0) : (STATION_MIETE[s] || 0);\n}\n\nconst eur = (n) => Math.round(n * 100) / 100;\n\nfunction tier(tabelle, menge, spalte) {\n  const row = tabelle.find(r => menge >= r[0] && menge <= r[1]);\n  return row ? row[spalte] : null;\n}\n\nfunction rechne(input) {\n  const produkt    = String(input.produkt || '').toLowerCase();\n  const modus      = String(input.modus || '').toLowerCase();\n  const menge      = Number(input.menge);\n  const druck      = Boolean(input.druck);\n  const gruppen    = Number(input.gruppen || 0);\n  const station    = String(input.station || 'keine').toLowerCase();\n  const stationModusRaw = String(input.stationModus || input.modus || 'miete').toLowerCase();\n  const stationModus = station === 'pro' ? 'miete' : stationModusRaw;\n  const lieferzeit = String(input.lieferzeit || '').toLowerCase();\n  const land       = String(input.land || 'DE').toUpperCase();\n\n  // ---- Validierung / Geschäftsregeln ----\n  const fehler = [];\n  if (!PREISE[produkt])                        fehler.push(`Unbekanntes Produkt: \"${input.produkt}\"`);\n  if (!['kauf','miete'].includes(modus))       fehler.push(`Modus muss \"kauf\" oder \"miete\" sein`);\n  if (!Number.isFinite(menge) || menge < 100 || menge > 2500)\n                                               fehler.push(`Menge ${input.menge} außerhalb 100–2500`);\n  if (Number.isFinite(menge) && menge % 50 !== 0)\n                                               fehler.push(`Menge muss in 50er-Schritten liegen`);\n  if (gruppen < 0 || gruppen > 20)             fehler.push(`Gruppen ${gruppen} außerhalb 0–20`);\n  if (gruppen > 0 && station !== 'pro')        fehler.push(`Gruppenprogrammierung nur mit PRO-Basis-Station`);\n  if (druck && modus === 'miete')              fehler.push(`Druck ist nur beim Kauf möglich`);\n  if (druck && lieferzeit === 'hyperexpress')  fehler.push(`Druck bei Hyperexpress nicht möglich`);\n  if (station === 'pro' && stationModusRaw === 'kauf') fehler.push(`PRO-Basis-Station ist nur zur Miete verfügbar`);\n  if (station !== 'keine' && !['kauf','miete'].includes(stationModus)) fehler.push(`Basis-Station-Modus muss \"kauf\" oder \"miete\" sein`);\n  if (!['keine','eco','pro'].includes(station)) fehler.push(`Unbekannte Basis-Station: \"${input.station}\"`);\n  if (!LIEFERZEIT.hasOwnProperty(lieferzeit))  fehler.push(`Unbekannte Lieferzeit: \"${input.lieferzeit}\"`);\n  if (!VERSAND.hasOwnProperty(land))           fehler.push(`Versand nur nach: ${Object.keys(VERSAND).join(', ')}`);\n\n  if (fehler.length) return { gueltig: false, fehler };\n\n  // ---- Positionen aufbauen ----\n  const spalte      = modus === 'kauf' ? 2 : 3;\n  const stueckpreis = tier(PREISE[produkt], menge, spalte);\n  const positionen  = [];\n\n  positionen.push({\n    pos:    `LED ${produkt} (${modus})`,\n    menge,  einzel: stueckpreis,  summe: eur(menge * stueckpreis),\n  });\n\n  if (druck && modus === 'kauf') {\n    const dp = tier(DRUCK_PRO_STK, menge, 2);\n    positionen.push({ pos: 'Druck – Setup-/Abwicklungsgebühr', menge: 1, einzel: DRUCK_SETUP, summe: DRUCK_SETUP });\n    positionen.push({ pos: 'Druck – pro Stück',                menge,    einzel: dp,          summe: eur(menge * dp) });\n  }\n\n  if (gruppen > 0) {\n    positionen.push({ pos: 'Gruppenprogrammierung', menge: gruppen, einzel: GRUPPE, summe: eur(gruppen * GRUPPE) });\n  }\n\n  const stPreis = stationPreis(station, stationModus);\n  if (stPreis > 0) {\n    const stationLabel = station === 'eco'\n      ? `ECO Handcontroller (${stationModus === 'kauf' ? 'Kauf' : 'Miete'})`\n      : 'PRO Basis-Station (Miete)';\n    positionen.push({ pos: stationLabel, menge: 1, einzel: stPreis, summe: stPreis });\n  }\n\n  positionen.push({ pos: `Lieferzeit (${lieferzeit})`, menge: 1, einzel: LIEFERZEIT[lieferzeit], summe: LIEFERZEIT[lieferzeit] });\n  positionen.push({ pos: `Versand ${land}`,            menge: 1, einzel: VERSAND[land],          summe: VERSAND[land] });\n\n  // ---- Summen ----\n  const gesamt_netto  = eur(positionen.reduce((s, p) => s + p.summe, 0));\n  const mwst_19       = eur(gesamt_netto * 0.19);   // <- nur falls deine Preise NETTO sind; sonst Zeile entfernen\n  const gesamt_brutto = eur(gesamt_netto + mwst_19);\n\n  return { gueltig: true, eingabe: { produkt, modus, menge, druck, gruppen, station, stationModus, lieferzeit, land },\n           positionen, gesamt_netto, mwst_19, gesamt_brutto };\n}\n\nreturn $input.all().map(item => ({ json: rechne(item.json) }));\n"
+      },
+      "id": "Preis-Engine",
+      "name": "Preis-Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-sonnet-4-6\", max_tokens: 2048, system: \"Du formulierst Angebote für WIRKUNG Wristlink.\\n\\nDu erhältst ein JSON mit Preispositionen und Summen aus der Preis-Engine. Deine Aufgabe: einen professionellen, freundlichen Angebotstext auf Deutsch verfassen.\\n\\n## Strikte Regeln\\n\\n- Rechne KEINE Preise selbst. Verwende ausschliesslich die übergebenen positionen, gesamt_netto, mwst_19 und gesamt_brutto.\\n- Keine Rabatte, Skonti oder Zusatzpositionen erfinden.\\n- Ton: professionell, klar, WIRKUNG-typisch (Event/LED-Branche).\\n- Struktur: Anrede → Kurzbezug auf Anfrage → Positionen als Liste → Summen → nächste Schritte → Grussformel.\\n- Beträge in EUR mit zwei Nachkommastellen (deutsch: 1.234,56 EUR).\\n- Lieferzeit und Versand erwähnen, wenn in den Positionen enthalten.\\n\\n## Eingabe\\n\\nDu erhältst JSON mit mindestens: eingabe (produkt, modus, menge, …), positionen[], gesamt_netto, mwst_19, gesamt_brutto.\\n\\n## Ausgabe\\n\\nNur **Plain-Text** für eine E-Mail (kein HTML, kein JSON):\\n\\n- **Keine Markdown-Syntax**: keine `**`, keine `#`-Überschriften, keine Tabellen mit `|`\\n- Positionen als **nummerierte Liste**, z. B.:\\n  `1. LED-Armband (Kauf), 300 Stk. à 4,20 EUR = 1.260,00 EUR`\\n- Summen als eigene Zeilen (Netto, MwSt., Brutto)\\n- Absätze durch **eine Leerzeile** trennen\\n- Professionelle Anrede und Grussformel\", messages: [{ role: \"user\", content: JSON.stringify($('Preis-Engine').first().json) }] }) }}"
+      },
+      "id": "KI_Angebot",
+      "name": "KI: Angebot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        320
+      ],
+      "notes": "Header Auth Credential optional – alternativ x-api-key via $env"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.WRISTLINK_API_URL}}/api/quote-requests",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const avail = $('Verfuegbarkeit API').first().json;\n  const preis = $('Preis-Engine').first().json;\n  const gmail = $('Gmail Trigger').first().json;\n  const angebot = ($('KI: Angebot').first().json.content || []).filter(b => b.type === 'text').map(b => b.text).join('\\n');\n  const email = gmail.from?.value?.[0]?.address || (gmail.from?.text || '').match(/<([^>]+)>/)?.[1] || (gmail.from?.text || '').trim();\n  return JSON.stringify({\n    email,\n    skip_notifications: false,\n    external_ref: String(gmail.id || gmail.threadId || gmail.messageId || ''),\n    notes: angebot,\n    config: {\n      produkt: avail.produkt,\n      modus: avail.modus,\n      menge: avail.menge,\n      von: avail.von || undefined,\n      bis: avail.bis || undefined,\n      druck: Boolean(avail.druck),\n      gruppen: Number(avail.gruppen || 0),\n      station: avail.station || 'keine',\n      stationModus: avail.modus,\n      lieferzeit: avail.lieferzeit || 'standard',\n      land: avail.land || 'DE',\n    },\n    price_snapshot: preis,\n  });\n})() }}"
+      },
+      "id": "Anfrage_anlegen",
+      "name": "Anfrage anlegen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        320
+      ],
+      "notes": "Legt quote_requests an + Soft-Hold. Telegram-Freigabe läuft über die Wristlink-App."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-sonnet-4-6\", max_tokens: 2048, system: \"Du formulierst Rückfragen für WIRKUNG Wristlink.\\n\\nDie Anfrage ist unvollständig oder der Mietpool ist im gewünschten Zeitraum nicht ausreichend verfügbar.\\n\\n## Strikte Regeln\\n\\n- Freundlich, professionell, auf Deutsch.\\n- Bei missing_fields: gezielt nach den fehlenden Informationen fragen (Produkt, Menge, Zeitraum, Kauf/Miete, etc.).\\n- Bei Nichtverfügbarkeit: die echte Zahl aus frei verwenden und Alternativen vorschlagen (kleinere Menge, anderer Zeitraum).\\n- Rechne KEINE Preise — nur bei vollständiger Anfrage kommt später ein Angebot.\\n- Kein verbindliches Angebot in der Rückfrage.\\n- Kurz halten (max. 150–200 Wörter).\\n\\n## Eingabe\\n\\nJSON mit u.a. missing_fields, verfuegbar, frei, fehlt, produkt, modus, menge, von, bis sowie **betreff** und **mailtext** (Original-Mail).\\n\\n## Produktwissen\\n\\nNutze das Wissen unten für sachliche Antworten (z. B. Ansteuerung, Stationen). Preise weiterhin nicht nennen.\\n\\n# WIRKUNG Wristlink – Produktwissen (für KI-Antworten)\\n\\n## Produkte\\n- **armband**: LED-Armbänder für Events (Einlass, Farbshows, Souvenir)\\n- **zauberstab**: LED-Zauberstäbe\\n- **licht**: LED-Lichtprodukte\\n\\n## Kauf vs. Miete\\n- **Kauf**: Eigentum, individueller **Logodruck** möglich, Versand an Kunde\\n- **Miete**: Leihgeräte für Event-Zeitraum, Rückgabe, Pool-Verfügbarkeit relevant\\n- Hinweise: „Logodruck“, „bedruckt“, „mit Logo“ → in der Regel **kauf**. „Miete“, „leihen“, „für unser Event am …“ → **miete**.\\n\\n## Ansteuerung / Steuerung (häufige Kundenfrage)\\n- **Ohne Station (station: keine)**: Feste Farbprogramme am Gerät, keine Live-Steuerung\\n- **ECO-Station**: Einfache Steuerung, begrenzte Gruppen\\n- **PRO-Station**: Live-Steuerung, Gruppenprogrammierung (bis 20 Gruppen), für Shows/Einlass-Szenarien\\n- Kundenfragen wie „Wie werden die Bänder angesteuert?“ → in Rückfragen kurz erklären und passende Station empfehlen (bei Shows meist PRO).\\n\\n## Mengen & Preise\\n- Menge 100–2500, nur in **50er-Schritten**\\n- Preise kommen aus der Engine – in Rückfragen **keine** Preise nennen\\n\\n## Lieferzeit\\n- standard / express / hyperexpress (Aufpreis)\\n- Druck + hyperexpress kombiniert nicht möglich\\n\\n## Standard-Defaults (wenn Kunde nichts sagt)\\n- station: keine\\n- gruppen: 0\\n- lieferzeit: standard\\n- land: DE\\n- druck: false (nur true bei explizitem Logodruck/Kauf)\\n\\n## Ausgabe\\n\\nNur der E-Mail-Text (Plain Text), kein JSON.\", messages: [{ role: \"user\", content: JSON.stringify({ anfrage: $('Verfuegbarkeit API').first().json, betreff: $('Gmail Trigger').first().json.subject, mailtext: $('Gmail Trigger').first().json.text || $('Gmail Trigger').first().json.snippet || '' }) }] }) }}"
+      },
+      "id": "KI_Rueckfrage",
+      "name": "KI: Rueckfrage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        660
+      ],
+      "notes": "Header Auth Credential optional – alternativ x-api-key via $env"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "subject": "=Rueckfrage zu Ihrer WIRKUNG Wristlink Anfrage",
+        "emailType": "text",
+        "message": "={{ ($json.content || []).filter(b => b.type === 'text').map(b => b.text).join('\\n') }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "Rueckfrage-Entwurf",
+      "name": "Rueckfrage-Entwurf",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Setup\\n\\nCredentials / Env:\\n- Gmail (OAuth2)\\n- Anthropic ($env.ANTHROPIC_API_KEY)\\n- WRISTLINK_API_URL (Vercel-App)\\n- WRISTLINK_API_KEY (Bearer)\\n\\nAnfragen: POST /api/quote-requests\\nFreigabe: Telegram-Buttons der App (Webhook)",
+        "height": 300,
+        "width": 340,
+        "color": 5
+      },
+      "id": "Setup",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Anfrage anlegen\\n\\nPOST /api/quote-requests\\n\\n- source=n8n_email\\n- Soft-Hold (ANFRAGE)\\n- Angebotstext in notes\\n- Telegram via Wristlink-App\\n\\nFreigabe/Ablehnung per Telegram-Webhook",
+        "height": 280,
+        "width": 320,
+        "color": 3
+      },
+      "id": "Note_Quote",
+      "name": "Note_Quote",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Telegram-Freigabe\\n\\nDie App sendet nach Anfrage anlegen\\neine Telegram-Nachricht mit Buttons.\\nFreigabe ruft /approve + Kundenmail auf.",
+        "height": 220,
+        "width": 300,
+        "color": 5
+      },
+      "id": "Note_Approve",
+      "name": "Note_Approve",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "IF: echte Anfrage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: echte Anfrage": {
+      "main": [
+        [
+          {
+            "node": "KI: Klassifizieren",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "KI: Klassifizieren": {
+      "main": [
+        [
+          {
+            "node": "Felder parsen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Felder parsen": {
+      "main": [
+        [
+          {
+            "node": "Verfuegbarkeit API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verfuegbarkeit API": {
+      "main": [
+        [
+          {
+            "node": "IF: vollst & verfuegbar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: vollst & verfuegbar": {
+      "main": [
+        [
+          {
+            "node": "Preis-Engine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "KI: Rueckfrage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preis-Engine": {
+      "main": [
+        [
+          {
+            "node": "KI: Angebot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KI: Angebot": {
+      "main": [
+        [
+          {
+            "node": "Anfrage anlegen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KI: Rueckfrage": {
+      "main": [
+        [
+          {
+            "node": "Rueckfrage-Entwurf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

@@ -1,0 +1,49 @@
+import type { QuoteRequest } from "@/lib/konfigurator/types"
+import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
+
+export type TemplateVars = Record<string, string>
+
+export function renderTemplateText(template: string, vars: TemplateVars): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? "")
+}
+
+export function buildQuoteTemplateVars(
+  quote: QuoteRequest,
+  leadEmail: string,
+  extra: TemplateVars = {},
+): TemplateVars {
+  const price = quote.price_snapshot_json as { gesamt_netto?: number; gesamt_brutto?: number }
+  const config = quote.config_json
+  const offerUrl = `${getAppBaseUrl()}/angebot/${quote.public_token}`
+
+  return {
+    anfrage_id: String(quote.id),
+    kunde_email: leadEmail,
+    kunde_name: config.kontaktName || "",
+    kunde_firma: config.kontaktFirma || "",
+    angebot_netto: (price.gesamt_netto || 0).toFixed(2),
+    angebot_brutto: (price.gesamt_brutto || 0).toFixed(2),
+    zahlungslink: quote.stripe_payment_link_url || "",
+    angebot_url: offerUrl,
+    tracking_nr: quote.tracking_number || extra.tracking_nr || "",
+    tracking_info: quote.tracking_number
+      ? `Sendungsverfolgung: ${quote.tracking_number}`
+      : "",
+    kommentar: extra.kommentar || "",
+    ablehnungsgrund: extra.ablehnungsgrund || quote.rejection_reason || "",
+    zahlungsnotiz: extra.zahlungsnotiz || quote.payment_note || "",
+    ...extra,
+  }
+}
+
+export function formatKommentarBlock(comment: string | undefined): string {
+  const trimmed = comment?.trim()
+  if (!trimmed) return ""
+  return trimmed
+}
+
+export function formatAblehnungsgrundBlock(reason: string | undefined): string {
+  const trimmed = reason?.trim()
+  if (!trimmed) return ""
+  return `Grund: ${trimmed}\n\n`
+}

@@ -1,0 +1,4 @@
+-- Kontaktdaten für Leads (Konfigurator Eingangsseite)
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS firma VARCHAR(255);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS telefon VARCHAR(50);
