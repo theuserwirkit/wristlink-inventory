@@ -10,9 +10,11 @@ import {
   MAX_MENGE,
   MIN_MENGE,
   MENGE_STEP,
+  modusAnzeige,
 } from "@/lib/konfigurator/product-info"
 import {
   getProbedruckLabel,
+  normalizeDruckArt,
   normalizeProbedruckOption,
   probedruckPreisNetto,
 } from "@/lib/konfigurator/product-info"
@@ -26,6 +28,7 @@ import {
 } from "@/lib/konfigurator/lieferpaket"
 import {
   FLEX_NETTO,
+  DRUCK_VOLLFLAECHIG_PRO_STK,
   PREMIUM_AUFSCHLAG_FAKTOR,
   TECHNIKER_KM_NETTO,
   TECHNIKER_REISEPAUSCHALE_NETTO,
@@ -95,6 +98,7 @@ export function rechnePreis(input: PreisEngineInput): PreisEngineResult {
   const technikerTage = Number(input.technikerTage || 0)
   const technikerKm = Number(input.technikerKm || 0)
   const variante = String(input.variante || "standard").toLowerCase()
+  const druckArt = normalizeDruckArt({ druck, druckArt: input.druckArt })
   const probedruckOption = normalizeProbedruckOption(input)
   const probedruck = probedruckOption !== "none"
 
@@ -135,6 +139,9 @@ export function rechnePreis(input: PreisEngineInput): PreisEngineResult {
   if (probedruck && !druck) {
     fehler.push("Probedruck nur bei aktivierter Bedruckung")
   }
+  if (probedruck && druckArt === "vollflaechig") {
+    fehler.push("Probedruck nur beim Logo-Druck möglich")
+  }
   if (probedruck && modus !== "kauf") {
     fehler.push("Probedruck nur beim Kauf möglich")
   }
@@ -173,10 +180,11 @@ export function rechnePreis(input: PreisEngineInput): PreisEngineResult {
   const positionen: PreisPosition[] = []
 
   const produktBasis = PRODUKT_ANZEIGE[produkt] ?? produkt
+  const modusLabel = modusAnzeige(modus)
   const produktLabel =
     variante === "premium" && produkt === "armband"
-      ? `${produktBasis} Premium (${modus})`
-      : `${produktBasis} (${modus})`
+      ? `${produktBasis} Premium (${modusLabel})`
+      : `${produktBasis} (${modusLabel})`
 
   positionen.push({
     pos: produktLabel,
@@ -186,28 +194,37 @@ export function rechnePreis(input: PreisEngineInput): PreisEngineResult {
   })
 
   if (druck && modus === "kauf") {
-    const dp = tierDruck(DRUCK_PRO_STK, menge, 2)!
-    positionen.push({
-      pos: "Druck – Setup-/Abwicklungsgebühr",
-      menge: 1,
-      einzel: DRUCK_SETUP,
-      summe: DRUCK_SETUP,
-    })
-    positionen.push({
-      pos: "Druck – pro Stück",
-      menge,
-      einzel: dp,
-      summe: eur(menge * dp),
-    })
-    if (probedruck) {
-      const preis = probedruckPreisNetto(probedruckOption)
-      const label = getProbedruckLabel(probedruckOption) ?? "Probedruck"
+    if (druckArt === "vollflaechig") {
       positionen.push({
-        pos: label,
-        menge: 1,
-        einzel: preis,
-        summe: preis,
+        pos: "Vollflächiger Druck – pro Stück",
+        menge,
+        einzel: DRUCK_VOLLFLAECHIG_PRO_STK,
+        summe: eur(menge * DRUCK_VOLLFLAECHIG_PRO_STK),
       })
+    } else {
+      const dp = tierDruck(DRUCK_PRO_STK, menge, 2)!
+      positionen.push({
+        pos: "Druck – Setup-/Abwicklungsgebühr",
+        menge: 1,
+        einzel: DRUCK_SETUP,
+        summe: DRUCK_SETUP,
+      })
+      positionen.push({
+        pos: "Druck – pro Stück",
+        menge,
+        einzel: dp,
+        summe: eur(menge * dp),
+      })
+      if (probedruck) {
+        const preis = probedruckPreisNetto(probedruckOption)
+        const label = getProbedruckLabel(probedruckOption) ?? "Probedruck"
+        positionen.push({
+          pos: label,
+          menge: 1,
+          einzel: preis,
+          summe: preis,
+        })
+      }
     }
   }
 

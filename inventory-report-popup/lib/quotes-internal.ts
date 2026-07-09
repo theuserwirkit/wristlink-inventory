@@ -84,7 +84,13 @@ function configSummary(config: QuoteConfig): string {
     lines.push(`Zeitraum: ${config.von} – ${config.bis || config.von}`)
   }
   lines.push(
-    `Druck: ${config.druck ? "ja" : "nein"}`,
+    `Druck: ${
+      config.druck
+        ? config.druckArt === "vollflaechig"
+          ? "vollflächig"
+          : "Logo-Druck"
+        : "nein"
+    }`,
     config.logoId ? `Logo: ${config.logoId}` : "",
     `Probedruck: ${getProbedruckLabel(normalizeProbedruckOption(config)) ?? "nein"}`,
     `Lieferpaket: ${getLieferpaketLabel(normalizeLieferpaket(config))}`,

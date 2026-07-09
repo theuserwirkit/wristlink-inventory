@@ -297,15 +297,21 @@ export default async function AnfrageDetailPage({
                 <dd>{config.druck ? "ja" : "nein"}</dd>
               </div>
               {config.logoId && (
-                <div className="flex justify-between items-center gap-4">
+                <div className="flex justify-between items-start gap-4">
                   <dt>Logo</dt>
-                  <dd>
+                  <dd className="flex flex-col items-end gap-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`/api/konfigurator/logo/${config.logoId}`}
                       alt="Kundenlogo"
                       className="h-12 w-auto max-w-[120px] object-contain bg-black rounded p-1"
                     />
+                    <a
+                      href={`/api/konfigurator/logo/${config.logoId}?download=1`}
+                      className="text-xs text-primary underline underline-offset-2"
+                    >
+                      Logo herunterladen (PNG)
+                    </a>
                   </dd>
                 </div>
               )}

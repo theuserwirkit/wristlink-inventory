@@ -8,6 +8,7 @@ export type PreisEngineInput = {
   modus: WristlinkModus | string
   menge: number
   druck?: boolean
+  druckArt?: string
   gruppen?: number
   station?: WristlinkStation | string
   stationModus?: WristlinkModus | string

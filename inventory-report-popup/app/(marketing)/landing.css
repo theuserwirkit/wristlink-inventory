@@ -48,6 +48,25 @@ body:has(.landing-theme) {
   background: var(--lp-bg);
 }
 
+.lp-skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  z-index: 260;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #060a10;
+  text-decoration: none;
+  font-weight: 700;
+  transform: translateY(-140%);
+  transition: transform 0.2s ease;
+}
+
+.lp-skip-link:focus {
+  transform: translateY(0);
+}
+
 .landing-root ::selection {
   background: rgba(95, 45, 222, 0.5);
   color: #fff;
@@ -276,6 +295,19 @@ body:has(.landing-theme) {
 
 .lp-nav-links a:hover::after {
   width: 100%;
+}
+
+.lp-nav-links a:focus-visible,
+.lp-mobile-menu-links a:focus-visible,
+.lp-scroll-hint:focus-visible,
+.lp-benefit-link:focus-visible,
+.lp-tech-doc-link:focus-visible,
+.lp-footer-links a:focus-visible,
+.lp-btn:focus-visible,
+.lp-nav-burger:focus-visible,
+.lp-faq-trigger:focus-visible {
+  outline: 2px solid var(--lp-cyan);
+  outline-offset: 3px;
 }
 
 .lp-nav-actions {

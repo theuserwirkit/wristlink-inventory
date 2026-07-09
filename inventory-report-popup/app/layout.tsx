@@ -10,9 +10,12 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "WIRKUNG.wristlink – Warenverwaltung",
-  description: "LED-Bänder und LED-Lichter Verwaltungssystem",
-    generator: 'v0.app'
+  title: {
+    default: "WIRKUNG.wristlink",
+    template: "%s | WIRKUNG.wristlink",
+  },
+  description: "Warenverwaltung und Angebotsworkflow für BraceLED LED-Armbänder.",
+  applicationName: "WIRKUNG.wristlink",
 }
 
 export default function RootLayout({

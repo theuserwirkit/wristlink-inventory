@@ -31,6 +31,9 @@ export const PROBEDRUCK_VERSAND_NETTO = 189
 export const PROBEDRUCK_NETTO = PROBEDRUCK_FOTOS_NETTO
 export const PREMIUM_AUFSCHLAG_FAKTOR = 1.1
 
+/** Vollflächiger UV-Druck netto pro Armband (kein Setup, kein Logo-Konfigurator) */
+export const DRUCK_VOLLFLAECHIG_PRO_STK = 3.2
+
 export function stationPreisNetto(station: string, modus: string): number {
   const s = station.toLowerCase()
   const m = modus.toLowerCase()

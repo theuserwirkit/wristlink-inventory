@@ -1,38 +1,39 @@
 # TODO – Sicherheit, Betrieb & Restarbeiten
 
-Stand: Juli 2026 (nach DSGVO/Recht + E-Mail-Domains + Migration 11)
+Stand: Juli 2026 (Vercel Production-Env vervollständigt)
 
 ## Kritisch (vor Go-Live)
 
 - [ ] **Secrets rotieren** – alle als kompromittiert behandeln (siehe `docs/SECURITY-ROTATION.md`)
   - Neon DB-Passwort
-  - `WRISTLINK_PASSWORD` / `WRISTLINK_SESSION_SECRET`
+  - `WRISTLINK_PASSWORD` / `WRISTLINK_SESSION_SECRET` (neu gesetzt – nach Rotation ersetzen)
   - `WRISTLINK_API_KEY`
   - Telegram Bot Token + `TELEGRAM_WEBHOOK_SECRET`
   - n8n API Key / JWT
   - Anthropic API Key
   - `RESEND_API_KEY`
   - `SEVDESK_API_TOKEN`
+  - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`
   - Vercel OIDC Token (falls genutzt)
-- [ ] **Vercel Production-Env vervollständigen**
+- [x] **Vercel Production-Env** (Stand: gesetzt via CLI)
   - [x] `NEXT_PUBLIC_APP_URL=https://braceled-led-armband.com`
-  - [x] `WRISTLINK_API_URL=https://braceled-led-armband.com` (für n8n)
+  - [x] `WRISTLINK_API_URL=https://braceled-led-armband.com`
+  - [x] `WRISTLINK_PASSWORD`
+  - [x] `WRISTLINK_SESSION_SECRET` (getrennt vom Login-Passwort)
+  - [x] `WRISTLINK_API_KEY`
+  - [x] `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET`
+  - [x] `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
   - [x] `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `TEAM_NOTIFICATION_EMAIL`
-  - [ ] `WRISTLINK_PASSWORD` (in Vercel setzen – nicht leer lassen)
-  - [ ] `WRISTLINK_SESSION_SECRET` (`openssl rand -hex 32`, getrennt vom Login-Passwort)
-  - [ ] `TELEGRAM_WEBHOOK_SECRET` (Pflicht – ohne Secret antwortet Webhook mit 401)
-  - [ ] `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-  - [ ] `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-  - [ ] `DATABASE_URL` / `NEON_DATABASE_URL` (bereits via Vercel/Neon)
-  - [x] `SEVDESK_*` (Token + IDs)
-- [x] **DB-Migrationen 01–12** auf Production: `pnpm db:migrate` (inkl. Consent-DOI + sevDesk)
-- [ ] **Resend:** Domain `braceled-led-armband.com` verifizieren (SPF/DKIM), Absender `angebote@` testen
-- [ ] **Telegram-Webhook neu registrieren** nach Secret-Rotation: `pnpm telegram:webhook`
-- [ ] **Neu deployen** auf Vercel (nach Env-Änderungen)
+  - [x] `SEVDESK_API_TOKEN`, `SEVDESK_CONTACT_PERSON_ID`, `SEVDESK_DEFAULT_PART_ID`
+  - [x] `DATABASE_URL` (+ Neon/Postgres-Varianten via Vercel Integration)
+- [x] **DB-Migrationen 01–12** auf Production: `pnpm db:migrate`
+- [ ] **Resend:** Domain `braceled-led-armband.com` verifizieren (SPF/DKIM), DOI-Testmail senden
+- [ ] **Telegram-Webhook registrieren/aktualisieren:** `pnpm telegram:webhook`
+- [ ] **Redeploy** auf Vercel (Env-Änderungen erst nach Deploy aktiv)
 
 ## Recht / DSGVO (Juli 2026)
 
-- [x] Impressum, Datenschutz, AGB (B2B) – Seiten `/impressum`, `/datenschutz`, `/agb`
+- [x] Impressum, Datenschutz, AGB (B2B) – `/impressum`, `/datenschutz`, `/agb`
 - [x] Footer-Links auf Landingpage
 - [x] B2B-Pflicht-Checkbox im E-Mail-Gate
 - [x] Marketing-Einwilligung erst nach Double-Opt-In (Migration 11)
@@ -78,9 +79,11 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 
 ## Geplant / später
 
-- [x] **Sevdesk API** – Angebotserstellung im Admin (`In sevDesk erstellen` + PDF-Speicherung) – Doku: `docs/sevdesk-angebote.md`
+- [x] **Sevdesk API** – Angebotserstellung im Admin – Doku: `docs/sevdesk-angebote.md`
 - [ ] TypeScript: `stripe_event_id` auf `QuoteRequest`-Typ (falls noch offen)
 - [ ] Impressum/Datenschutz/AGB optional in Nav sichtbarer machen
+- [ ] Optional: `LEAD_SESSION_SECRET` separat setzen (Fallback: `WRISTLINK_PASSWORD`)
+- [ ] Optional: Upstash Redis für Rate-Limiting in Production
 
 ## Erledigt (Referenz)
 
@@ -94,6 +97,7 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 - [x] DSGVO-Baseline Landing + Konfigurator (Juli 2026)
 - [x] Migration 11: `b2b_confirmed`, `marketing_consent_pending`
 - [x] Migration 12: `sevdesk_order_id`, `sevdesk_order_number`
+- [x] Vercel Production-Env via CLI (Juli 2026)
 
 ## Nützliche Befehle
 
@@ -104,4 +108,6 @@ pnpm build                # Production-Build prüfen
 pnpm db:migrate           # alle Migrationen 01–12
 pnpm db:indexes           # Performance-Indizes
 pnpm telegram:webhook     # Telegram-Webhook setzen
+vercel env ls production  # Vercel-Env prüfen
+vercel --prod             # Production-Deploy
 ```

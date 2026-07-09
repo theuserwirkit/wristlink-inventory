@@ -9,10 +9,11 @@ function sanitizeFilename(filename: string): string {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
+  const download = new URL(request.url).searchParams.get("download") === "1"
 
   const lead = await getVerifiedLead()
   let logo = lead ? await getKonfiguratorLogoForLead(id) : null
@@ -30,10 +31,12 @@ export async function GET(
     return new Response("Nicht gefunden", { status: 404 })
   }
 
+  const disposition = download ? "attachment" : "inline"
+
   return new Response(new Uint8Array(logo.data), {
     headers: {
       "Content-Type": logo.mimeType,
-      "Content-Disposition": `inline; filename="${sanitizeFilename(logo.filename)}"`,
+      "Content-Disposition": `${disposition}; filename="${sanitizeFilename(logo.filename)}"`,
       "Cache-Control": "private, max-age=3600",
     },
   })

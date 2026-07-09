@@ -21,14 +21,35 @@ export const metadata: Metadata = {
   title: "BraceLED – Next Level LED Armband für Events",
   description:
     "Leuchtende Event-Armbänder – ferngesteuert per DMX, App oder Fernbedienung. German Engineering, Versand aus Deutschland.",
+  keywords: [
+    "LED Armbänder",
+    "Event Armbänder",
+    "LED Eventarmbänder",
+    "BraceLED",
+    "DMX Armband",
+    "Festival Armbänder",
+  ],
   alternates: {
     canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
   openGraph: {
     url: siteUrl,
     siteName: "BraceLED",
     locale: "de_DE",
     type: "website",
+    title: "BraceLED – Next Level LED Armband für Events",
+    description:
+      "Leuchtende Event-Armbänder für Festivals, Corporate Events und Produktionen – konfigurierbar mit Live-Preisberechnung.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BraceLED – Next Level LED Armband für Events",
+    description:
+      "Leuchtende Event-Armbänder für Festivals, Corporate Events und Produktionen – konfigurierbar mit Live-Preisberechnung.",
   },
 }
 

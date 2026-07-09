@@ -2,7 +2,7 @@ export const HERO_COPY = {
   kicker: "Ferngesteuerte LED-Armbänder für Events",
   headline: "Deine Crowd. Dein Licht. Deine Show.",
   subline:
-    "BraceLED verbindet bis zu 20 Gruppen per DMX, App oder Fernbedienung — entwickelt in Deutschland, einsatzbereit für Festivals, Corporate Events und Produktionen.",
+    "BraceLED verbindet bis zu 20 Gruppen per DMX, App oder Fernbedienung — entwickelt in Deutschland und einsatzbereit für Festivals, Corporate Events und Produktionen.",
   ctaPrimary: "Paket konfigurieren",
   ctaSecondary: "So funktioniert's",
 } as const
@@ -66,7 +66,7 @@ export const BENEFIT_ITEMS = [
   {
     title: "Gut beraten!",
     description:
-      "Unser Team sitzt in der Nähe von Frankfurt – von hier helfen wir Dir gerne mit Deinen Anforderungen!",
+      "Unser Team aus dem Rhein-Main-Gebiet begleitet Dich bei Technik, Ablauf und Umsetzung Deines Events.",
     link: "Jetzt konfigurieren",
     image: LANDING_IMAGES.benefit3,
   },
@@ -178,7 +178,7 @@ export const FAQ_ITEMS = [
   {
     question: "Welche Technik nutzt ihr?",
     answer:
-      "Wir nutzen Frequenzen im SDR-Band und können Dich diesbezüglich beraten. Im Gegensatz zu vielen anderen Anbietern haben wir uns wirklich mit diesem Thema beschäftigt und bestellen nicht einfach wild irgendwas aus China.",
+      "Wir arbeiten mit dokumentierter Funktechnik im zulässigen ISM-Band und beraten Dich transparent zu Reichweite, Setup und Einsatzbedingungen.",
   },
   {
     question: "Wie schnell könnt ihr liefern?",
@@ -188,7 +188,7 @@ export const FAQ_ITEMS = [
   {
     question: "Ich habe spezielle Anforderungen …",
     answer:
-      "Her damit! Wir sind Premium-Anbieter am Markt: Gewinnspiel, Abstimmungen, Gruppen-Einteilung oder Interaktionen – BraceLED ist wie dafür gemacht!",
+      "Sehr gern. Ob Gewinnspiel, Abstimmungen, Gruppeneinteilung oder individuelle Interaktionen: Wir prüfen gemeinsam, wie sich BraceLED sauber in Dein Eventkonzept integrieren lässt.",
   },
   {
     question: "Wie bedruckt ihr die Armbänder?",

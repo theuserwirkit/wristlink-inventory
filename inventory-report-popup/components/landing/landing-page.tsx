@@ -48,20 +48,25 @@ type Props = { pricing: LandingPriceTier[] }
 export function LandingPage({ pricing }: Props) {
   return (
     <div className="landing-root">
+      <a href="#hauptinhalt" className="lp-skip-link">
+        Zum Hauptinhalt springen
+      </a>
       <LandingNav />
-      <HeroSection />
-      <UspStrip />
-      <AboutSection />
-      <BenefitsSection />
-      <ShowSection />
-      <StatsSection />
-      <FeaturesSection />
-      <TechSection />
-      <MarqueeSection />
-      <PricingSection pricing={pricing} />
-      <TestimonialsSection />
-      <FaqSection />
-      <FinalCta />
+      <main id="hauptinhalt">
+        <HeroSection />
+        <UspStrip />
+        <AboutSection />
+        <BenefitsSection />
+        <ShowSection />
+        <StatsSection />
+        <FeaturesSection />
+        <TechSection />
+        <MarqueeSection />
+        <PricingSection pricing={pricing} />
+        <TestimonialsSection />
+        <FaqSection />
+        <FinalCta />
+      </main>
       <LandingFooter />
     </div>
   )

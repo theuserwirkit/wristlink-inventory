@@ -20,19 +20,22 @@ import {
   PRODUCT_OPTIONS,
   isProductKonfiguratorAvailable,
   SZENARIO_OPTIONS,
-  VARIANTE_OPTIONS,
+  DRUCK_ART_OPTIONS,
   LIEFERLAND_INFO,
   GRUPPEN_INFO,
   DRUCK_INFO,
   PROBEDRUCK_OPTIONS,
   TECHNIKER_INFO,
+  PRODUKT_ANZEIGE,
   getProbedruckLabel,
   normalizeProbedruckOption,
+  normalizeDruckArt,
   MIN_MENGE,
   MAX_MENGE,
   MENGE_STEP,
   PRODUCT_UNAVAILABLE_HINT,
   type ProbedruckOption,
+  type DruckArt,
 } from "@/lib/konfigurator/product-info"
 import {
   FLEX_RUECKGABE_INFO,
@@ -80,6 +83,8 @@ const STEPS = [
 ] as const
 
 const LAST_STEP = STEPS.length - 1
+/** Preis ab Schritt „Umfang“ (Mengenauswahl) */
+const PRICE_VISIBLE_FROM_STEP = 1
 
 const DEFAULT_CONFIG: QuoteConfig = {
   kontaktName: "",
@@ -92,6 +97,7 @@ const DEFAULT_CONFIG: QuoteConfig = {
   menge: 300,
   kanalanzahl: 40,
   druck: false,
+  druckArt: "logo",
   probedruckOption: "none",
   probedruck: false,
   flex: false,
@@ -142,12 +148,14 @@ export function ConfiguratorWizard({
   const [distanceError, setDistanceError] = useState<string | null>(null)
   const [resolvedKanalanzahl, setResolvedKanalanzahl] = useState<number | null>(null)
   const requestAbortRef = useRef<AbortController | null>(null)
+  const distanceDebounceRef = useRef<number | null>(null)
 
   const updateConfig = (patch: Partial<QuoteConfig>) => {
     setConfig((prev) => {
       const next = { ...prev, ...patch }
       if (patch.modus === "miete") {
         next.druck = false
+        next.druckArt = "logo"
         next.probedruckOption = "none"
         next.probedruck = false
         next.logoId = undefined
@@ -197,6 +205,15 @@ export function ConfiguratorWizard({
         next.probedruckOption = "none"
         next.probedruck = false
         next.logoId = undefined
+        next.druckArt = "logo"
+      }
+      if (patch.druck === true && patch.druckArt === undefined && !next.druckArt) {
+        next.druckArt = "logo"
+      }
+      if (patch.druckArt === "vollflaechig") {
+        next.logoId = undefined
+        next.probedruckOption = "none"
+        next.probedruck = false
       }
       if (patch.gruppen !== undefined && patch.gruppen > 10) {
         next.kanalanzahl = 80
@@ -233,10 +250,12 @@ export function ConfiguratorWizard({
 
   const stationModus = config.station === "pro" ? "miete" : config.stationModus
 
-  async function berechneEntfernung() {
-    const adresse = config.technikerAdresse?.trim()
-    if (!adresse) {
-      setDistanceError("Bitte Eventadresse eingeben")
+  async function berechneEntfernung(adresseOverride?: string) {
+    const adresse = (adresseOverride ?? config.technikerAdresse)?.trim()
+    if (!adresse || adresse.length < 5) {
+      if (!adresseOverride) {
+        setDistanceError("Bitte Eventadresse eingeben")
+      }
       return
     }
     setDistanceLoading(true)
@@ -259,6 +278,25 @@ export function ConfiguratorWizard({
       setDistanceLoading(false)
     }
   }
+
+  useEffect(() => {
+    const adresse = config.technikerAdresse?.trim()
+    if (!adresse || adresse.length < 5) {
+      return
+    }
+    if (distanceDebounceRef.current) {
+      window.clearTimeout(distanceDebounceRef.current)
+    }
+    distanceDebounceRef.current = window.setTimeout(() => {
+      void berechneEntfernung(adresse)
+    }, 700)
+    return () => {
+      if (distanceDebounceRef.current) {
+        window.clearTimeout(distanceDebounceRef.current)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounced Entfernung bei Adressänderung
+  }, [config.technikerAdresse])
 
   const fetchPrice = useCallback(async (cfg: QuoteConfig, signal?: AbortSignal) => {
     setLoadingPrice(true)
@@ -417,6 +455,8 @@ export function ConfiguratorWizard({
   const lieferpaket = normalizeLieferpaket(config)
   const flexRueckgabe = normalizeFlexRueckgabe(config)
   const probedruckOption = normalizeProbedruckOption(config)
+  const druckArt = normalizeDruckArt(config)
+  const showPrice = step >= PRICE_VISIBLE_FROM_STEP
 
   useEffect(() => {
     if (config.logoId && !logoPreviewUrl) {
@@ -444,6 +484,7 @@ export function ConfiguratorWizard({
       config.stationModus,
       config.variante,
       config.druck,
+      config.druckArt,
       config.probedruckOption,
       config.flex,
       config.lieferpaket,
@@ -511,7 +552,14 @@ export function ConfiguratorWizard({
     }
     if (step === 1) {
       if (config.menge % MENGE_STEP !== 0) return false
-      if (config.modus === "kauf" && config.druck && !config.logoId) return false
+      if (
+        config.modus === "kauf" &&
+        config.druck &&
+        druckArt === "logo" &&
+        !config.logoId
+      ) {
+        return false
+      }
       return true
     }
     if (step === 2) {
@@ -710,33 +758,25 @@ export function ConfiguratorWizard({
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="event-adresse">Eventadresse</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="event-adresse"
-                          placeholder="Straße, PLZ Ort"
-                          value={config.technikerAdresse || ""}
-                          onChange={(e) => {
-                            setDistanceError(null)
-                            updateConfig({
-                              technikerAdresse: e.target.value,
-                              technikerKm: undefined,
-                            })
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={distanceLoading}
-                          onClick={berechneEntfernung}
-                        >
-                          {distanceLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            "km"
-                          )}
-                        </Button>
-                      </div>
-                      {config.technikerKm !== undefined && (
+                      <Input
+                        id="event-adresse"
+                        placeholder="Straße, PLZ Ort"
+                        value={config.technikerAdresse || ""}
+                        onChange={(e) => {
+                          setDistanceError(null)
+                          updateConfig({
+                            technikerAdresse: e.target.value,
+                            technikerKm: undefined,
+                          })
+                        }}
+                      />
+                      {distanceLoading && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Entfernung wird berechnet …
+                        </p>
+                      )}
+                      {config.technikerKm !== undefined && !distanceLoading && (
                         <p className="text-xs text-muted-foreground">
                           ca. {config.technikerKm} km ab Wehrheim
                         </p>
@@ -835,15 +875,49 @@ export function ConfiguratorWizard({
 
                     {config.modus === "kauf" && (
                       <div className="pt-2 border-t space-y-4">
-                        <LogoPreview
-                          logoUrl={logoPreviewUrl}
-                          uploadEnabled={config.druck}
-                          onFileSelect={handleLogoUpload}
-                          uploading={logoUploading}
-                          uploadError={logoError}
-                        />
+                        <div className="space-y-3">
+                          <Label>Druckart</Label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {DRUCK_ART_OPTIONS.map((option) => (
+                              <OptionCard
+                                key={option.value}
+                                selected={config.druck && druckArt === option.value}
+                                onClick={() =>
+                                  updateConfig({
+                                    druck: true,
+                                    druckArt: option.value as DruckArt,
+                                  })
+                                }
+                                title={option.label}
+                                description={option.description}
+                                priceHint={option.priceHint}
+                                imageSrc={option.imageSrc}
+                                imageAlt={option.label}
+                              />
+                            ))}
+                          </div>
+                        </div>
 
-                        {config.druck && (
+                        {config.druck && druckArt === "logo" && (
+                          <LogoPreview
+                            logoUrl={logoPreviewUrl}
+                            onFileSelect={handleLogoUpload}
+                            uploading={logoUploading}
+                            uploadError={logoError}
+                            onBrowseRequest={() =>
+                              updateConfig({ druck: true, druckArt: "logo" })
+                            }
+                          />
+                        )}
+
+                        {config.druck && druckArt === "vollflaechig" && (
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Vollflächiger Druck ohne Logo-Konfigurator – Motiv und Freigabe klären
+                            wir nach Ihrer Anfrage.
+                          </p>
+                        )}
+
+                        {config.druck && druckArt === "logo" && (
                           <div className="space-y-3">
                             <Label>Probedruck (optional)</Label>
                             <div className="grid gap-3 sm:grid-cols-3">
@@ -925,23 +999,6 @@ export function ConfiguratorWizard({
             {/* Schritt 3: Steuerung */}
             {step === 3 && (
               <div className="space-y-6">
-                {config.produkt === "armband" && (
-                  <div className="space-y-3">
-                    <Label>Armband-Variante</Label>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {VARIANTE_OPTIONS.map((v) => (
-                        <OptionCard
-                          key={v.value}
-                          selected={config.variante === v.value}
-                          onClick={() => updateConfig({ variante: v.value })}
-                          title={v.label}
-                          description={v.description}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <div className="space-y-3">
                   <Label>Basis-Station / Fernsteuerung</Label>
                   <div className="grid gap-3">
@@ -1230,35 +1287,30 @@ export function ConfiguratorWizard({
                       {config.technikerKm === undefined ? (
                         <div className="space-y-2">
                           <Label htmlFor="techniker-event-adresse">Eventadresse</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="techniker-event-adresse"
-                              placeholder="Straße, PLZ Ort"
-                              value={config.technikerAdresse || ""}
-                              onChange={(e) => {
-                                setDistanceError(null)
-                                updateConfig({
-                                  technikerAdresse: e.target.value,
-                                  technikerKm: undefined,
-                                })
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              disabled={distanceLoading}
-                              onClick={berechneEntfernung}
-                            >
-                              {distanceLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                "km"
-                              )}
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Bitte Eventadresse eingeben und Entfernung berechnen (km).
-                          </p>
+                          <Input
+                            id="techniker-event-adresse"
+                            placeholder="Straße, PLZ Ort"
+                            value={config.technikerAdresse || ""}
+                            onChange={(e) => {
+                              setDistanceError(null)
+                              updateConfig({
+                                technikerAdresse: e.target.value,
+                                technikerKm: undefined,
+                              })
+                            }}
+                          />
+                          {distanceLoading && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-2">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Entfernung wird berechnet …
+                            </p>
+                          )}
+                          {!distanceLoading && !config.technikerKm && (
+                            <p className="text-xs text-muted-foreground">
+                              Entfernung wird automatisch berechnet, sobald die Adresse vollständig
+                              ist.
+                            </p>
+                          )}
                           {distanceError && (
                             <p className="text-xs text-destructive">{distanceError}</p>
                           )}
@@ -1320,7 +1372,11 @@ export function ConfiguratorWizard({
                   label="Produkt"
                   value={[
                     `${PRODUCT_OPTIONS.find((p) => p.value === config.produkt)?.label} · ${config.modus} · ${config.menge} Stk.`,
-                    config.druck ? "mit Bedruckung" : null,
+                    config.druck
+                      ? druckArt === "vollflaechig"
+                        ? "vollflächig bedruckt"
+                        : "mit Logo-Bedruckung"
+                      : null,
                     config.logoId ? "Logo hochgeladen" : null,
                   ]
                     .filter(Boolean)
@@ -1343,11 +1399,6 @@ export function ConfiguratorWizard({
                 <SummaryRow
                   label="Steuerung"
                   value={[
-                    config.produkt === "armband" && config.variante === "premium"
-                      ? "Premium"
-                      : config.produkt === "armband"
-                        ? "Standard"
-                        : null,
                     config.station !== "keine"
                       ? `${config.station} (${stationModus})`
                       : "Nur Knopfsteuerung",
@@ -1367,7 +1418,11 @@ export function ConfiguratorWizard({
                 <SummaryRow
                   label="Extras"
                   value={[
-                    config.druck ? "Bedruckung" : null,
+                    config.druck
+                      ? druckArt === "vollflaechig"
+                        ? "Vollflächiger Druck"
+                        : "Logo-Bedruckung"
+                      : null,
                     getProbedruckLabel(probedruckOption),
                     getLieferpaketLabel(lieferpaket),
                     flexRueckgabe ? "Flex-Rückgabe" : null,
@@ -1455,6 +1510,10 @@ export function ConfiguratorWizard({
             price={price}
             loading={loadingPrice}
             availabilityStand={availabilityStand}
+            showPrice={showPrice}
+            menge={config.menge}
+            produktLabel={PRODUKT_ANZEIGE[config.produkt] ?? config.produkt}
+            eventDatum={config.von || null}
           />
         </div>
       </div>
@@ -1465,6 +1524,10 @@ export function ConfiguratorWizard({
           loading={loadingPrice}
           compact
           availabilityStand={availabilityStand}
+          showPrice={showPrice}
+          menge={config.menge}
+          produktLabel={PRODUKT_ANZEIGE[config.produkt] ?? config.produkt}
+          eventDatum={config.von || null}
         />
       </div>
     </div>

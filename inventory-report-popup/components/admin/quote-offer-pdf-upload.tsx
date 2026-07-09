@@ -6,7 +6,7 @@ import { FileText, Loader2, Sparkles, Trash2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { removeQuoteOfferPdf, uploadQuoteOfferPdf } from "@/lib/actions/quote-offer-pdf"
-import { createQuoteSevdeskOffer } from "@/lib/actions/sevdesk-offer"
+import { createQuoteSevdeskOffer, recreateQuoteSevdeskOffer } from "@/lib/actions/sevdesk-offer"
 
 export function QuoteOfferPdfUpload({
   quoteId,
@@ -21,7 +21,7 @@ export function QuoteOfferPdfUpload({
 }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [loading, setLoading] = useState<"upload" | "remove" | "sevdesk" | null>(null)
+  const [loading, setLoading] = useState<"upload" | "remove" | "sevdesk" | "recreate" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -67,6 +67,34 @@ export function QuoteOfferPdfUpload({
     setLoading(null)
   }
 
+  async function handleRecreateSevdeskOffer() {
+    const previous = sevdeskOrderNumber || "bestehendes Angebot"
+    if (
+      !window.confirm(
+        `Neues sevDesk-Angebot erstellen? Das ersetzt ${previous} in Wristlink (PDF und Nummer). Das alte Angebot bleibt in sevDesk bestehen.`,
+      )
+    ) {
+      return
+    }
+
+    setLoading("recreate")
+    setError(null)
+    setSuccess(null)
+    try {
+      const result = await recreateQuoteSevdeskOffer(quoteId)
+      if (!result.success) {
+        setError(result.error || "sevDesk-Angebot fehlgeschlagen")
+        setLoading(null)
+        return
+      }
+      setSuccess(`Neues Angebot ${result.orderNumber} in sevDesk erstellt`)
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Verbindungsfehler")
+    }
+    setLoading(null)
+  }
+
   const busy = loading !== null
 
   return (
@@ -86,28 +114,46 @@ export function QuoteOfferPdfUpload({
       {error && <p className="text-sm text-destructive">{error}</p>}
       {success && <p className="text-sm text-green-700 dark:text-green-400">{success}</p>}
       {filename ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={`/api/admin/quotes/${quoteId}/offer-pdf`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm text-primary underline"
-          >
-            {filename}
-          </a>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleRemove()}
-            disabled={busy}
-          >
-            {loading === "remove" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-          </Button>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/api/admin/quotes/${quoteId}/offer-pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-primary underline"
+            >
+              {filename}
+            </a>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleRemove()}
+              disabled={busy}
+            >
+              {loading === "remove" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          {sevdeskConfigured && sevdeskOrderNumber && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void handleRecreateSevdeskOffer()}
+            >
+              {loading === "recreate" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              sevDesk-Angebot erneut erstellen
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -125,6 +171,22 @@ export function QuoteOfferPdfUpload({
                 <Sparkles className="mr-2 h-4 w-4" />
               )}
               In sevDesk erstellen
+            </Button>
+          )}
+          {sevdeskConfigured && sevdeskOrderNumber && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void handleRecreateSevdeskOffer()}
+            >
+              {loading === "recreate" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              sevDesk-Angebot erneut erstellen
             </Button>
           )}
           <input

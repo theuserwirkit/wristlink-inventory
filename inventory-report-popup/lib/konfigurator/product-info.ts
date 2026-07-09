@@ -1,4 +1,5 @@
 import {
+  DRUCK_VOLLFLAECHIG_PRO_STK,
   FLEX_NETTO,
   OVERNIGHT_NETTO,
   PROBEDRUCK_FOTOS_NETTO,
@@ -8,6 +9,7 @@ import {
   TECHNIKER_TAG_NETTO,
   stationPreisNetto,
 } from "@/lib/pricing/constants"
+import { LANDING_IMAGES } from "@/lib/landing/content"
 
 export const MIN_MENGE = 100
 export const MAX_MENGE = 4000
@@ -16,6 +18,7 @@ export const MENGE_STEP = 50
 export const PRODUCT_UNAVAILABLE_HINT = "Aktuell hier nicht konfigurierbar"
 
 export type ProbedruckOption = "none" | "fotos" | "versand"
+export type DruckArt = "logo" | "vollflaechig"
 
 export type Lieferart = "standard" | "flex" | "overnight"
 
@@ -172,6 +175,12 @@ export function isProductKonfiguratorAvailable(produkt: string): boolean {
   return PRODUCT_OPTIONS.find((p) => p.value === produkt)?.available ?? false
 }
 
+export function modusAnzeige(modus: string): string {
+  if (modus === "kauf") return "Kauf"
+  if (modus === "miete") return "Miete"
+  return modus
+}
+
 export const PRODUKT_ANZEIGE: Record<string, string> = {
   armband: "LED Armband",
   ball: "LED Ball",
@@ -215,6 +224,46 @@ export const DRUCK_INFO = {
     "UV-Direktdruck (CMYK + Weiß), Druckfläche 2 × 3 cm einseitig. PNG (transparent) oder Vektor (AI, EPS, SVG).",
   setupNetto: 120,
 } as const
+
+export const VOLLFLAECHIG_DRUCK_INFO = {
+  title: "Vollflächig bedrucken",
+  description:
+    "Premium-Druck auf fast der gesamten Vorderseite – ideal für starkes Branding ohne Logo-Konfigurator.",
+  preisProStueckNetto: DRUCK_VOLLFLAECHIG_PRO_STK,
+  imageSrc: LANDING_IMAGES.vollflaeche,
+} as const
+
+export const DRUCK_ART_OPTIONS: ReadonlyArray<{
+  value: DruckArt
+  label: string
+  description: string
+  priceHint?: string
+  imageSrc?: string
+}> = [
+  {
+    value: "logo",
+    label: "Logo-Druck (3 × 2 cm)",
+    description: DRUCK_INFO.summary,
+    priceHint: `ab ${DRUCK_INFO.setupNetto} EUR Setup + Staffel pro Stück`,
+    imageSrc: LANDING_IMAGES.bedruckt,
+  },
+  {
+    value: "vollflaechig",
+    label: VOLLFLAECHIG_DRUCK_INFO.title,
+    description: VOLLFLAECHIG_DRUCK_INFO.description,
+    priceHint: `ab ${DRUCK_INFO.setupNetto} EUR Setup + ${DRUCK_VOLLFLAECHIG_PRO_STK.toLocaleString("de-DE", { minimumFractionDigits: 2 })} netto / Band`,
+    imageSrc: VOLLFLAECHIG_DRUCK_INFO.imageSrc,
+  },
+]
+
+export function normalizeDruckArt(config: {
+  druck?: boolean
+  druckArt?: string
+}): DruckArt {
+  if (!config.druck) return "logo"
+  if (config.druckArt === "vollflaechig") return "vollflaechig"
+  return "logo"
+}
 
 export const PROBEDRUCK_OPTIONS: ReadonlyArray<{
   value: ProbedruckOption

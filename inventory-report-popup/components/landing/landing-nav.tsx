@@ -54,6 +54,7 @@ export function LandingNav() {
               className="lp-nav-burger"
               onClick={() => setMenuOpen((o) => !o)}
               aria-expanded={menuOpen}
+              aria-controls="lp-mobile-menu-panel"
               aria-label={menuOpen ? "Menü schließen" : "Menü öffnen"}
             >
               {menuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -63,10 +64,20 @@ export function LandingNav() {
         <div className="lp-nav-accent" aria-hidden />
       </header>
 
-      <div className={cn("lp-mobile-menu", menuOpen && "open")} aria-hidden={!menuOpen}>
+      <div
+        className={cn("lp-mobile-menu", menuOpen && "open")}
+        aria-hidden={!menuOpen}
+        aria-modal={menuOpen ? "true" : undefined}
+        role="dialog"
+      >
         <div className="lp-mobile-menu-backdrop" onClick={closeMenu} />
-        <div className="lp-mobile-menu-panel">
-          <nav className="lp-mobile-menu-links">
+        <div
+          id="lp-mobile-menu-panel"
+          className="lp-mobile-menu-panel"
+          aria-label="Mobiles Menü"
+          tabIndex={menuOpen ? -1 : undefined}
+        >
+          <nav className="lp-mobile-menu-links" aria-label="Mobile Hauptnavigation">
             {NAV_LINKS.map((link) => (
               <a key={link.href} href={link.href} onClick={closeMenu}>
                 {link.label}

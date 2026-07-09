@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { CheckCircle2, AlertTriangle } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
 import { WristbandMockup } from "@/components/konfigurator/wristband-mockup"
@@ -12,10 +12,11 @@ import { DRUCK_INFO } from "@/lib/konfigurator/product-info"
 
 type LogoPreviewProps = {
   logoUrl: string | null
-  uploadEnabled: boolean
   onFileSelect: (file: File) => void
   uploading: boolean
   uploadError: string | null
+  /** Wird vor dem Dateidialog aufgerufen – z. B. Bedruckung aktivieren */
+  onBrowseRequest?: () => void
 }
 
 const MIN_WIDTH_PX = 350
@@ -52,11 +53,12 @@ function PrintCheckResult({
 
 export function LogoPreview({
   logoUrl,
-  uploadEnabled,
   onFileSelect,
   uploading,
   uploadError,
+  onBrowseRequest,
 }: LogoPreviewProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [dimensions, setDimensions] = useState<{ w: number; h: number } | null>(null)
   const { previewUrl, whitePixelsRemoved, loading: previewLoading } = usePrintPreviewLogo(logoUrl)
 
@@ -71,25 +73,33 @@ export function LogoPreview({
     img.src = logoUrl
   }, [logoUrl])
 
+  function openFileDialog() {
+    onBrowseRequest?.()
+    fileInputRef.current?.click()
+  }
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="logo-upload">Logo hochladen (PNG, transparenter Hintergrund)</Label>
-        <Input
+        <input
+          ref={fileInputRef}
           id="logo-upload"
           type="file"
           accept="image/png"
-          disabled={!uploadEnabled || uploading}
+          className="sr-only"
+          disabled={uploading}
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (file) onFileSelect(file)
+            e.target.value = ""
           }}
         />
-        {!uploadEnabled && (
-          <p className="text-xs text-muted-foreground">
-            Bitte zuerst Bedruckung aktivieren, um ein Logo hochzuladen.
-          </p>
-        )}
+        <div>
+          <Button type="button" variant="outline" disabled={uploading} onClick={openFileDialog}>
+            Durchsuchen
+          </Button>
+        </div>
         {uploading && (
           <p className="text-xs text-muted-foreground flex items-center gap-2">
             <Loader2 className="h-3 w-3 animate-spin" />

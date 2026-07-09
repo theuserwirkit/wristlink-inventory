@@ -58,6 +58,8 @@ export type QuoteConfig = {
   von?: string
   bis?: string
   druck: boolean
+  /** logo = 3×2 cm mit Upload; vollflaechig = Upsell ohne Konfigurator */
+  druckArt?: "logo" | "vollflaechig"
   probedruckOption?: "none" | "fotos" | "versand"
   /** @deprecated – wird aus probedruckOption abgeleitet */
   probedruck?: boolean
