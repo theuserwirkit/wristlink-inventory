@@ -65,7 +65,7 @@ export function getFulfillmentDueDate(quote: TimingQuote): Date | null {
 }
 
 export function getFulfillmentTiming(quote: TimingQuote, from = new Date()): FulfillmentTiming {
-  const dueDate = getFulfillmentDueDate(quote, from)
+  const dueDate = getFulfillmentDueDate(quote)
   if (!dueDate) {
     return {
       dueDate: null,

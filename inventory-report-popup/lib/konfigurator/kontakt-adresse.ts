@@ -1,5 +1,5 @@
 import type { QuoteConfig } from "@/lib/konfigurator/types"
-import { extractPlzFromAddress, normalizePlz } from "@/lib/konfigurator/angebot-access"
+import { extractPlzFromAddress, normalizePlz } from "@/lib/konfigurator/plz"
 
 export function formatKontaktAdresse(config: QuoteConfig): string {
   const strasse = config.kontaktStrasse?.trim()

@@ -16,7 +16,7 @@ import { formatEur } from "@/lib/pricing/preis-engine"
 import { displayPositionen, formatPriceSummary } from "@/lib/pricing/display"
 import { HOCHZEIT_B2B_NOTICE, PRICING_NOTICE_B2B } from "@/lib/konfigurator/consent"
 import { formatKontaktAdresse, isKontaktAdresseComplete } from "@/lib/konfigurator/kontakt-adresse"
-import { normalizePlz } from "@/lib/konfigurator/angebot-access"
+import { normalizePlz } from "@/lib/konfigurator/plz"
 import { cn } from "@/lib/utils"
 import {
   STATION_OPTIONS,

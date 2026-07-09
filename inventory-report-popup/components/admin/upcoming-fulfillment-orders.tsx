@@ -12,7 +12,9 @@ import {
   type FulfillmentTimingUrgency,
 } from "@/lib/konfigurator/fulfillment-timing"
 import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"
+import { modusAnzeige, PRODUKT_ANZEIGE } from "@/lib/konfigurator/product-info"
 import type { QuoteRequest } from "@/lib/konfigurator/types"
+import { formatDate } from "@/lib/utils/date"
 import { cn } from "@/lib/utils"
 
 function urgencyBadgeVariant(
@@ -57,6 +59,11 @@ export function UpcomingFulfillmentOrders({ orders }: { orders: QuoteRequest[] }
           const timing = getFulfillmentTiming(quote)
           const Icon = urgencyIcon(timing.urgency)
           const paket = normalizeLieferpaket(quote.config_json)
+          const kontaktName = quote.config_json.kontaktName?.trim()
+          const kontaktFirma = quote.config_json.kontaktFirma?.trim()
+          const produktLabel =
+            PRODUKT_ANZEIGE[quote.config_json.produkt] ?? quote.config_json.produkt
+          const modusLabel = modusAnzeige(quote.config_json.modus)
 
           return (
             <div
@@ -69,8 +76,14 @@ export function UpcomingFulfillmentOrders({ orders }: { orders: QuoteRequest[] }
               )}
             >
               <div className="flex items-start justify-between gap-2">
-                <div>
+                <div className="min-w-0">
                   <p className="font-mono text-sm font-semibold">#{quote.id}</p>
+                  {kontaktName ? (
+                    <p className="font-medium truncate">{kontaktName}</p>
+                  ) : null}
+                  {kontaktFirma ? (
+                    <p className="text-sm text-muted-foreground truncate">{kontaktFirma}</p>
+                  ) : null}
                   <p className="text-sm text-muted-foreground truncate">{quote.lead_email}</p>
                 </div>
                 <Badge variant={urgencyBadgeVariant(timing.urgency)} className="shrink-0 gap-1">
@@ -79,12 +92,31 @@ export function UpcomingFulfillmentOrders({ orders }: { orders: QuoteRequest[] }
                 </Badge>
               </div>
 
+              {timing.dueDate ? (
+                <div
+                  className={cn(
+                    "rounded-md border px-3 py-2",
+                    timing.urgency === "overdue" && "border-destructive/50 bg-destructive/10",
+                    (timing.urgency === "due_today" || timing.urgency === "due_soon") &&
+                      "border-amber-500/50 bg-amber-500/10",
+                    timing.urgency === "ok" && "border-border bg-muted/40",
+                  )}
+                >
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Fälligkeit
+                  </p>
+                  <p className="text-xl font-bold leading-tight">{formatDate(timing.dueDate)}</p>
+                  {timing.detail ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{timing.detail}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="space-y-1 text-sm">
                 <p>
-                  {quote.config_json.produkt} · {quote.config_json.modus} · {quote.config_json.menge} Stk.
+                  {produktLabel} · {modusLabel} · {quote.config_json.menge} Stk.
                 </p>
                 <p className="text-muted-foreground">{getLieferpaketLabel(paket)}</p>
-                {timing.detail && <p className="text-muted-foreground text-xs">{timing.detail}</p>}
               </div>
 
               <div className="mt-auto space-y-2">

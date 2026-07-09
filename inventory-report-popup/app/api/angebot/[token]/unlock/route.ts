@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getQuoteByPublicToken } from "@/lib/actions/quotes"
-import { setAngebotAccess, verifyPlzInput } from "@/lib/konfigurator/angebot-access"
+import { setAngebotAccess } from "@/lib/konfigurator/angebot-access"
+import { verifyPlzInput } from "@/lib/konfigurator/plz"
 import { getQuoteAccessPlz } from "@/lib/konfigurator/kontakt-adresse"
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
