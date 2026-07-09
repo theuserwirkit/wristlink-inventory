@@ -52,7 +52,14 @@ Hilfsfunktionen: `lib/konfigurator/kontakt-adresse.ts` (`formatKontaktAdresse`, 
 - **Inhalt:** Angebotsstatus, Stripe-Zahlungslink, Fulfillment-Timeline, Konfiguration, Preisübersicht (B2B)
 - **Rate-Limit:** 10 Versuche / 15 Min. pro IP und Token
 
-Implementierung: `lib/konfigurator/angebot-access.ts`, `components/angebot/plz-gate.tsx`, `components/angebot/angebot-status-view.tsx`.
+Implementierung:
+
+| Modul | Zweck |
+|-------|--------|
+| `lib/konfigurator/plz.ts` | PLZ normalisieren, vergleichen, aus Adresse extrahieren (client-sicher) |
+| `lib/konfigurator/angebot-access.ts` | Server: Cookie setzen/prüfen nach erfolgreicher PLZ |
+| `components/angebot/plz-gate.tsx` | PLZ-Eingabe |
+| `components/angebot/angebot-status-view.tsx` | Status-UI inkl. Fulfillment-Timeline |
 
 ---
 
@@ -119,6 +126,8 @@ Kunde wählt **ein Paket** statt getrennt Lieferzeit + Lieferart. Intern werden 
 | Eilauftrag | `eil` | 2 | nicht möglich |
 
 Bei zu kurzem Vorlauf werden nicht verfügbare Pakete ausgegraut; das schnellste noch mögliche Paket wird vorausgewählt.
+
+`lib/konfigurator/lieferzeit.ts` ist **deprecated** – enthält nur Legacy-Kompatibilitäts-Shims für Tests (`scripts/test-lieferzeit.ts`). Neue Logik ausschließlich in `lieferpaket.ts`.
 
 ### Validierung (Auszug)
 
@@ -340,6 +349,7 @@ Bearbeiten: `EditableBaseRow` – Bezeichnung und `station_typ` änderbar.
 | `08-groups-kanalanzahl.sql` | `groups.kanalanzahl` (Default 40) |
 | `09-fulfillment-email-templates.sql` | Fulfillment, E-Mail-Templates, Zahlungsfelder |
 | `13-email-templates-v2.sql` | Überarbeitete Kunden-Mail-Texte + `{{status_url}}`-Hinweise |
+| `14-versand-dienstleister.sql` | `versand_dienstleister` auf `quote_requests` und `quote_fulfillment_events` |
 | `11-lead-consent-doi.sql` | B2B-Bestätigung, Marketing nach DOI |
 
 ---
@@ -370,14 +380,30 @@ submitted → approved (ohne Stripe) / payment_pending (mit Stripe)
 | `vorbereitet` | `fulfillment_vorbereitet` | |
 | `bedruckt` | `fulfillment_bedruckt` | nur bei Bedruckung |
 | `verpackt` | `fulfillment_verpackt` | |
-| `versand_beauftragt` | `fulfillment_versand_beauftragt` | Tracking Pflicht |
+| `versand_beauftragt` | `fulfillment_versand_beauftragt` | Tracking + Versand-Dienstleister (UPS/DHL/TNT) Pflicht |
 | `versandt` | `fulfillment_versandt` | |
 | `ruecksendung_angekommen` | `fulfillment_ruecksendung_angekommen` | |
 | `zurueckgepackt` | `fulfillment_zurueckgepackt` | Rückgabe-Buchung möglich |
 
 Vorlagen editierbar unter `/admin/einstellungen/e-mails`. Kundenfreundliche Standardtexte ab Migration `13-email-templates-v2.sql`.
 
-**Platzhalter:** `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{kunde_name}}`, `{{kunde_firma}}`, `{{angebot_netto}}`, `{{angebot_brutto}}`, `{{zahlungslink}}`, `{{status_url}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{tracking_info}}`, `{{kommentar}}`, `{{ablehnungsgrund}}`, `{{zahlungsnotiz}}`
+**Platzhalter:** `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{kunde_name}}`, `{{kunde_firma}}`, `{{angebot_netto}}`, `{{angebot_brutto}}`, `{{zahlungslink}}`, `{{status_url}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{versand_dienstleister}}`, `{{tracking_info}}`, `{{kommentar}}`, `{{ablehnungsgrund}}`, `{{zahlungsnotiz}}`
+
+### Fulfillment-Fälligkeit (`lib/konfigurator/fulfillment-timing.ts`)
+
+Berechnet Zieltermine und Dringlichkeit für offene Aufträge (`paid`, Fulfillment nicht abgeschlossen):
+
+| Paket / Phase | Fälligkeit |
+|---------------|------------|
+| Regulär / Express | Anlieferung bis **2 Kalendertage vor Event** (`config_json.von`) |
+| Eilauftrag (`eil`) | **2 Kalendertage nach Zahlung** (`paid_at`) |
+| Nach Versand (`versandt` / `ruecksendung_angekommen`) | Rücksendung **3 Werktage nach Eventende** |
+
+Dringlichkeit: `overdue` · `due_today` · `due_soon` (≤3 Tage) · `ok` · `unknown`
+
+Admin-Übersicht `/admin/anfragen`: Karte **„Nächste Aufträge in Bearbeitung“** – die drei dringendsten offenen Aufträge mit Fälligkeitslabel und nächstem Schritt (`components/admin/upcoming-fulfillment-orders.tsx`).
+
+Test: `npx tsx scripts/test-fulfillment-timing.ts`
 
 `{{status_url}}` und `{{angebot_url}}` zeigen auf dieselbe Route (`/angebot/[public_token]`). In Mails wird auf den Zugang mit der **Postleitzahl der Firmenadresse** hingewiesen.
 
@@ -385,8 +411,9 @@ Vorlagen editierbar unter `/admin/einstellungen/e-mails`. Kundenfreundliche Stan
 
 | Route / Komponente | Funktion |
 |--------------------|----------|
-| `/admin/anfragen` | Liste inkl. Fulfillment-Spalte |
+| `/admin/anfragen` | Liste inkl. Fulfillment-Spalte + Prioritäts-Karte (3 dringendste Aufträge) |
 | `/admin/anfragen/[id]` | Detail: Freigabe, Zahlung, Fulfillment, Rückgabe |
+| `upcoming-fulfillment-orders` | Fälligkeits-Karte auf der Anfragen-Übersicht |
 | `quote-approval-actions` | Annehmen/Ablehnen, Stripe-Toggle, Mail-Vorschau |
 | `quote-payment-actions` | „Zahlung eingegangen“ (Überweisung) |
 | `quote-offer-pdf-upload` | sevDesk-Angebot erstellen / PDF hochladen |
@@ -467,15 +494,19 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `lib/actions/bookings.ts` | Basis-Bestand (1 Gerät ohne ZUGANG) |
 | `lib/actions/admin.ts` | `createGroup`, `createBase` mit Pflichtfeldern |
 | `lib/actions/quotes.ts` | Freigabe, Zahlung, Mail-Vorschau |
-| `lib/actions/fulfillment.ts` | Fulfillment-Schritte |
+| `lib/actions/fulfillment.ts` | Fulfillment-Schritte, Tracking, Versand-Dienstleister |
 | `lib/konfigurator/fulfillment-status.ts` | Schritt-Labels und Reihenfolge |
+| `lib/konfigurator/fulfillment-timing.ts` | Fälligkeitsberechnung, Dringlichkeit, Sortierung |
+| `lib/konfigurator/versand-dienstleister.ts` | UPS/DHL/TNT-Optionen und Labels |
 | `lib/konfigurator/email-template-render.ts` | E-Mail-Platzhalter |
 | `lib/konfigurator/kontakt-adresse.ts` | Firmenadresse formatieren, PLZ für Status-Zugang |
-| `lib/konfigurator/angebot-access.ts` | PLZ-Verifikation, Cookie für Statusseite |
+| `lib/konfigurator/plz.ts` | PLZ-Hilfsfunktionen (client-sicher) |
+| `lib/konfigurator/angebot-access.ts` | Server: Cookie-Zugang für Statusseite |
 | `components/angebot/plz-gate.tsx` | PLZ-Eingabe vor Statusansicht |
 | `components/angebot/angebot-status-view.tsx` | Kunden-Statusseite (Angebot + Fulfillment) |
 | `app/angebot/[token]/page.tsx` | Öffentliche Status-Route |
 | `components/admin/admin-actions.tsx` | Admin-Formulare Gruppe/Basis |
+| `components/admin/upcoming-fulfillment-orders.tsx` | Prioritäts-Karte „Nächste Aufträge in Bearbeitung“ |
 | `components/admin/editable-base-row.tsx` | Stationstyp bearbeiten |
 | `app/api/konfigurator/session/route.ts` | Session-API mit allen Actions |
 
@@ -487,6 +518,19 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 - Stripe-Zahlungsbetrag: Netto + 19 % MwSt.
 - Rechtliche Seiten: `/impressum`, `/datenschutz`, `/agb` (B2B)
 - Consent-Texte: `lib/konfigurator/consent.ts` · E-Mail-Konstanten: `lib/contact-emails.ts`
+
+---
+
+## Tests & Smoke-Check (lokal)
+
+| Befehl | Prüft |
+|--------|--------|
+| `pnpm build` | Production-Build (Dev-Server vorher stoppen) |
+| `npx tsx scripts/test-fulfillment-timing.ts` | Fälligkeitslogik, Dringlichkeit, Sortierung |
+| `npx tsx scripts/test-lieferzeit.ts` | Lieferpaket-Vorlauf (Legacy-Shims in `lieferzeit.ts`) |
+| `pnpm test:preis-engine` | Preisberechnung |
+
+HTTP-Smoke (nach `pnpm dev`): `/`, `/login`, `/konfigurator`, `/impressum`, `/datenschutz`, `/agb` sollten 200 liefern.
 
 ---
 
@@ -508,3 +552,6 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | Nur LED Armband buchbar; weitere Produkte als Vorschau ausgegraut | ✓ |
 | Max. Menge 4.000 Stück (Armband) | ✓ |
 | Techniker ab 7 Tagen Vorlauf | ✓ |
+| PLZ-Hilfsfunktionen client-sicher (`plz.ts`), Cookie nur serverseitig (`angebot-access.ts`) | ✓ |
+| Fulfillment-Fälligkeit + Prioritäts-Karte im Admin | ✓ |
+| Versand-Dienstleister bei `versand_beauftragt` (Migration 14) | ✓ |

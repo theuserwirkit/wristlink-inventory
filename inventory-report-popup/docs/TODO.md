@@ -1,6 +1,6 @@
 # TODO – Sicherheit, Betrieb & Restarbeiten
 
-Stand: Juli 2026 (Vercel Production-Env, Statusseite & E-Mail-Templates v2)
+Stand: Juli 2026 (Fulfillment-Fälligkeit, Versand-Dienstleister, PLZ-Split)
 
 ## Kritisch (vor Go-Live)
 
@@ -27,6 +27,7 @@ Stand: Juli 2026 (Vercel Production-Env, Statusseite & E-Mail-Templates v2)
   - [x] `SEVDESK_API_TOKEN`, `SEVDESK_CONTACT_PERSON_ID`, `SEVDESK_DEFAULT_PART_ID`
   - [x] `DATABASE_URL` (+ Neon/Postgres-Varianten via Vercel Integration)
 - [x] **DB-Migrationen 01–13** auf Production: `pnpm db:migrate` (inkl. `13-email-templates-v2.sql`)
+- [ ] **DB-Migration 14** auf Production: `14-versand-dienstleister.sql` (`versand_dienstleister` in Fulfillment)
 - [ ] **Resend:** Domain `braceled-led-armband.com` verifizieren (SPF/DKIM), DOI-Testmail senden
 - [ ] **Telegram-Webhook registrieren/aktualisieren:** `pnpm telegram:webhook`
 - [ ] **Redeploy** auf Vercel (Env-Änderungen erst nach Deploy aktiv)
@@ -68,8 +69,9 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 - [ ] Konfigurator: vollständige Firmenadresse (Straße, PLZ, Ort) + PLZ-Hinweis als Status-Zugang
 - [ ] Kunden-Statusseite `/angebot/[token]`: PLZ-Gate, Fulfillment-Timeline, Zahlungslink
 - [ ] Admin-Anfragen: Freigabe mit/ohne Stripe, Mail-Vorschau
+- [ ] Admin-Anfragen: nächste 3 gebuchte Aufträge mit Fälligkeit (überfällig/heute/in X Tagen) und nächstem Schritt
 - [ ] Manueller Zahlungseingang → Fulfillment startet (`angenommen`)
-- [ ] Fulfillment-Schritte + Kunden-Mails
+- [ ] Fulfillment-Schritte + Kunden-Mails (inkl. Versand-Dienstleister, Migration 14)
 - [ ] E-Mail-Templates unter `/admin/einstellungen/e-mails` (Migration 13: kundenfreundliche Texte + `{{status_url}}`)
 - [ ] Rückgabe-Buchung bei `zurueckgepackt`
 - [ ] Landing testen: `/` (Impressum, Datenschutz, AGB im Footer)
@@ -102,15 +104,22 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 - [x] Kunden-Statusseite `/angebot/[token]` mit PLZ-Schutz (Firmen-PLZ aus `kontaktPlz`)
 - [x] Kontaktdaten im Konfigurator: Firma, Straße, PLZ, Ort (PLZ = Zugangscode Statusseite)
 - [x] Vercel Production-Env via CLI (Juli 2026)
+- [x] Admin-Anfragen: Prioritäts-Karte „Nächste Aufträge in Bearbeitung“ (3 dringendste `paid`-Aufträge, Fälligkeit + nächster Fulfillment-Schritt) – `lib/konfigurator/fulfillment-timing.ts`, `components/admin/upcoming-fulfillment-orders.tsx`
+- [x] Versand-Dienstleister (UPS/DHL/TNT) im Fulfillment-Workflow – Migration 14
+- [x] PLZ-Hilfsfunktionen in `lib/konfigurator/plz.ts` ausgelagert (Server/Client-Split, Fix Build 500 auf Konfigurator/Legal-Pages)
+- [x] Smoke-Test lokal: `pnpm build` grün, Unit-Tests (Fulfillment-Timing, Lieferzeit, Preis-Engine), Routen `/`, `/login`, `/konfigurator`, `/impressum`, `/datenschutz`, `/agb` → 200
 
 ## Nützliche Befehle
 
 ```bash
 cd inventory-report-popup
 pnpm dev                  # lokal http://localhost:3000
-pnpm build                # Production-Build prüfen
-pnpm db:migrate           # alle Migrationen 01–13
+pnpm build                # Production-Build (Dev-Server vorher stoppen – .next-Konflikt)
+pnpm db:migrate           # alle Migrationen 01–14
 pnpm db:indexes           # Performance-Indizes
+npx tsx scripts/test-fulfillment-timing.ts  # Fälligkeitslogik
+npx tsx scripts/test-lieferzeit.ts          # Lieferpaket/Legacy-Lieferzeit
+pnpm test:preis-engine    # Preisberechnung
 pnpm telegram:webhook     # Telegram-Webhook setzen
 vercel env ls production  # Vercel-Env prüfen
 vercel --prod             # Production-Deploy
