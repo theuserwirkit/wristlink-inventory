@@ -8,7 +8,7 @@ Diese Datei beschreibt Logik, Berechnungen und interne Regeln des B2B-Konfigurat
 
 | Schritt | Label | Inhalt |
 |--------|--------|--------|
-| 0 | Event | Kontakt, Szenario, Eventadresse, Zeitraum (`von` / `bis`) |
+| 0 | Event | Kontakt inkl. **Firmenadresse** (Straße, PLZ, Ort), Szenario, Eventadresse, Zeitraum (`von` / `bis`) |
 | 1 | Umfang | Produkt (nur LED Armband wählbar; LED Ball, LED Platine, LED Lanyard, LED-Licht ausgegraut mit Strichzeichnungen), Miete/Kauf, Menge, Bedruckung + Probedruck-Optionen (nur Kauf) |
 | 2 | Zeitraum | Verfügbarkeitsprüfung Bänder (+ Controller, falls schon gewählt), Lieferhinweis bei kurzem Vorlauf |
 | 3 | Steuerung | Variante Standard/Premium (nur Armband), Basis-Station, Gruppenprogrammierung (nur PRO) |
@@ -28,6 +28,31 @@ Consent-Versionierung: `CONSENT_TEXT_VERSION` (aktuell 1.4), Speicherung von `co
 **E-Mail-Domains:** Allgemein `@wirkung-digital.de` · Absender/Team `@braceled-led-armband.com` → `lib/contact-emails.ts`
 
 **Testmode:** DOI-Bypass nur in Development oder mit `KONFIGURATOR_TESTMODE_ENABLED` + Secret in Production; UI-Button nur außerhalb Production.
+
+### Kontaktdaten & Firmenadresse (Schritt 0)
+
+Pflichtfelder neben Ansprechpartner und Telefon:
+
+| Feld | `QuoteConfig` | Hinweis |
+|------|---------------|---------|
+| Firma | `kontaktFirma` | |
+| Straße und Hausnummer | `kontaktStrasse` | |
+| Postleitzahl | `kontaktPlz` | **5-stellig – wird Zugangscode für die Kunden-Statusseite** |
+| Ort | `kontaktOrt` | |
+
+Im Wizard erscheint ein kurzer Hinweis: Die PLZ dient als Zugangscode für die Statusseite (Link in den E-Mails).
+
+Hilfsfunktionen: `lib/konfigurator/kontakt-adresse.ts` (`formatKontaktAdresse`, `getQuoteAccessPlz`, `isKontaktAdresseComplete`).
+
+### Kunden-Statusseite (`/angebot/[token]`)
+
+Öffentliche Seite pro Anfrage (`public_token`):
+
+- **PLZ-Gate:** Eingabe der Firmen-PLZ (`POST /api/angebot/[token]/unlock`), danach HttpOnly-Cookie (30 Tage, Pfad `/angebot`)
+- **Inhalt:** Angebotsstatus, Stripe-Zahlungslink, Fulfillment-Timeline, Konfiguration, Preisübersicht (B2B)
+- **Rate-Limit:** 10 Versuche / 15 Min. pro IP und Token
+
+Implementierung: `lib/konfigurator/angebot-access.ts`, `components/angebot/plz-gate.tsx`, `components/angebot/angebot-status-view.tsx`.
 
 ---
 
@@ -314,6 +339,7 @@ Bearbeiten: `EditableBaseRow` – Bezeichnung und `station_typ` änderbar.
 | `07-base-station-typ.sql` | `bases.station_typ` (eco/pro/keine), Backfill aus Bezeichnung |
 | `08-groups-kanalanzahl.sql` | `groups.kanalanzahl` (Default 40) |
 | `09-fulfillment-email-templates.sql` | Fulfillment, E-Mail-Templates, Zahlungsfelder |
+| `13-email-templates-v2.sql` | Überarbeitete Kunden-Mail-Texte + `{{status_url}}`-Hinweise |
 | `11-lead-consent-doi.sql` | B2B-Bestätigung, Marketing nach DOI |
 
 ---
@@ -349,7 +375,11 @@ submitted → approved (ohne Stripe) / payment_pending (mit Stripe)
 | `ruecksendung_angekommen` | `fulfillment_ruecksendung_angekommen` | |
 | `zurueckgepackt` | `fulfillment_zurueckgepackt` | Rückgabe-Buchung möglich |
 
-Vorlagen editierbar unter `/admin/einstellungen/e-mails`. Platzhalter: `{{anfrage_id}}`, `{{kunde_name}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{kommentar}}`, …
+Vorlagen editierbar unter `/admin/einstellungen/e-mails`. Kundenfreundliche Standardtexte ab Migration `13-email-templates-v2.sql`.
+
+**Platzhalter:** `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{kunde_name}}`, `{{kunde_firma}}`, `{{angebot_netto}}`, `{{angebot_brutto}}`, `{{zahlungslink}}`, `{{status_url}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{tracking_info}}`, `{{kommentar}}`, `{{ablehnungsgrund}}`, `{{zahlungsnotiz}}`
+
+`{{status_url}}` und `{{angebot_url}}` zeigen auf dieselbe Route (`/angebot/[public_token]`). In Mails wird auf den Zugang mit der **Postleitzahl der Firmenadresse** hingewiesen.
 
 ### Admin-UI-Komponenten
 
@@ -389,7 +419,8 @@ Wesentliche Felder in `config_json` der Anfrage:
 | `druck`, `probedruckOption`, `probedruck`, `logoId` | Bedruckung + Probedruck (Schritt Umfang bei Kauf) |
 | `lieferpaket`, `flexRueckgabe`, `lieferart`, `flex`, `lieferzeit` | Lieferpaket + abgeleitete Legacy-Felder |
 | `techniker*` | Techniker-Optionen (Schritt Extras) |
-| Kontakt | `kontaktName`, `kontaktFirma`, `kontaktTelefon` |
+| Kontakt | `kontaktName`, `kontaktFirma`, `kontaktTelefon`, `kontaktStrasse`, `kontaktPlz`, `kontaktOrt` |
+| Event | `technikerAdresse` (Veranstaltungsort, getrennt von Firmenadresse) |
 
 Admin-Summary (`lib/actions/quotes.ts`) zeigt Kanalanzahl und Gruppenverteilung (`G1: 500, G2: 500, …`).
 
@@ -402,6 +433,7 @@ Admin-Summary (`lib/actions/quotes.ts`) zeigt Kanalanzahl und Gruppenverteilung 
 | `POST /api/konfigurator/session` | `price`, `availability`, `station-availability`, `group-availability` |
 | `POST /api/konfigurator/submit` | Anfrage speichern (mit aufgelöster Kanalanzahl) |
 | `GET /api/konfigurator/session` | Verifizierte Lead-Session |
+| `POST /api/angebot/[token]/unlock` | PLZ-Prüfung für Kunden-Statusseite |
 
 Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf; die Antwort enthält `kanalanzahl` für das Frontend (nur intern genutzt, nicht angezeigt).
 
@@ -438,6 +470,11 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `lib/actions/fulfillment.ts` | Fulfillment-Schritte |
 | `lib/konfigurator/fulfillment-status.ts` | Schritt-Labels und Reihenfolge |
 | `lib/konfigurator/email-template-render.ts` | E-Mail-Platzhalter |
+| `lib/konfigurator/kontakt-adresse.ts` | Firmenadresse formatieren, PLZ für Status-Zugang |
+| `lib/konfigurator/angebot-access.ts` | PLZ-Verifikation, Cookie für Statusseite |
+| `components/angebot/plz-gate.tsx` | PLZ-Eingabe vor Statusansicht |
+| `components/angebot/angebot-status-view.tsx` | Kunden-Statusseite (Angebot + Fulfillment) |
+| `app/angebot/[token]/page.tsx` | Öffentliche Status-Route |
 | `components/admin/admin-actions.tsx` | Admin-Formulare Gruppe/Basis |
 | `components/admin/editable-base-row.tsx` | Stationstyp bearbeiten |
 | `app/api/konfigurator/session/route.ts` | Session-API mit allen Actions |

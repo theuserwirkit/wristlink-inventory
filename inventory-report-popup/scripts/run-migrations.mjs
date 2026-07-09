@@ -46,6 +46,7 @@ async function main() {
     await runFile(pool, join(migrationDir, "10-offer-pdf.sql"))
     await runFile(pool, join(migrationDir, "11-lead-consent-doi.sql"))
     await runFile(pool, join(migrationDir, "12-sevdesk-offer.sql"))
+    await runFile(pool, join(migrationDir, "13-email-templates-v2.sql"))
     console.log("Migration abgeschlossen.")
   } finally {
     await pool.end()

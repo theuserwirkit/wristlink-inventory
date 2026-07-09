@@ -1,6 +1,6 @@
 # TODO – Sicherheit, Betrieb & Restarbeiten
 
-Stand: Juli 2026 (Vercel Production-Env vervollständigt)
+Stand: Juli 2026 (Vercel Production-Env, Statusseite & E-Mail-Templates v2)
 
 ## Kritisch (vor Go-Live)
 
@@ -26,7 +26,7 @@ Stand: Juli 2026 (Vercel Production-Env vervollständigt)
   - [x] `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `TEAM_NOTIFICATION_EMAIL`
   - [x] `SEVDESK_API_TOKEN`, `SEVDESK_CONTACT_PERSON_ID`, `SEVDESK_DEFAULT_PART_ID`
   - [x] `DATABASE_URL` (+ Neon/Postgres-Varianten via Vercel Integration)
-- [x] **DB-Migrationen 01–12** auf Production: `pnpm db:migrate`
+- [x] **DB-Migrationen 01–13** auf Production: `pnpm db:migrate` (inkl. `13-email-templates-v2.sql`)
 - [ ] **Resend:** Domain `braceled-led-armband.com` verifizieren (SPF/DKIM), DOI-Testmail senden
 - [ ] **Telegram-Webhook registrieren/aktualisieren:** `pnpm telegram:webhook`
 - [ ] **Redeploy** auf Vercel (Env-Änderungen erst nach Deploy aktiv)
@@ -65,11 +65,12 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 ## Betrieb / Verifikation
 
 - [ ] Login testen: `/login` → `/warenverwaltung`
-- [ ] Konfigurator: E-Mail-Gate (B2B-Checkbox, DOI, Marketing optional)
+- [ ] Konfigurator: vollständige Firmenadresse (Straße, PLZ, Ort) + PLZ-Hinweis als Status-Zugang
+- [ ] Kunden-Statusseite `/angebot/[token]`: PLZ-Gate, Fulfillment-Timeline, Zahlungslink
 - [ ] Admin-Anfragen: Freigabe mit/ohne Stripe, Mail-Vorschau
 - [ ] Manueller Zahlungseingang → Fulfillment startet (`angenommen`)
 - [ ] Fulfillment-Schritte + Kunden-Mails
-- [ ] E-Mail-Templates unter `/admin/einstellungen/e-mails`
+- [ ] E-Mail-Templates unter `/admin/einstellungen/e-mails` (Migration 13: kundenfreundliche Texte + `{{status_url}}`)
 - [ ] Rückgabe-Buchung bei `zurueckgepackt`
 - [ ] Landing testen: `/` (Impressum, Datenschutz, AGB im Footer)
 - [ ] Telegram Freigabe/Ablehnung End-to-End testen
@@ -97,6 +98,9 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 - [x] DSGVO-Baseline Landing + Konfigurator (Juli 2026)
 - [x] Migration 11: `b2b_confirmed`, `marketing_consent_pending`
 - [x] Migration 12: `sevdesk_order_id`, `sevdesk_order_number`
+- [x] Migration 13: überarbeitete Kunden-E-Mail-Texte (`13-email-templates-v2.sql`)
+- [x] Kunden-Statusseite `/angebot/[token]` mit PLZ-Schutz (Firmen-PLZ aus `kontaktPlz`)
+- [x] Kontaktdaten im Konfigurator: Firma, Straße, PLZ, Ort (PLZ = Zugangscode Statusseite)
 - [x] Vercel Production-Env via CLI (Juli 2026)
 
 ## Nützliche Befehle
@@ -105,7 +109,7 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 cd inventory-report-popup
 pnpm dev                  # lokal http://localhost:3000
 pnpm build                # Production-Build prüfen
-pnpm db:migrate           # alle Migrationen 01–12
+pnpm db:migrate           # alle Migrationen 01–13
 pnpm db:indexes           # Performance-Indizes
 pnpm telegram:webhook     # Telegram-Webhook setzen
 vercel env ls production  # Vercel-Env prüfen

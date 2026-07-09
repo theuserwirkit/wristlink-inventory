@@ -14,17 +14,21 @@ export function buildQuoteTemplateVars(
 ): TemplateVars {
   const price = quote.price_snapshot_json as { gesamt_netto?: number; gesamt_brutto?: number }
   const config = quote.config_json
-  const offerUrl = `${getAppBaseUrl()}/angebot/${quote.public_token}`
+  const statusUrl = `${getAppBaseUrl()}/angebot/${quote.public_token}`
 
   return {
     anfrage_id: String(quote.id),
     kunde_email: leadEmail,
     kunde_name: config.kontaktName || "",
     kunde_firma: config.kontaktFirma || "",
+    kunde_anrede: config.kontaktName?.trim()
+      ? `Hallo ${config.kontaktName.trim()},`
+      : "Hallo,",
     angebot_netto: (price.gesamt_netto || 0).toFixed(2),
     angebot_brutto: (price.gesamt_brutto || 0).toFixed(2),
     zahlungslink: quote.stripe_payment_link_url || "",
-    angebot_url: offerUrl,
+    angebot_url: statusUrl,
+    status_url: statusUrl,
     tracking_nr: quote.tracking_number || extra.tracking_nr || "",
     tracking_info: quote.tracking_number
       ? `Sendungsverfolgung: ${quote.tracking_number}`

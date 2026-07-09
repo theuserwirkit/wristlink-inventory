@@ -15,6 +15,9 @@ import type { PreisEngineResult } from "@/lib/pricing/types"
 import { formatEur } from "@/lib/pricing/preis-engine"
 import { displayPositionen, formatPriceSummary } from "@/lib/pricing/display"
 import { HOCHZEIT_B2B_NOTICE, PRICING_NOTICE_B2B } from "@/lib/konfigurator/consent"
+import { formatKontaktAdresse, isKontaktAdresseComplete } from "@/lib/konfigurator/kontakt-adresse"
+import { normalizePlz } from "@/lib/konfigurator/angebot-access"
+import { cn } from "@/lib/utils"
 import {
   STATION_OPTIONS,
   PRODUCT_OPTIONS,
@@ -90,6 +93,9 @@ const DEFAULT_CONFIG: QuoteConfig = {
   kontaktName: "",
   kontaktFirma: "",
   kontaktTelefon: "",
+  kontaktStrasse: "",
+  kontaktPlz: "",
+  kontaktOrt: "",
   szenario: "corporate",
   variante: "standard",
   produkt: "armband",
@@ -144,11 +150,16 @@ export function ConfiguratorWizard({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submittedToken, setSubmittedToken] = useState<string | null>(null)
+  const [showFieldErrors, setShowFieldErrors] = useState(false)
   const [distanceLoading, setDistanceLoading] = useState(false)
   const [distanceError, setDistanceError] = useState<string | null>(null)
   const [resolvedKanalanzahl, setResolvedKanalanzahl] = useState<number | null>(null)
   const requestAbortRef = useRef<AbortController | null>(null)
   const distanceDebounceRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    setShowFieldErrors(false)
+  }, [step])
 
   const updateConfig = (patch: Partial<QuoteConfig>) => {
     setConfig((prev) => {
@@ -545,6 +556,7 @@ export function ConfiguratorWizard({
         Boolean(config.kontaktName?.trim()) &&
         Boolean(config.kontaktFirma?.trim()) &&
         Boolean(config.kontaktTelefon?.trim()) &&
+        isKontaktAdresseComplete(config) &&
         Boolean(config.szenario) &&
         Boolean(config.von) &&
         Boolean(config.technikerAdresse?.trim())
@@ -600,6 +612,38 @@ export function ConfiguratorWizard({
     return true
   }
 
+  const plzValid = normalizePlz(config.kontaktPlz || "").length === 5
+  const step2AvailabilityInvalid = Boolean(availability && !availability.verfuegbar)
+  const step3GruppenInvalid =
+    config.station === "pro" &&
+    (!gruppenVerteilungGueltig(gruppenGroessen, config.menge) ||
+      (groupAvailability !== null && !groupAvailability.verfuegbar))
+  const step3StationInvalid =
+    config.station !== "keine" && stationAvailability !== null && !stationAvailability.verfuegbar
+  const step4LieferpaketInvalid =
+    !hasAllowedLieferpaket(tageBisEvent, lieferungCtx) ||
+    !isLieferpaketAllowed(lieferpaket, tageBisEvent, lieferungCtx)
+  const step4TechnikerInvalid =
+    config.techniker &&
+    (!config.technikerTage ||
+      config.technikerTage < 1 ||
+      !config.technikerAdresse?.trim() ||
+      config.technikerKm === undefined ||
+      config.technikerKm < 0)
+
+  function fieldError(valid: boolean) {
+    return showFieldErrors && !valid
+  }
+
+  function handleNext() {
+    if (!canNext()) {
+      setShowFieldErrors(true)
+      return
+    }
+    setShowFieldErrors(false)
+    setStep((s) => s + 1)
+  }
+
   async function handleSubmit() {
     if (!price || !price.gueltig) {
       setError("Preis konnte nicht berechnet werden")
@@ -635,7 +679,8 @@ export function ConfiguratorWizard({
             Anfrage eingegangen
           </CardTitle>
           <CardDescription>
-            Vielen Dank! Wir prüfen Ihr Angebot und melden uns per E-Mail.
+            Vielen Dank! Wir prüfen Ihr Angebot und melden uns per E-Mail. Für die Statusseite
+            geben Sie dort Ihre Firmen-PLZ ein.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -689,39 +734,110 @@ export function ConfiguratorWizard({
               <div className="space-y-6">
                 <div className="space-y-4 rounded-lg border p-4">
                   <p className="text-sm font-medium">Ihre Kontaktdaten</p>
+                  <p className="text-xs text-muted-foreground">Mit * markierte Felder sind Pflicht.</p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="kontakt-name">Ansprechpartner</Label>
+                      <RequiredLabel
+                        htmlFor="kontakt-name"
+                        showError={fieldError(Boolean(config.kontaktName?.trim()))}
+                      >
+                        Ansprechpartner
+                      </RequiredLabel>
                       <Input
                         id="kontakt-name"
                         placeholder="Vor- und Nachname"
                         value={config.kontaktName || ""}
                         onChange={(e) => updateConfig({ kontaktName: e.target.value })}
-                        required
+                        className={cn(fieldError(Boolean(config.kontaktName?.trim())) && INVALID_INPUT_CLASS)}
+                        aria-invalid={fieldError(Boolean(config.kontaktName?.trim()))}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="kontakt-firma">Firma</Label>
-                      <Input
-                        id="kontakt-firma"
-                        placeholder="Firmenname"
-                        value={config.kontaktFirma || ""}
-                        onChange={(e) => updateConfig({ kontaktFirma: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="kontakt-telefon">Telefon</Label>
+                      <RequiredLabel
+                        htmlFor="kontakt-telefon"
+                        showError={fieldError(Boolean(config.kontaktTelefon?.trim()))}
+                      >
+                        Telefon
+                      </RequiredLabel>
                       <Input
                         id="kontakt-telefon"
                         type="tel"
                         placeholder="+49 …"
                         value={config.kontaktTelefon || ""}
                         onChange={(e) => updateConfig({ kontaktTelefon: e.target.value })}
-                        required
+                        className={cn(fieldError(Boolean(config.kontaktTelefon?.trim())) && INVALID_INPUT_CLASS)}
+                        aria-invalid={fieldError(Boolean(config.kontaktTelefon?.trim()))}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <RequiredLabel
+                        htmlFor="kontakt-firma"
+                        showError={fieldError(Boolean(config.kontaktFirma?.trim()))}
+                      >
+                        Firma
+                      </RequiredLabel>
+                      <Input
+                        id="kontakt-firma"
+                        placeholder="Firmenname"
+                        value={config.kontaktFirma || ""}
+                        onChange={(e) => updateConfig({ kontaktFirma: e.target.value })}
+                        className={cn(fieldError(Boolean(config.kontaktFirma?.trim())) && INVALID_INPUT_CLASS)}
+                        aria-invalid={fieldError(Boolean(config.kontaktFirma?.trim()))}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <RequiredLabel
+                        htmlFor="kontakt-strasse"
+                        showError={fieldError(Boolean(config.kontaktStrasse?.trim()))}
+                      >
+                        Straße und Hausnummer
+                      </RequiredLabel>
+                      <Input
+                        id="kontakt-strasse"
+                        placeholder="Musterstraße 12"
+                        value={config.kontaktStrasse || ""}
+                        onChange={(e) => updateConfig({ kontaktStrasse: e.target.value })}
+                        className={cn(fieldError(Boolean(config.kontaktStrasse?.trim())) && INVALID_INPUT_CLASS)}
+                        aria-invalid={fieldError(Boolean(config.kontaktStrasse?.trim()))}
                       />
                     </div>
                     <div className="space-y-2">
+                      <RequiredLabel htmlFor="kontakt-plz" showError={fieldError(plzValid)}>
+                        Postleitzahl
+                      </RequiredLabel>
+                      <Input
+                        id="kontakt-plz"
+                        inputMode="numeric"
+                        pattern="[0-9]{5}"
+                        maxLength={5}
+                        placeholder="10115"
+                        value={config.kontaktPlz || ""}
+                        onChange={(e) =>
+                          updateConfig({
+                            kontaktPlz: e.target.value.replace(/\D/g, "").slice(0, 5),
+                          })
+                        }
+                        className={cn(fieldError(plzValid) && INVALID_INPUT_CLASS)}
+                        aria-invalid={fieldError(plzValid)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <RequiredLabel
+                        htmlFor="kontakt-ort"
+                        showError={fieldError(Boolean(config.kontaktOrt?.trim()))}
+                      >
+                        Ort
+                      </RequiredLabel>
+                      <Input
+                        id="kontakt-ort"
+                        placeholder="Berlin"
+                        value={config.kontaktOrt || ""}
+                        onChange={(e) => updateConfig({ kontaktOrt: e.target.value })}
+                        className={cn(fieldError(Boolean(config.kontaktOrt?.trim())) && INVALID_INPUT_CLASS)}
+                        aria-invalid={fieldError(Boolean(config.kontaktOrt?.trim()))}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="kontakt-email">E-Mail</Label>
                       <Input
                         id="kontakt-email"
@@ -732,9 +848,22 @@ export function ConfiguratorWizard({
                       />
                     </div>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Die Postleitzahl dient als Zugangscode für die Statusseite (Link in unseren
+                    E-Mails).
+                  </p>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <SectionLabel required showError={fieldError(Boolean(config.szenario))}>
+                    Art der Veranstaltung
+                  </SectionLabel>
+                <div
+                  className={cn(
+                    "grid gap-3 sm:grid-cols-2",
+                    fieldError(Boolean(config.szenario)) && "rounded-lg ring-2 ring-destructive p-1",
+                  )}
+                >
                   {SZENARIO_OPTIONS.map((s) => (
                     <OptionCard
                       key={s.value}
@@ -745,6 +874,7 @@ export function ConfiguratorWizard({
                     />
                   ))}
                 </div>
+                </div>
 
                 {config.szenario === "hochzeit" && (
                   <Alert className="border-amber-200 bg-amber-50 text-amber-900">
@@ -753,11 +883,23 @@ export function ConfiguratorWizard({
                   </Alert>
                 )}
 
-                <div className="space-y-4 rounded-lg border p-4">
-                  <p className="text-sm font-medium">Event-Details</p>
+                <div
+                  className={cn(
+                    "space-y-4 rounded-lg border p-4",
+                    (fieldError(Boolean(config.technikerAdresse?.trim())) ||
+                      fieldError(Boolean(config.von))) &&
+                      "border-destructive",
+                  )}
+                >
+                  <SectionLabel required>Event-Details</SectionLabel>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="event-adresse">Eventadresse</Label>
+                      <RequiredLabel
+                        htmlFor="event-adresse"
+                        showError={fieldError(Boolean(config.technikerAdresse?.trim()))}
+                      >
+                        Eventadresse
+                      </RequiredLabel>
                       <Input
                         id="event-adresse"
                         placeholder="Straße, PLZ Ort"
@@ -769,6 +911,10 @@ export function ConfiguratorWizard({
                             technikerKm: undefined,
                           })
                         }}
+                        className={cn(
+                          fieldError(Boolean(config.technikerAdresse?.trim())) && INVALID_INPUT_CLASS,
+                        )}
+                        aria-invalid={fieldError(Boolean(config.technikerAdresse?.trim()))}
                       />
                       {distanceLoading && (
                         <p className="text-xs text-muted-foreground flex items-center gap-2">
@@ -786,12 +932,16 @@ export function ConfiguratorWizard({
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="event-von">Eventbeginn</Label>
+                      <RequiredLabel htmlFor="event-von" showError={fieldError(Boolean(config.von))}>
+                        Eventbeginn
+                      </RequiredLabel>
                       <Input
                         id="event-von"
                         type="date"
                         value={config.von || ""}
                         onChange={(e) => updateConfig({ von: e.target.value })}
+                        className={cn(fieldError(Boolean(config.von)) && INVALID_INPUT_CLASS)}
+                        aria-invalid={fieldError(Boolean(config.von))}
                       />
                     </div>
                     <div className="space-y-2">
@@ -899,15 +1049,30 @@ export function ConfiguratorWizard({
                         </div>
 
                         {config.druck && druckArt === "logo" && (
-                          <LogoPreview
-                            logoUrl={logoPreviewUrl}
-                            onFileSelect={handleLogoUpload}
-                            uploading={logoUploading}
-                            uploadError={logoError}
-                            onBrowseRequest={() =>
-                              updateConfig({ druck: true, druckArt: "logo" })
-                            }
-                          />
+                          <div
+                            className={cn(
+                              fieldError(Boolean(config.logoId)) &&
+                                "rounded-lg ring-2 ring-destructive p-2",
+                            )}
+                          >
+                            <RequiredLabel showError={fieldError(Boolean(config.logoId))}>
+                              Logo hochladen
+                            </RequiredLabel>
+                            <LogoPreview
+                              logoUrl={logoPreviewUrl}
+                              onFileSelect={handleLogoUpload}
+                              uploading={logoUploading}
+                              uploadError={logoError}
+                              onBrowseRequest={() =>
+                                updateConfig({ druck: true, druckArt: "logo" })
+                              }
+                            />
+                            {fieldError(Boolean(config.logoId)) && (
+                              <p className="text-xs text-destructive mt-2">
+                                Bitte laden Sie Ihr Logo hoch.
+                              </p>
+                            )}
+                          </div>
                         )}
 
                         {config.druck && druckArt === "vollflaechig" && (
@@ -969,7 +1134,13 @@ export function ConfiguratorWizard({
                     ) : null}
                   </p>
                 )}
-                <AvailabilityIndicator availability={availability} loading={loadingAvailability} />
+                <div
+                  className={cn(
+                    showFieldErrors && step2AvailabilityInvalid && "rounded-lg ring-2 ring-destructive p-1",
+                  )}
+                >
+                  <AvailabilityIndicator availability={availability} loading={loadingAvailability} />
+                </div>
 
                 {!availability?.verfuegbar && availability && (
                   <p className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 p-3">
@@ -1058,14 +1229,25 @@ export function ConfiguratorWizard({
                 )}
 
                 {(config.station === "eco" || config.station === "pro") && (
-                  <StationAvailabilityIndicator
-                    station={config.station}
-                    availability={stationAvailability}
-                  />
+                  <div
+                    className={cn(
+                      showFieldErrors && step3StationInvalid && "rounded-lg ring-2 ring-destructive p-1",
+                    )}
+                  >
+                    <StationAvailabilityIndicator
+                      station={config.station}
+                      availability={stationAvailability}
+                    />
+                  </div>
                 )}
 
                 {config.station === "pro" && (
-                  <div className="space-y-4 rounded-lg border p-4">
+                  <div
+                    className={cn(
+                      "space-y-4 rounded-lg border p-4",
+                      showFieldErrors && step3GruppenInvalid && "border-destructive ring-2 ring-destructive",
+                    )}
+                  >
                     <div className="space-y-3">
                       <Label>
                         {GRUPPEN_INFO.title}: {config.gruppen} Gruppe{config.gruppen === 1 ? "" : "n"}
@@ -1179,7 +1361,9 @@ export function ConfiguratorWizard({
                 </div>
 
                 <div className="space-y-3">
-                  <Label>Produktion, Lieferung &amp; Logistik</Label>
+                  <SectionLabel required showError={showFieldErrors && step4LieferpaketInvalid}>
+                    Produktion, Lieferung &amp; Logistik
+                  </SectionLabel>
                   {lieferpaketWarning && (
                     <p className="text-xs text-amber-700">{lieferpaketWarning}</p>
                   )}
@@ -1195,7 +1379,12 @@ export function ConfiguratorWizard({
                       48 Stunden Vorlauf erforderlich). Bitte wählen Sie einen späteren Termin.
                     </p>
                   )}
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div
+                    className={cn(
+                      "grid gap-3 sm:grid-cols-2 lg:grid-cols-3",
+                      showFieldErrors && step4LieferpaketInvalid && "rounded-lg ring-2 ring-destructive p-1",
+                    )}
+                  >
                     {LIEFERPAKET_OPTIONS.map((p) => {
                       const allowed = isLieferpaketAllowed(p.value, tageBisEvent, lieferungCtx)
                       return (
@@ -1270,9 +1459,19 @@ export function ConfiguratorWizard({
                     />
                   </div>
                   {config.techniker && (
-                    <div className="space-y-3 pt-2 border-t">
+                    <div
+                      className={cn(
+                        "space-y-3 pt-2 border-t",
+                        showFieldErrors && step4TechnikerInvalid && "rounded-lg ring-2 ring-destructive p-2",
+                      )}
+                    >
                       <div className="space-y-2">
-                        <Label htmlFor="techniker-tage">Einsatztage</Label>
+                        <RequiredLabel
+                          htmlFor="techniker-tage"
+                          showError={fieldError(Boolean(config.technikerTage && config.technikerTage >= 1))}
+                        >
+                          Einsatztage
+                        </RequiredLabel>
                         <Input
                           id="techniker-tage"
                           type="number"
@@ -1282,11 +1481,23 @@ export function ConfiguratorWizard({
                           onChange={(e) =>
                             updateConfig({ technikerTage: Number(e.target.value) })
                           }
+                          className={cn(
+                            fieldError(Boolean(config.technikerTage && config.technikerTage >= 1)) &&
+                              INVALID_INPUT_CLASS,
+                          )}
+                          aria-invalid={fieldError(
+                            Boolean(config.technikerTage && config.technikerTage >= 1),
+                          )}
                         />
                       </div>
                       {config.technikerKm === undefined ? (
                         <div className="space-y-2">
-                          <Label htmlFor="techniker-event-adresse">Eventadresse</Label>
+                          <RequiredLabel
+                            htmlFor="techniker-event-adresse"
+                            showError={fieldError(Boolean(config.technikerAdresse?.trim()))}
+                          >
+                            Eventadresse
+                          </RequiredLabel>
                           <Input
                             id="techniker-event-adresse"
                             placeholder="Straße, PLZ Ort"
@@ -1298,6 +1509,11 @@ export function ConfiguratorWizard({
                                 technikerKm: undefined,
                               })
                             }}
+                            className={cn(
+                              fieldError(Boolean(config.technikerAdresse?.trim())) &&
+                                INVALID_INPUT_CLASS,
+                            )}
+                            aria-invalid={fieldError(Boolean(config.technikerAdresse?.trim()))}
                           />
                           {distanceLoading && (
                             <p className="text-xs text-muted-foreground flex items-center gap-2">
@@ -1348,6 +1564,7 @@ export function ConfiguratorWizard({
                   value={[
                     config.kontaktName,
                     config.kontaktFirma,
+                    formatKontaktAdresse(config) || null,
                     config.kontaktTelefon,
                     userEmail,
                   ]
@@ -1403,8 +1620,8 @@ export function ConfiguratorWizard({
                       ? `${config.station} (${stationModus})`
                       : "Nur Knopfsteuerung",
                     config.gruppen > 0
-                      ? `${config.gruppen} Gruppen (${gruppenGroessen.map((n, i) => `G${i + 1}: ${n}`).join(", ")})`
-                      : null,
+                      ? `${config.gruppen} Gruppe${config.gruppen === 1 ? "" : "n"} (${gruppenGroessen.map((n, i) => `G${i + 1}: ${n}`).join(", ")})`
+                      : `${config.gruppen} Gruppen`,
                     config.station !== "keine" && stationAvailability
                       ? stationAvailability.verfuegbar
                         ? "Controller voraussichtlich verfügbar"
@@ -1497,11 +1714,16 @@ export function ConfiguratorWizard({
                 <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
               </Button>
               {step < LAST_STEP ? (
-                <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext()}>
+                <Button onClick={handleNext}>
                   Weiter <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               ) : null}
             </div>
+            {showFieldErrors && !canNext() && (
+              <p className="text-sm text-destructive text-right">
+                Bitte füllen Sie alle Pflichtfelder aus (mit * markiert).
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -1554,5 +1776,47 @@ function SummaryRow({
         Ändern
       </Button>
     </div>
+  )
+}
+
+const INVALID_INPUT_CLASS = "border-destructive focus-visible:ring-destructive"
+
+function RequiredLabel({
+  htmlFor,
+  children,
+  showError,
+}: {
+  htmlFor?: string
+  children: React.ReactNode
+  showError?: boolean
+}) {
+  return (
+    <Label htmlFor={htmlFor} className={showError ? "text-destructive" : undefined}>
+      {children}
+      <span className="text-destructive ml-0.5" aria-hidden="true">
+        *
+      </span>
+    </Label>
+  )
+}
+
+function SectionLabel({
+  children,
+  required,
+  showError,
+}: {
+  children: React.ReactNode
+  required?: boolean
+  showError?: boolean
+}) {
+  return (
+    <p className={cn("text-sm font-medium", showError && "text-destructive")}>
+      {children}
+      {required && (
+        <span className="text-destructive ml-0.5" aria-hidden="true">
+          *
+        </span>
+      )}
+    </p>
   )
 }

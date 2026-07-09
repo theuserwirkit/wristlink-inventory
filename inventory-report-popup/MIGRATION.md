@@ -81,7 +81,7 @@ Empfohlenes Namensschema: `G{n}_{40|80}ch` (siehe `docs/konfigurator.md`)
 
 **bookings:** zusätzlich `status` (z. B. `BESTAETIGT`, `ANGEFRAGT` für n8n-Holds)
 
-**quote_requests:** `config_json` enthält u. a. `variante`, `gruppen`, `gruppenGroessen[]`, `kanalanzahl` (intern).
+**quote_requests:** `config_json` enthält u. a. `variante`, `gruppen`, `gruppenGroessen[]`, `kanalanzahl` (intern), Kontakt (`kontaktName`, `kontaktFirma`, `kontaktTelefon`, `kontaktStrasse`, `kontaktPlz`, `kontaktOrt`) und Event (`technikerAdresse`).
 Zusätzliche Spalten (Migration `09`): `fulfillment_status`, `tracking_number`, `payment_method`, `payment_note`, `return_booking_id`.
 
 **quote_fulfillment_events:** `from_status`, `to_status`, `comment`, `tracking_number`, `mail_sent`, `mail_subject`, `created_by`, `created_at`.
@@ -152,8 +152,9 @@ psql "$DATABASE_URL" -f scripts/migration/01-schema.sql
 | `10-offer-pdf.sql` | Angebots-PDF-Speicherung |
 | `11-lead-consent-doi.sql` | `leads.b2b_confirmed`, `email_verification_tokens.marketing_consent_pending` |
 | `12-sevdesk-offer.sql` | `quote_requests.sevdesk_order_id`, `sevdesk_order_number` |
+| `13-email-templates-v2.sql` | Überarbeitete Kunden-Mail-Texte (kürzer, Storytelling), Platzhalter `{{status_url}}`, `{{kunde_anrede}}` |
 
-Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op).
+Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op). Migration `13` überschreibt die Standardtexte in `email_templates` (Admin-Anpassungen gehen verloren, falls nicht gesichert).
 
 ```bash
 pnpm db:migrate
@@ -162,7 +163,7 @@ pnpm db:migrate
 Alternativ per `psql`:
 
 ```bash
-for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer; do
+for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2; do
   psql "$DATABASE_URL" -f "scripts/migration/${f}.sql"
 done
 ```
@@ -194,7 +195,8 @@ psql "$DATABASE_URL" -f dump.sql
   Konfigurator-Stress-Ampeln, Gruppen-Zuordnung für PRO-Programmierung (max. 3 physische Lagergruppen).
 - **Konfigurator-API:** `POST /api/konfigurator/session` (price, availability, station-availability, group-availability).
 - **Admin-Anfragen:** `/admin/anfragen` – Freigabe, Zahlung, Fulfillment, E-Mail-Vorschau.
-- **E-Mail-Templates:** `/admin/einstellungen/e-mails` – Vorlagen bearbeiten (Platzhalter `{{anfrage_id}}`, `{{angebot_url}}`, …).
+- **E-Mail-Templates:** `/admin/einstellungen/e-mails` – Vorlagen bearbeiten (Platzhalter `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{status_url}}`, `{{angebot_url}}`, …). Standardtexte: Migration `13`.
+- **Kunden-Statusseite:** `/angebot/[public_token]` – Angebot, Zahlung, Fulfillment-Timeline; Zugang per Firmen-PLZ (`kontaktPlz` in `config_json`, Fallback: PLZ aus Eventadresse).
 
 ---
 
@@ -204,8 +206,8 @@ psql "$DATABASE_URL" -f dump.sql
 
 | Aktion | Verhalten |
 |--------|-----------|
-| **Freigeben mit Stripe** | Status → `payment_pending`, Checkout-Link per E-Mail (`quote_approved_stripe`) |
-| **Freigeben ohne Stripe** | Status → `approved`, E-Mail mit Angebotslink (`quote_approved_manual`) |
+| **Freigeben mit Stripe** | Status → `payment_pending`, Checkout-Link per E-Mail (`quote_approved_stripe`) inkl. `{{status_url}}` |
+| **Freigeben ohne Stripe** | Status → `approved`, E-Mail mit Statuslink (`quote_approved_manual`) |
 | **Ablehnen** | Status → `rejected`, E-Mail mit Grund (`quote_rejected`), Hold wird freigegeben |
 | **Mail-Vorschau** | Vor dem Senden Betreff/Text der Template-Mail anzeigen |
 | **Angebots-PDF** | Manuell: „In sevDesk erstellen“ oder PDF-Upload – Anhang bei Freigabe/Zahlung (siehe `docs/sevdesk-angebote.md`) |
@@ -242,6 +244,11 @@ Pro Schritt: Kommentar, optionale Kunden-Mail aus `email_templates` (`fulfillmen
 | `lib/actions/fulfillment.ts` | Schrittwechsel, Events, Tracking |
 | `lib/actions/email-templates.ts` | CRUD für `email_templates` |
 | `lib/konfigurator/email-template-render.ts` | Platzhalter `{{…}}` |
+| `lib/konfigurator/kontakt-adresse.ts` | Firmenadresse, PLZ für Status-Zugang |
+| `lib/konfigurator/angebot-access.ts` | PLZ-Cookie nach erfolgreicher Prüfung |
+| `components/angebot/plz-gate.tsx` | PLZ-Eingabe (Kunde) |
+| `components/angebot/angebot-status-view.tsx` | Status-UI inkl. Fulfillment-Timeline |
+| `app/api/angebot/[token]/unlock/route.ts` | PLZ-Unlock-API |
 | `components/admin/quote-approval-actions.tsx` | Freigabe-UI |
 | `components/admin/quote-payment-actions.tsx` | Manueller Zahlungseingang |
 | `components/admin/quote-fulfillment-workflow.tsx` | Stepper + Historie |
@@ -257,7 +264,7 @@ Details zum sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
 | Datei | Zweck |
 |-------|--------|
 | `scripts/migration/01-schema.sql` | Konsolidiertes Basisschema |
-| `scripts/migration/02`–`12-*.sql` | Inkrementelle Feature-Migrationen |
+| `scripts/migration/02`–`13-*.sql` | Inkrementelle Feature-Migrationen |
 | `scripts/migration/02-export-data.js` | Exportiert alle Daten als `INSERT`-SQL |
 | `docs/konfigurator.md` | Fachliche Konfigurator-Dokumentation |
 | `docs/sevdesk-angebote.md` | sevDesk-Angebote: wann erstellt, PDF an Kunden |
@@ -265,4 +272,4 @@ Details zum sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
 | `lib/contact-emails.ts` | E-Mail-Domain-Konstanten (B2B-Firma vs. BraceLED-Absender) |
 | `MIGRATION.md` | Dieser Leitfaden |
 
-> Historische Einzelskripte unter `scripts/` bleiben als Referenz; Neuinstallationen nutzen `01-schema.sql` + `02`–`12` oder `pnpm db:migrate`.
+> Historische Einzelskripte unter `scripts/` bleiben als Referenz; Neuinstallationen nutzen `01-schema.sql` + `02`–`13` oder `pnpm db:migrate`.

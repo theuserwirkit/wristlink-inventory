@@ -26,6 +26,7 @@ import type { PaymentMethod, QuoteConfig, QuoteRequest, QuoteSource } from "@/li
 import { getProbedruckLabel, normalizeProbedruckOption } from "@/lib/konfigurator/product-info"
 import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"
 import { normalizeGruppenGroessen } from "@/lib/konfigurator/gruppen-config"
+import { formatKontaktAdresse } from "@/lib/konfigurator/kontakt-adresse"
 import { getRejectionMessage, type RejectionReasonId } from "@/lib/konfigurator/rejection-reasons"
 import { priceSnapshotSchema, quoteConfigSchema, formatZodError } from "@/lib/api-schemas"
 import { getQuoteOfferPdfForEmail } from "@/lib/actions/quote-offer-pdf"
@@ -62,6 +63,8 @@ function configSummary(config: QuoteConfig): string {
   if (config.kontaktName) lines.push(`Ansprechpartner: ${config.kontaktName}`)
   if (config.kontaktFirma) lines.push(`Firma: ${config.kontaktFirma}`)
   if (config.kontaktTelefon) lines.push(`Telefon: ${config.kontaktTelefon}`)
+  const adresse = formatKontaktAdresse(config)
+  if (adresse) lines.push(`Adresse: ${adresse}`)
   if (config.szenario) lines.push(`Event: ${config.szenario}`)
   if (config.von) {
     lines.push(`Eventzeitraum: ${config.von} – ${config.bis || config.von}`)
@@ -417,7 +420,10 @@ export async function approveQuoteRequest(
     return { success: true }
   }
 
-  const { sessionId, url } = await createCheckoutSessionForQuote(quote, lead.email)
+  const { sessionId, url } = await createCheckoutSessionForQuote(quote, lead.email, {
+    name: lead.name,
+    firma: lead.firma,
+  })
   const expiresAt = new Date(Date.now() + PAYMENT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
 
   await sql`

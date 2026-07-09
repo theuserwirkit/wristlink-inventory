@@ -11,6 +11,7 @@ import {
 } from "@/lib/konfigurator/product-info"
 import { isSevdeskConfigured, sevdeskJson } from "@/lib/konfigurator/sevdesk"
 import type { QuoteConfig, QuoteRequest } from "@/lib/konfigurator/types"
+import { formatKontaktAdresse } from "@/lib/konfigurator/kontakt-adresse"
 
 const CUSTOMER_CATEGORY_ID = 3
 const DEFAULT_UNITY_ID = 1
@@ -264,6 +265,8 @@ function buildHeadText(quote: QuoteRequest): string {
   if (config.kontaktFirma?.trim()) kundenangaben.push(`Firma: ${config.kontaktFirma.trim()}`)
   if (email) kundenangaben.push(`E-Mail: ${email}`)
   if (config.kontaktTelefon?.trim()) kundenangaben.push(`Telefon: ${config.kontaktTelefon.trim()}`)
+  const adresse = formatKontaktAdresse(config)
+  if (adresse) kundenangaben.push(`Adresse: ${adresse}`)
 
   const kundenSection = htmlSection("Kundenangaben", kundenangaben)
   if (kundenSection) blocks.push(kundenSection)

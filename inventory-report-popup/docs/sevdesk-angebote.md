@@ -69,7 +69,7 @@ Voraussetzungen:
 
 Ablauf (Server Action `createQuoteSevdeskOffer`):
 
-1. Kontakt in sevDesk per Lead-E-Mail suchen; falls nicht vorhanden: anlegen (Kategorie „Kunde“, E-Mail, optional Telefon)
+1. Kontakt in sevDesk per Lead-E-Mail suchen; falls nicht vorhanden: anlegen (Kategorie „Kunde“, E-Mail, optional Telefon, Adresse aus `kontaktStrasse` / `kontaktPlz` / `kontaktOrt`)
 2. Nächste Angebotsnummer holen (`Order/Factory/getNextOrderNumber`, z. B. `AN-2026-575`)
 3. Angebot anlegen (`Order/Factory/saveOrder`, `orderType: AN`) mit allen Preispositionen aus `price_snapshot_json`
 4. PDF von sevDesk laden (`Order/{id}/getPdf`)

@@ -226,15 +226,15 @@ export async function sendCustomerSubmittedEmail(params: {
   await resend.emails.send({
     from: getFromEmail(),
     to: params.email,
-    subject: "Ihre Anfrage ist eingegangen – WIRKUNG Wristlink",
+    subject: "Anfrage eingegangen – wir schauen uns alles an",
     text: `Hallo,
 
-vielen Dank! Wir haben Ihre Anfrage #${params.quoteId} erhalten und prüfen sie.
+vielen Dank für Ihre Anfrage #${params.quoteId}! Unser Team prüft gerade Ihre Konfiguration – bald hören Sie von uns.
 
-Status verfolgen:
+Status & Angebot jederzeit einsehen (Zugang mit der Postleitzahl Ihrer Firmenadresse):
 ${params.offerUrl}
 
-Mit freundlichen Grüßen
+Herzliche Grüße
 Ihr WIRKUNG-Team`,
   })
 }

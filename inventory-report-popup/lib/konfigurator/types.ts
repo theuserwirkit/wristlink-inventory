@@ -50,6 +50,9 @@ export type QuoteConfig = {
   kontaktName?: string
   kontaktFirma?: string
   kontaktTelefon?: string
+  kontaktStrasse?: string
+  kontaktPlz?: string
+  kontaktOrt?: string
   szenario?: string
   variante?: string
   produkt: string

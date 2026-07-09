@@ -14,6 +14,7 @@ import {
 } from "@/lib/actions/bookings"
 import { isStripeConfigured } from "@/lib/konfigurator/stripe"
 import { isSevdeskConfigured } from "@/lib/konfigurator/sevdesk"
+import { formatKontaktAdresse } from "@/lib/konfigurator/kontakt-adresse"
 
 export const dynamic = "force-dynamic"
 import { formatEur } from "@/lib/pricing/preis-engine"
@@ -258,6 +259,12 @@ export default async function AnfrageDetailPage({
                     <div className="flex justify-between">
                       <dt>Telefon</dt>
                       <dd>{config.kontaktTelefon}</dd>
+                    </div>
+                  )}
+                  {formatKontaktAdresse(config) && (
+                    <div className="flex justify-between">
+                      <dt>Adresse</dt>
+                      <dd className="text-right max-w-[60%]">{formatKontaktAdresse(config)}</dd>
                     </div>
                   )}
                 </>

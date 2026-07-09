@@ -5,7 +5,7 @@ import { checkProductAvailability } from "@/lib/actions/n8n-api"
 import { getVerifiedLead } from "@/lib/actions/leads"
 import { rechnePreis } from "@/lib/pricing/preis-engine"
 import { renderEmailPreview } from "@/lib/konfigurator/email"
-import type { PaymentMethod, QuoteConfig, QuoteRequest, QuoteSource, QuoteStatus } from "@/lib/konfigurator/types"
+import type { PaymentMethod, QuoteConfig, QuoteRequest, QuoteSource, QuoteStatus, FulfillmentStatus } from "@/lib/konfigurator/types"
 import { formatAblehnungsgrundBlock } from "@/lib/konfigurator/email-template-render"
 import { type RejectionReasonId } from "@/lib/konfigurator/rejection-reasons"
 import { isAuthenticated, requireRole } from "@/lib/auth"
@@ -100,6 +100,21 @@ export async function getQuoteByPublicToken(token: string): Promise<QuoteRequest
   `
   if (!rows.length) return null
   return mapQuoteRow(rows[0])
+}
+
+export async function getPublicFulfillmentEvents(quoteId: number) {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT to_status, created_at, tracking_number
+    FROM quote_fulfillment_events
+    WHERE quote_id = ${quoteId}
+    ORDER BY created_at ASC
+  `
+  return rows.map((row) => ({
+    to_status: row.to_status as FulfillmentStatus,
+    created_at: row.created_at as string,
+    tracking_number: (row.tracking_number as string | null) ?? null,
+  }))
 }
 
 // Auth-geschützte Variante für Client-/Server-Component-Zugriffe.
