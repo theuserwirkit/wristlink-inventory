@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server"
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7
 
 // Edge runtime: HMAC-SHA256 über Web Crypto (SubtleCrypto).
-// Muss dasselbe Ergebnis liefern wie createHmac in lib/auth.ts (Node runtime).
+// Muss dasselbe Ergebnis liefern wie createHmac in lib/auth-core.ts (Node runtime).
 function getSessionSecret(): string | null {
   return process.env["WRISTLINK_SESSION_SECRET"] || process.env["WRISTLINK_PASSWORD"] || null
 }
@@ -31,13 +31,15 @@ async function verifyTokenInMiddleware(token: string): Promise<boolean> {
   const secret = getSessionSecret()
   if (!secret) return false
   const parts = token.split(":")
-  if (parts.length !== 2) return false
-  const timestamp = parseInt(parts[0], 10)
-  if (isNaN(timestamp)) return false
+  if (parts.length !== 3) return false
+  const userId = parseInt(parts[0], 10)
+  const timestamp = parseInt(parts[1], 10)
+  if (isNaN(userId) || isNaN(timestamp) || userId <= 0) return false
   const now = Math.floor(Date.now() / 1000)
   if (now - timestamp > SESSION_MAX_AGE) return false
 
-  const expected = `${timestamp}:${await hmacSha256Hex(String(timestamp), secret)}`
+  const payload = `${userId}:${timestamp}`
+  const expected = `${payload}:${await hmacSha256Hex(payload, secret)}`
   if (token.length !== expected.length) return false
   let mismatch = 0
   for (let i = 0; i < token.length; i++) {

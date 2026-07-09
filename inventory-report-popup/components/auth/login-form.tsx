@@ -16,6 +16,7 @@ export function LoginForm() {
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,7 +24,7 @@ export function LoginForm() {
     setLoading(true)
 
     try {
-      const result = await login(password)
+      const result = await login(email, password)
 
       if (result.success) {
         toast({
@@ -54,10 +55,24 @@ export function LoginForm() {
     <Card>
       <CardHeader>
         <CardTitle>Anmelden</CardTitle>
-        <CardDescription>Geben Sie das Passwort ein, um fortzufahren</CardDescription>
+        <CardDescription>Melden Sie sich mit Ihrer E-Mail-Adresse an</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="email">E-Mail</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@beispiel.de"
+              required
+              autoComplete="email"
+              autoFocus
+            />
+          </div>
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="password">Passwort</Label>
             <Input
@@ -67,7 +82,7 @@ export function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              autoFocus
+              autoComplete="current-password"
             />
           </div>
 

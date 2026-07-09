@@ -1,4 +1,4 @@
--- Kundenfreundliche E-Mail-Texte + Status-Link-Platzhalter (Du-Ansprache, Storytelling, Support-Hinweis)
+-- E-Mail-Vorlagen: Du-Ansprache, Storytelling, Support-Hinweis
 
 UPDATE email_templates SET
   subject = 'Dein Angebot ist freigegeben – WIRKUNG Wristlink',

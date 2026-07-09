@@ -1,5 +1,5 @@
 import { Resend } from "resend"
-import { EMAIL_KONFIGURATOR, RESEND_FROM_DEFAULT } from "@/lib/contact-emails"
+import { EMAIL_KONFIGURATOR, EMAIL_TECH, RESEND_FROM_DEFAULT } from "@/lib/contact-emails"
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
 import { getEmailTemplateByKey } from "@/lib/konfigurator/email-template-store"
 import {
@@ -106,17 +106,19 @@ export async function sendVerificationEmail(email: string, token: string) {
   const { error } = await resend.emails.send({
     from: getFromEmail(),
     to: email,
-    subject: "Bitte bestätigen Sie Ihre E-Mail – WIRKUNG Wristlink",
+    subject: "Bitte bestätige deine E-Mail – WIRKUNG Wristlink",
     text: `Hallo,
 
-bitte bestätigen Sie Ihre E-Mail-Adresse, um den WIRKUNG Wristlink Konfigurator zu nutzen:
+bitte bestätige deine E-Mail-Adresse, um den WIRKUNG Wristlink Konfigurator zu nutzen:
 
 ${verifyUrl}
 
 Der Link ist 24 Stunden gültig.
 
-Mit freundlichen Grüßen
-Ihr WIRKUNG-Team`,
+Bitte nicht auf diese E-Mail antworten. Fragen bitte an ${EMAIL_TECH}
+
+Viele Grüße
+Dein WIRKUNG-Team`,
   })
 
   if (error) {
@@ -226,16 +228,18 @@ export async function sendCustomerSubmittedEmail(params: {
   await resend.emails.send({
     from: getFromEmail(),
     to: params.email,
-    subject: "Anfrage eingegangen – wir schauen uns alles an",
+    subject: "Anfrage eingegangen – WIRKUNG Wristlink",
     text: `Hallo,
 
-vielen Dank für Ihre Anfrage #${params.quoteId}! Unser Team prüft gerade Ihre Konfiguration – bald hören Sie von uns.
+vielen Dank für deine Anfrage #${params.quoteId}. Wir prüfen deine Konfiguration und melden uns in Kürze bei dir – bald wissen wir mehr über die Verfügbarkeit für dein Event.
 
-Status & Angebot jederzeit einsehen (Zugang mit der Postleitzahl Ihrer Firmenadresse):
+Status und Angebot findest du hier (Zugang mit der Postleitzahl deiner Firmenadresse):
 ${params.offerUrl}
 
-Herzliche Grüße
-Ihr WIRKUNG-Team`,
+Bitte nicht auf diese E-Mail antworten. Fragen bitte an ${EMAIL_TECH}
+
+Viele Grüße
+Dein WIRKUNG-Team`,
   })
 }
 

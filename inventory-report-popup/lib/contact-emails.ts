@@ -1,5 +1,6 @@
 /** Allgemeine Firmen-Kommunikation */
 export const EMAIL_INFO = "info@wirkung-digital.de"
+export const EMAIL_TECH = "tech@wirkung-digital.de"
 export const EMAIL_LEGAL = "legal@wirkung-digital.de"
 export const EMAIL_DATENSCHUTZ = "datenschutz@wirkung-digital.de"
 

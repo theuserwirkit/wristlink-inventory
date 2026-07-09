@@ -153,8 +153,10 @@ psql "$DATABASE_URL" -f scripts/migration/01-schema.sql
 | `10-offer-pdf.sql` | Angebots-PDF-Speicherung |
 | `11-lead-consent-doi.sql` | `leads.b2b_confirmed`, `email_verification_tokens.marketing_consent_pending` |
 | `12-sevdesk-offer.sql` | `quote_requests.sevdesk_order_id`, `sevdesk_order_number` |
-| `13-email-templates-v2.sql` | Überarbeitete Kunden-Mail-Texte (kürzer, Storytelling), Platzhalter `{{status_url}}`, `{{kunde_anrede}}` |
+| `13-email-templates-v2.sql` | Überarbeitete Kunden-Mail-Texte, Platzhalter `{{status_url}}`, `{{kunde_anrede}}` |
+| `15-email-templates-du.sql` | Du-Ansprache, professioneller Ton |
 | `14-versand-dienstleister.sql` | `versand_dienstleister` auf `quote_requests` und `quote_fulfillment_events` (E-Mail-Platzhalter `{{versand_dienstleister}}`) |
+| `15-email-templates-du.sql` | E-Mail-Vorlagen: professionelle Du-Ansprache (ersetzt holprige Texte aus Migration 13) |
 
 Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op). Migration `13` überschreibt die Standardtexte in `email_templates` (Admin-Anpassungen gehen verloren, falls nicht gesichert).
 
@@ -165,7 +167,7 @@ pnpm db:migrate
 Alternativ per `psql`:
 
 ```bash
-for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2 14-versand-dienstleister; do
+for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2 14-versand-dienstleister 15-email-templates-du; do
   psql "$DATABASE_URL" -f "scripts/migration/${f}.sql"
 done
 ```
@@ -270,7 +272,7 @@ Details zum sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
 | Datei | Zweck |
 |-------|--------|
 | `scripts/migration/01-schema.sql` | Konsolidiertes Basisschema |
-| `scripts/migration/02`–`14-*.sql` | Inkrementelle Feature-Migrationen |
+| `scripts/migration/02`–`15-*.sql` | Inkrementelle Feature-Migrationen |
 | `scripts/migration/02-export-data.js` | Exportiert alle Daten als `INSERT`-SQL |
 | `docs/konfigurator.md` | Fachliche Konfigurator-Dokumentation |
 | `docs/sevdesk-angebote.md` | sevDesk-Angebote: wann erstellt, PDF an Kunden |
@@ -278,4 +280,4 @@ Details zum sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
 | `lib/contact-emails.ts` | E-Mail-Domain-Konstanten (B2B-Firma vs. BraceLED-Absender) |
 | `MIGRATION.md` | Dieser Leitfaden |
 
-> Historische Einzelskripte unter `scripts/` bleiben als Referenz; Neuinstallationen nutzen `01-schema.sql` + `02`–`14` oder `pnpm db:migrate`.
+> Historische Einzelskripte unter `scripts/` bleiben als Referenz; Neuinstallationen nutzen `01-schema.sql` + `02`–`15` oder `pnpm db:migrate`.
