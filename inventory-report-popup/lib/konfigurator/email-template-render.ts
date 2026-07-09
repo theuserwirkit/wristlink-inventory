@@ -1,5 +1,6 @@
 import type { QuoteRequest } from "@/lib/konfigurator/types"
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
+import { getVersandDienstleisterLabel } from "@/lib/konfigurator/versand-dienstleister"
 
 export type TemplateVars = Record<string, string>
 
@@ -15,6 +16,15 @@ export function buildQuoteTemplateVars(
   const price = quote.price_snapshot_json as { gesamt_netto?: number; gesamt_brutto?: number }
   const config = quote.config_json
   const statusUrl = `${getAppBaseUrl()}/angebot/${quote.public_token}`
+  const trackingNr = quote.tracking_number || extra.tracking_nr || ""
+  const versandDienstleister = getVersandDienstleisterLabel(
+    extra.versand_dienstleister || quote.versand_dienstleister,
+  )
+  const trackingInfo = trackingNr
+    ? versandDienstleister
+      ? `Sendungsverfolgung (${versandDienstleister}): ${trackingNr}`
+      : `Sendungsverfolgung: ${trackingNr}`
+    : ""
 
   return {
     anfrage_id: String(quote.id),
@@ -29,10 +39,9 @@ export function buildQuoteTemplateVars(
     zahlungslink: quote.stripe_payment_link_url || "",
     angebot_url: statusUrl,
     status_url: statusUrl,
-    tracking_nr: quote.tracking_number || extra.tracking_nr || "",
-    tracking_info: quote.tracking_number
-      ? `Sendungsverfolgung: ${quote.tracking_number}`
-      : "",
+    tracking_nr: trackingNr,
+    versand_dienstleister: versandDienstleister,
+    tracking_info: trackingInfo,
     kommentar: extra.kommentar || "",
     ablehnungsgrund: extra.ablehnungsgrund || quote.rejection_reason || "",
     zahlungsnotiz: extra.zahlungsnotiz || quote.payment_note || "",

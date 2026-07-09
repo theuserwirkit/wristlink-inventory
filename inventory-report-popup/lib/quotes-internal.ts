@@ -44,6 +44,7 @@ export function mapQuoteRow(row: Record<string, unknown>): QuoteRequest {
     cancelled_at: (row.cancelled_at as string | null) ?? null,
     fulfillment_status: (row.fulfillment_status as QuoteRequest["fulfillment_status"]) ?? null,
     tracking_number: (row.tracking_number as string | null) ?? null,
+    versand_dienstleister: (row.versand_dienstleister as QuoteRequest["versand_dienstleister"]) ?? null,
     payment_method: (row.payment_method as QuoteRequest["payment_method"]) ?? null,
     payment_note: (row.payment_note as string | null) ?? null,
     return_booking_id: (row.return_booking_id as number | null) ?? null,

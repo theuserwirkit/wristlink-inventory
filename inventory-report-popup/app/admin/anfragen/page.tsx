@@ -2,7 +2,8 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { isAuthenticated } from "@/lib/auth"
 import { expireStaleQuotes } from "@/lib/quotes-internal"
-import { getQuoteRequestStats, listQuoteRequests } from "@/lib/actions/quotes"
+import { getQuoteRequestStats, listPriorityFulfillmentOrders, listQuoteRequests } from "@/lib/actions/quotes"
+import { UpcomingFulfillmentOrders } from "@/components/admin/upcoming-fulfillment-orders"
 
 export const dynamic = "force-dynamic"
 import { formatEur } from "@/lib/pricing/preis-engine"
@@ -51,13 +52,14 @@ export default async function AnfragenPage({
   if (sourceFilter && sourceFilter !== "all") quoteFilters.source = sourceFilter
   if (statusFilter && statusFilter !== "all") quoteFilters.status = statusFilter
 
-  const [_, stats, quotes] = await Promise.all([
+  const [_, stats, quotes, priorityOrders] = await Promise.all([
     expireStaleQuotes(),
     getQuoteRequestStats({ skipExpire: true }),
     listQuoteRequests(
       Object.keys(quoteFilters).length > 0 ? quoteFilters : undefined,
       { skipExpire: true, tableView: true, limit: 100 },
     ),
+    listPriorityFulfillmentOrders(3),
   ])
 
   const pendingCount = stats.submitted || 0
@@ -99,6 +101,8 @@ export default async function AnfragenPage({
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-6">
+        <UpcomingFulfillmentOrders orders={priorityOrders} />
+
         <div className="flex flex-wrap gap-2">
           {FILTER_STATUSES.map((s) => {
             const count =

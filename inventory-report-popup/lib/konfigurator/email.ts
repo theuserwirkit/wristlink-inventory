@@ -9,7 +9,7 @@ import {
   renderTemplateText,
   type TemplateVars,
 } from "@/lib/konfigurator/email-template-render"
-import type { QuoteRequest } from "@/lib/konfigurator/types"
+import type { QuoteRequest, VersandDienstleister } from "@/lib/konfigurator/types"
 
 function getResend() {
   const key = process.env.RESEND_API_KEY
@@ -245,6 +245,7 @@ export async function sendFulfillmentStepEmail(params: {
   templateKey: string
   comment?: string
   trackingNumber?: string
+  versandDienstleister?: VersandDienstleister
   customSubject?: string
   customBody?: string
 }) {
@@ -262,6 +263,8 @@ export async function sendFulfillmentStepEmail(params: {
     extraVars: {
       kommentar: formatKommentarBlock(params.comment),
       tracking_nr: params.trackingNumber || params.quote.tracking_number || "",
+      versand_dienstleister:
+        params.versandDienstleister || params.quote.versand_dienstleister || "",
     },
   })
 }

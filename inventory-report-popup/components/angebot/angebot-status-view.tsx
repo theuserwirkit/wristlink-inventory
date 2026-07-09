@@ -37,6 +37,7 @@ type FulfillmentEvent = {
   to_status: FulfillmentStatus
   created_at: string
   tracking_number: string | null
+  versand_dienstleister: string | null
 }
 
 export function AngebotStatusView({
@@ -158,6 +159,7 @@ export function AngebotStatusView({
                   const isCurrent = currentFulfillment === step
                   const event = fulfillmentEvents.find((e) => e.to_status === step)
                   const tracking = event?.tracking_number || quote.tracking_number
+                  const carrier = event?.versand_dienstleister || quote.versand_dienstleister
 
                   return (
                     <li key={step} className="flex gap-3">
@@ -182,7 +184,8 @@ export function AngebotStatusView({
                         </p>
                         {done && tracking && (step === "versand_beauftragt" || step === "versandt") && (
                           <p className="text-sm mt-1">
-                            Sendungsverfolgung: <span className="font-mono">{tracking}</span>
+                            {carrier ? `${carrier}: ` : "Sendungsverfolgung: "}
+                            <span className="font-mono">{tracking}</span>
                           </p>
                         )}
                         {event && (

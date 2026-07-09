@@ -12,6 +12,8 @@ export type QuoteSource = "konfigurator" | "n8n_email"
 
 export type PaymentMethod = "stripe" | "bank_transfer" | "manual"
 
+export type VersandDienstleister = "UPS" | "DHL" | "TNT"
+
 export type FulfillmentStatus =
   | "angenommen"
   | "vorbereitet"
@@ -40,6 +42,7 @@ export type QuoteFulfillmentEvent = {
   to_status: FulfillmentStatus
   comment: string | null
   tracking_number: string | null
+  versand_dienstleister: VersandDienstleister | null
   mail_sent: boolean
   mail_subject: string | null
   created_by: string | null
@@ -125,6 +128,7 @@ export type QuoteRequest = {
   cancelled_at: string | null
   fulfillment_status: FulfillmentStatus | null
   tracking_number: string | null
+  versand_dienstleister: VersandDienstleister | null
   payment_method: PaymentMethod | null
   payment_note: string | null
   return_booking_id: number | null

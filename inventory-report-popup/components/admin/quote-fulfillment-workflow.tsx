@@ -8,6 +8,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -40,7 +47,8 @@ import {
   isFulfillmentComplete,
 } from "@/lib/konfigurator/fulfillment-status"
 import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"
-import type { FulfillmentStatus, QuoteFulfillmentEvent, QuoteRequest } from "@/lib/konfigurator/types"
+import { VERSAND_DIENSTLEISTER_OPTIONS } from "@/lib/konfigurator/versand-dienstleister"
+import type { FulfillmentStatus, QuoteFulfillmentEvent, QuoteRequest, VersandDienstleister } from "@/lib/konfigurator/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -147,6 +155,9 @@ export function QuoteFulfillmentWorkflow({
   const [error, setError] = useState<string | null>(null)
   const [comment, setComment] = useState("")
   const [trackingNumber, setTrackingNumber] = useState(quote.tracking_number || "")
+  const [versandDienstleister, setVersandDienstleister] = useState<VersandDienstleister | "">(
+    quote.versand_dienstleister || "",
+  )
   const [sendMail, setSendMail] = useState(true)
   const [mailSubject, setMailSubject] = useState("")
   const [mailBody, setMailBody] = useState("")
@@ -169,6 +180,7 @@ export function QuoteFulfillmentWorkflow({
       const preview = await previewFulfillmentEmail(quote.id, next, {
         comment,
         trackingNumber,
+        versandDienstleister: versandDienstleister || undefined,
       })
       if (preview && !mailEdited) {
         setMailSubject(preview.subject)
@@ -177,7 +189,7 @@ export function QuoteFulfillmentWorkflow({
     } finally {
       setPreviewLoading(false)
     }
-  }, [next, comment, trackingNumber, quote.id, mailEdited])
+  }, [next, comment, trackingNumber, versandDienstleister, quote.id, mailEdited])
 
   useEffect(() => {
     if (!next) return
@@ -192,12 +204,14 @@ export function QuoteFulfillmentWorkflow({
       void loadPreview()
     }, 400)
     return () => clearTimeout(timer)
-  }, [comment, trackingNumber, next, loadPreview])
+  }, [comment, trackingNumber, versandDienstleister, next, loadPreview])
 
   if (quote.status !== "paid") return null
 
   const trackingRequired = next === "versand_beauftragt"
   const trackingMissing = trackingRequired && !trackingNumber.trim()
+  const carrierMissing = trackingRequired && !versandDienstleister
+  const stepBlocked = trackingMissing || carrierMissing
   const orderContext = buildOrderContext(quote)
 
   async function handleAdvance() {
@@ -208,6 +222,8 @@ export function QuoteFulfillmentWorkflow({
       const result = await advanceFulfillmentStep(quote.id, {
         comment,
         trackingNumber: trackingRequired ? trackingNumber : undefined,
+        versandDienstleister:
+          trackingRequired && versandDienstleister ? versandDienstleister : undefined,
         sendMail: confirmSendMail,
         mailSubject: confirmSendMail ? mailSubject : undefined,
         mailBody: confirmSendMail ? mailBody : undefined,
@@ -271,25 +287,45 @@ export function QuoteFulfillmentWorkflow({
               />
             </div>
             {trackingRequired && (
-              <div className="space-y-2">
-                <Label>Tracking-Nummer *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={trackingNumber}
-                    onChange={(e) => setTrackingNumber(e.target.value)}
-                    placeholder="Sendungsverfolgungsnummer"
-                    className="font-mono"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => void copyTracking()}
-                    disabled={!trackingNumber.trim()}
-                    title="Kopieren"
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Versand-Dienstleister *</Label>
+                  <Select
+                    value={versandDienstleister}
+                    onValueChange={(value) => setVersandDienstleister(value as VersandDienstleister)}
                   >
-                    <Copy className="h-4 w-4" />
-                  </Button>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Dienstleister wählen …" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VERSAND_DIENSTLEISTER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tracking-Nummer *</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={trackingNumber}
+                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      placeholder="Sendungsverfolgungsnummer"
+                      className="font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => void copyTracking()}
+                      disabled={!trackingNumber.trim()}
+                      title="Kopieren"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -368,7 +404,7 @@ export function QuoteFulfillmentWorkflow({
                   setConfirmSendMail(sendMail)
                   setConfirmOpen(true)
                 }}
-                disabled={loading || trackingMissing || (sendMail && (!mailSubject.trim() || !mailBody.trim()))}
+                disabled={loading || stepBlocked || (sendMail && (!mailSubject.trim() || !mailBody.trim()))}
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -384,7 +420,7 @@ export function QuoteFulfillmentWorkflow({
                     setConfirmSendMail(false)
                     setConfirmOpen(true)
                   }}
-                  disabled={loading || trackingMissing}
+                  disabled={loading || stepBlocked}
                 >
                   Nur Schritt, keine Mail
                 </Button>
@@ -401,7 +437,8 @@ export function QuoteFulfillmentWorkflow({
                 </p>
                 {quote.tracking_number && (
                   <p className="text-sm text-muted-foreground">
-                    Tracking: <span className="font-mono">{quote.tracking_number}</span>
+                    {quote.versand_dienstleister ? `${quote.versand_dienstleister}: ` : "Tracking: "}
+                    <span className="font-mono">{quote.tracking_number}</span>
                   </p>
                 )}
                 {quote.config_json.modus === "miete" && (
@@ -443,7 +480,10 @@ export function QuoteFulfillmentWorkflow({
                     )}
                     {ev.comment && <p className="mt-1 text-muted-foreground">{ev.comment}</p>}
                     {ev.tracking_number && (
-                      <p className="mt-1 font-mono text-xs">Tracking: {ev.tracking_number}</p>
+                      <p className="mt-1 font-mono text-xs">
+                        {ev.versand_dienstleister ? `${ev.versand_dienstleister}: ` : "Tracking: "}
+                        {ev.tracking_number}
+                      </p>
                     )}
                     {ev.mail_sent ? (
                       <p className="mt-1 flex items-center gap-1 text-xs text-emerald-600">

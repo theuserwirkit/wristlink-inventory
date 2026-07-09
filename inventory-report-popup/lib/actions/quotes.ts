@@ -21,6 +21,10 @@ import {
   type ExternalQuoteInput,
 } from "@/lib/quotes-internal"
 import { getLeadById } from "@/lib/actions/leads"
+import {
+  compareFulfillmentUrgency,
+  isFulfillmentWorkOpen,
+} from "@/lib/konfigurator/fulfillment-timing"
 
 export type { ExternalQuoteInput }
 
@@ -105,7 +109,7 @@ export async function getQuoteByPublicToken(token: string): Promise<QuoteRequest
 export async function getPublicFulfillmentEvents(quoteId: number) {
   const sql = getDb()
   const rows = await sql`
-    SELECT to_status, created_at, tracking_number
+    SELECT to_status, created_at, tracking_number, versand_dienstleister
     FROM quote_fulfillment_events
     WHERE quote_id = ${quoteId}
     ORDER BY created_at ASC
@@ -114,6 +118,7 @@ export async function getPublicFulfillmentEvents(quoteId: number) {
     to_status: row.to_status as FulfillmentStatus,
     created_at: row.created_at as string,
     tracking_number: (row.tracking_number as string | null) ?? null,
+    versand_dienstleister: (row.versand_dienstleister as string | null) ?? null,
   }))
 }
 
@@ -197,6 +202,25 @@ export async function listQuoteRequests(
     `
 
   return rows.map((row) => mapQuoteRow(row))
+}
+
+export async function listPriorityFulfillmentOrders(limit = 3): Promise<QuoteRequest[]> {
+  await requireRole(["ADMIN"])
+
+  const sql = getDb()
+  const rows = await sql`
+    SELECT qr.*, l.email AS lead_email
+    FROM quote_requests qr
+    JOIN leads l ON l.id = qr.lead_id
+    WHERE qr.status = 'paid'
+      AND (qr.fulfillment_status IS NULL OR qr.fulfillment_status != 'zurueckgepackt')
+    ORDER BY qr.paid_at ASC NULLS LAST, qr.submitted_at ASC NULLS LAST
+    LIMIT 100
+  `
+
+  const open = rows.map((row) => mapQuoteRow(row)).filter(isFulfillmentWorkOpen)
+  open.sort(compareFulfillmentUrgency)
+  return open.slice(0, Math.max(1, Math.min(limit, 10)))
 }
 
 export async function getQuoteRequestStats(options?: { skipExpire?: boolean }): Promise<Record<string, number>> {

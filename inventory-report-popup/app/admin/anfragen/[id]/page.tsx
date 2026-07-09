@@ -179,8 +179,11 @@ export default async function AnfrageDetailPage({
               )}
               {quote.tracking_number && (
                 <div className="flex justify-between">
-                  <dt>Tracking</dt>
-                  <dd className="font-mono text-xs">{quote.tracking_number}</dd>
+                  <dt>Sendungsverfolgung</dt>
+                  <dd className="font-mono text-xs text-right">
+                    {quote.versand_dienstleister ? `${quote.versand_dienstleister} · ` : ""}
+                    {quote.tracking_number}
+                  </dd>
                 </div>
               )}
               {quote.external_ref && (

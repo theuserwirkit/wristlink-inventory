@@ -16,7 +16,8 @@ import {
   getNextFulfillmentStep,
   isFulfillmentComplete,
 } from "@/lib/konfigurator/fulfillment-status"
-import type { FulfillmentStatus, QuoteFulfillmentEvent } from "@/lib/konfigurator/types"
+import { isVersandDienstleister } from "@/lib/konfigurator/versand-dienstleister"
+import type { FulfillmentStatus, QuoteFulfillmentEvent, VersandDienstleister } from "@/lib/konfigurator/types"
 
 function mapEventRow(row: Record<string, unknown>): QuoteFulfillmentEvent {
   return {
@@ -26,6 +27,7 @@ function mapEventRow(row: Record<string, unknown>): QuoteFulfillmentEvent {
     to_status: row.to_status as FulfillmentStatus,
     comment: (row.comment as string | null) ?? null,
     tracking_number: (row.tracking_number as string | null) ?? null,
+    versand_dienstleister: (row.versand_dienstleister as VersandDienstleister | null) ?? null,
     mail_sent: Boolean(row.mail_sent),
     mail_subject: (row.mail_subject as string | null) ?? null,
     created_by: (row.created_by as string | null) ?? null,
@@ -49,6 +51,7 @@ export async function advanceFulfillmentStep(
   input: {
     comment?: string
     trackingNumber?: string
+    versandDienstleister?: VersandDienstleister
     sendMail?: boolean
     mailSubject?: string
     mailBody?: string
@@ -73,9 +76,17 @@ export async function advanceFulfillmentStep(
       return { success: false, error: "Kein weiterer Schritt verfügbar" }
     }
 
-    if (next === "versand_beauftragt" && !input.trackingNumber?.trim()) {
-      return { success: false, error: "Tracking-Nummer erforderlich für Versand beauftragt" }
+    if (next === "versand_beauftragt") {
+      if (!input.trackingNumber?.trim()) {
+        return { success: false, error: "Tracking-Nummer erforderlich für Versand beauftragt" }
+      }
+      if (!input.versandDienstleister || !isVersandDienstleister(input.versandDienstleister)) {
+        return { success: false, error: "Versand-Dienstleister erforderlich für Versand beauftragt" }
+      }
     }
+
+    const versandDienstleister =
+      input.versandDienstleister || quote.versand_dienstleister || null
 
     const lead = await getLeadById(quote.lead_id)
     if (!lead) return { success: false, error: "Lead nicht gefunden" }
@@ -87,6 +98,7 @@ export async function advanceFulfillmentStep(
     const extraVars = {
       kommentar: formatKommentarBlock(input.comment),
       tracking_nr: input.trackingNumber?.trim() || quote.tracking_number || "",
+      versand_dienstleister: versandDienstleister || "",
     }
 
     let mailSent = false
@@ -100,6 +112,7 @@ export async function advanceFulfillmentStep(
         templateKey,
         comment: input.comment,
         trackingNumber: input.trackingNumber,
+        versandDienstleister: versandDienstleister || undefined,
         customSubject: input.mailSubject,
         customBody: input.mailBody,
       })
@@ -121,13 +134,14 @@ export async function advanceFulfillmentStep(
       UPDATE quote_requests SET
         fulfillment_status = ${next},
         tracking_number = COALESCE(${input.trackingNumber?.trim() || null}, tracking_number),
+        versand_dienstleister = COALESCE(${versandDienstleister}, versand_dienstleister),
         updated_at = NOW()
       WHERE id = ${quoteId}
     `
 
     await sql`
       INSERT INTO quote_fulfillment_events (
-        quote_id, from_status, to_status, comment, tracking_number,
+        quote_id, from_status, to_status, comment, tracking_number, versand_dienstleister,
         mail_sent, mail_subject, created_by
       ) VALUES (
         ${quoteId},
@@ -135,6 +149,7 @@ export async function advanceFulfillmentStep(
         ${next},
         ${input.comment?.trim() || null},
         ${input.trackingNumber?.trim() || null},
+        ${versandDienstleister},
         ${mailSent},
         ${mailSubject},
         'admin'
@@ -156,13 +171,16 @@ export async function advanceFulfillmentStep(
 export async function previewFulfillmentEmail(
   quoteId: number,
   toStatus: FulfillmentStatus,
-  input?: { comment?: string; trackingNumber?: string },
+  input?: { comment?: string; trackingNumber?: string; versandDienstleister?: VersandDienstleister },
 ) {
   await requireRole(["ADMIN"])
   const quote = await getQuoteByIdInternal(quoteId)
   if (!quote) return null
   const lead = await getLeadById(quote.lead_id)
   if (!lead) return null
+
+  const versandDienstleister =
+    input?.versandDienstleister || quote.versand_dienstleister || null
 
   return renderEmailPreview({
     templateKey: fulfillmentTemplateKey(toStatus),
@@ -171,6 +189,7 @@ export async function previewFulfillmentEmail(
     extraVars: {
       kommentar: formatKommentarBlock(input?.comment),
       tracking_nr: input?.trackingNumber?.trim() || quote.tracking_number || "",
+      versand_dienstleister: versandDienstleister || "",
     },
   })
 }
