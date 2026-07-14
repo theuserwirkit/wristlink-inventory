@@ -1,7 +1,8 @@
-/** Allgemeine Firmen-Kommunikation */
+/** Allgemeine Firmen-Kommunikation (inkl. rechtliche Anfragen) */
 export const EMAIL_INFO = "info@wirkung-digital.de"
 export const EMAIL_TECH = "tech@wirkung-digital.de"
-export const EMAIL_LEGAL = "legal@wirkung-digital.de"
+/** @deprecated Alias – nutze EMAIL_INFO */
+export const EMAIL_LEGAL = EMAIL_INFO
 export const EMAIL_DATENSCHUTZ = "datenschutz@wirkung-digital.de"
 
 /** Konfigurator, Absender & Transaktionsmails (BraceLED-Domain) */

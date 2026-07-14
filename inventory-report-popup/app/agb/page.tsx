@@ -1,6 +1,6 @@
 import Link from "next/link"
 import type { Metadata } from "next"
-import { EMAIL_LEGAL } from "@/lib/contact-emails"
+import { EMAIL_INFO } from "@/lib/contact-emails"
 
 export const metadata: Metadata = {
   title: "Allgemeine Geschäftsbedingungen – BraceLED",
@@ -447,8 +447,8 @@ export default function AgbPage() {
             <p className="mt-4">
               Stand: Juli 2026 · WIRKUNG digital GmbH · Hildegard-von-Bingen-Straße 1, 61273
               Wehrheim ·{" "}
-              <a href={`mailto:${EMAIL_LEGAL}`} className="text-cyan-400 hover:underline">
-                {EMAIL_LEGAL}
+              <a href={`mailto:${EMAIL_INFO}`} className="text-cyan-400 hover:underline">
+                {EMAIL_INFO}
               </a>
             </p>
           </section>

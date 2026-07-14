@@ -1,6 +1,6 @@
 import Link from "next/link"
 import type { Metadata } from "next"
-import { EMAIL_INFO, EMAIL_LEGAL } from "@/lib/contact-emails"
+import { EMAIL_INFO } from "@/lib/contact-emails"
 
 export const metadata: Metadata = {
   title: "Impressum – BraceLED",
@@ -142,8 +142,8 @@ export default function ImpressumPage() {
             </p>
             <p className="mt-4">
               Für rechtliche Anfragen:{" "}
-              <a href={`mailto:${EMAIL_LEGAL}`} className="text-cyan-400 hover:underline">
-                {EMAIL_LEGAL}
+              <a href={`mailto:${EMAIL_INFO}`} className="text-cyan-400 hover:underline">
+                {EMAIL_INFO}
               </a>
               {" · "}
               <Link href="/agb" className="text-cyan-400 hover:underline">
