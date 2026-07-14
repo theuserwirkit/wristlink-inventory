@@ -74,9 +74,10 @@ export function generateVerificationToken(): string {
 const PRODUCTION_APP_URL = "https://braceled-led-armband.com"
 
 export function getAppBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "")
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  const normalize = (value: string) => value.trim().replace(/\/$/, "")
+  if (process.env.NEXT_PUBLIC_APP_URL) return normalize(process.env.NEXT_PUBLIC_APP_URL)
+  if (process.env.APP_URL) return normalize(process.env.APP_URL)
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL.trim()}`
   if (process.env.NODE_ENV === "production") return PRODUCTION_APP_URL
   return "http://localhost:3000"
 }
