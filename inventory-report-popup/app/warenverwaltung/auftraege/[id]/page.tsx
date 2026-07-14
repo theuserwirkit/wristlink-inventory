@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { QuoteOrderWorkflow } from "@/components/admin/quote-order-workflow"
+import { QuotePackingPrintModal } from "@/components/admin/quote-packing-print-modal"
 import { QuoteWarehousePanel } from "@/components/admin/quote-warehouse-panel"
 import { STATUS_LABELS, SOURCE_LABELS, statusBadgeVariant } from "@/lib/konfigurator/quote-status"
 import { FULFILLMENT_STATUS_LABELS } from "@/lib/konfigurator/fulfillment-status"
@@ -122,7 +123,8 @@ export default async function AuftragDetailPage({
               <p className="text-sm text-muted-foreground">{quote.lead_email}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <QuotePackingPrintModal quoteId={quote.id} quoteStatus={quote.status} />
             <Badge variant="outline">{SOURCE_LABELS[quote.source]}</Badge>
             <Badge variant={statusBadgeVariant(quote.status)}>
               {STATUS_LABELS[quote.status] || quote.status}

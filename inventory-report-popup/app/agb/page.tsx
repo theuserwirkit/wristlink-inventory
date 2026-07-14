@@ -106,6 +106,13 @@ export default function AgbPage() {
               Konkrete Mietdauer, Liefer- und Rückgabefristen ergeben sich aus dem Angebot und den
               gewählten Lieferpaketen (siehe Abschnitt 6 und 8).
             </p>
+            <p className="mt-2">
+              Gemietete Basis-Stationen, Controller und Steuerungssoftware dürfen nur am
+              vereinbarten Veranstaltungsort und für den vereinbarten Event-Zweck genutzt werden.
+              Der Kunde darf die Geräte nicht öffnen, verändern, reparieren, weitervermieten oder
+              Dritten überlassen. Eine kommerzielle Weiternutzung der Steuerungssoftware über den
+              vereinbarten Mietzeitraum hinaus ist untersagt.
+            </p>
           </section>
 
           <section>
@@ -126,6 +133,17 @@ export default function AgbPage() {
               keinen Mangel dar, sofern der Kunde keinen verbindlichen Farbstandard schriftlich
               vereinbart hat.
             </p>
+            <p className="mt-2">
+              Bei vereinbartem Probedruck beginnt die Produktion erst nach schriftlicher Freigabe
+              des Musters durch den Kunden. Erfolgt keine Freigabe innerhalb eines Werktags nach
+              Zusendung des Probedrucks, kann der Anbieter den Liefertermin entsprechend verschieben
+              und einen angemessenen Mehraufwand für die gebundene Produktionskapazität berechnen.
+            </p>
+            <p className="mt-2">
+              Bei Kaufaufträgen mit individueller Fertigung kann die gelieferte Stückzahl um bis zu
+              5 % von der bestellten Menge abweichen, sofern dem Kunden eine Abweichung zumutbar ist
+              und die Abrechnung nach der tatsächlich gelieferten Menge erfolgt.
+            </p>
           </section>
 
           <section>
@@ -142,10 +160,15 @@ export default function AgbPage() {
               (z. B. Bedruckung) ausgeschlossen sein.
             </p>
             <p className="mt-2">
-              Teillieferungen sind zulässig, soweit dem Kunden zumutbar. Der Versand erfolgt über
-              vom Anbieter beauftragte Logistikdienstleister (z. B. UPS, DHL, TNT). Gefahr und
-              Zufall gehen mit Übergabe an den Transporteur auf den Kunden über, sofern nicht
-              gesetzlich anders zwingend vorgeschrieben.
+              Teillieferungen sind zulässig, soweit dem Kunden zumutbar. Die gelieferte Stückzahl
+              kann bei Serienfertigung um bis zu 5 % von der bestellten Menge abweichen; die
+              Abrechnung erfolgt nach der tatsächlich gelieferten Menge, sofern im Angebot nicht
+              eine feste Mindestmenge vereinbart wurde.
+            </p>
+            <p className="mt-2">
+              Der Versand erfolgt über vom Anbieter beauftragte Logistikdienstleister (z. B. UPS,
+              DHL, TNT). Gefahr und Zufall gehen mit Übergabe an den Transporteur auf den Kunden
+              über, sofern nicht gesetzlich anders zwingend vorgeschrieben.
             </p>
             <p className="mt-2">
               Verzögerungen durch höhere Gewalt, Streik, Lieferengpässe bei Zulieferern oder
@@ -172,6 +195,13 @@ export default function AgbPage() {
               Tracking-Informationen werden nach Versand mitgeteilt. Der Kunde prüft die Lieferung
               unverzüglich auf offensichtliche Transportschäden und meldet diese unverzüglich.
             </p>
+            <p className="mt-2">
+              Der Kunde sorgt dafür, dass die Anlieferung unter üblichen Geschäftsbedingungen
+              möglich ist: erreichbare Lieferadresse, Empfang durch eine berechtigte Person,
+              ungehinderte Zugänge sowie – bei vereinbarten Techniker- oder Installationsleistungen –
+              Stromversorgung in zumutbarer Nähe und geeignete, trockene Arbeitsflächen. Verzögerungen
+              wegen fehlender Mitwirkung des Kunden gehen nicht zu Lasten des Anbieters.
+            </p>
           </section>
 
           <section>
@@ -183,18 +213,27 @@ export default function AgbPage() {
             </p>
             <p className="mt-2">
               Standardmäßig ist die Rücksendung innerhalb von drei Werktagen nach Eventende
-              vorzunehmen, sofern im Angebot nicht ein abweichendes Lieferpaket oder eine
-              Flex-Rückgabe vereinbart wurde. Bei Flex-Rückgabe gelten die im Angebot genannten
-              verlängerten Fristen.
+              vorzunehmen. Mit der optional gebuchten Flex-Rückgabe verlängert sich das
+              Rücksendefenster auf acht Werktage nach Eventende; die Flex-Rückgabe muss im
+              Angebot ausdrücklich vereinbart und entgolten sein.
             </p>
             <p className="mt-2">
               Der Anbieter stellt nach Möglichkeit Versandmaterial oder Rücksendeinstruktionen zur
               Verfügung. Kosten der Rücksendung trägt der Kunde, sofern nicht im Angebot anders
-              geregelt. Der Kunde dokumentiert den ordnungsgemäßen Versand (z. B. Sendungsnummer).
+              geregelt. Die Rücksendung erfolgt in der vom Anbieter bereitgestellten oder
+              vereinbarten Originalverpackung. Mehrkosten des Transporteurs wegen abweichender
+              Verpackung, Übermaß oder Zusatzgewicht trägt der Kunde.
             </p>
             <p className="mt-2">
-              Mit Eingang und Prüfung der Rücksendung wird der Mietvertrag hinsichtlich der
-              zurückgegebenen Ware als beendet betrachtet, vorbehaltlich etwaiger Schadens- oder
+              Spätestens am letzten Tag des vereinbarten Rücksendefensters (drei bzw. acht
+              Werktage nach Eventende) teilt der Kunde dem Anbieter einen nachvollziehbaren
+              Rücksendenachweis mit (z. B. Sendungsnummer des Transporteurs). Ohne rechtzeitigen
+              Nachweis oder bei Rücksendung nach Ablauf des vereinbarten Rücksendefensters gelten
+              die Regelungen zu verspäteter Rückgabe in Abschnitt 9.
+            </p>
+            <p className="mt-2">
+              Mit Eingang und Prüfung der Rücksendung beim Anbieter wird der Mietvertrag hinsichtlich
+              der zurückgegebenen Ware als beendet betrachtet, vorbehaltlich etwaiger Schadens- oder
               Verzugsansprüche (Abschnitt 9).
             </p>
           </section>
@@ -209,14 +248,29 @@ export default function AgbPage() {
             </p>
             <p className="mt-2">
               Bei Schäden oder Verlust kann der Anbieter Ersatz in Höhe der Wiederbeschaffungs- oder
-              Reparaturkosten sowie angemessene Aufwände für Prüfung und Logistik verlangen. Die
-              konkrete Höhe oder Pauschalen werden im Angebot oder in der Auftragsbestätigung
-              ausgewiesen, soweit möglich.
+              Reparaturkosten sowie angemessene Aufwände für Prüfung und Logistik verlangen.
+              Soweit im Angebot nicht abweichend geregelt, gelten folgende Orientierungswerte
+              (jeweils netto) für die Berechnung von Ersatzansprüchen bei Mietaufträgen:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>LED-Armband (Einzelstück): 10,00 EUR</li>
+              <li>ECO Basis-Station: 399,00 EUR (entspricht dem Kaufpreis)</li>
+              <li>PRO Basis-Station: 9.800,00 EUR</li>
+            </ul>
+            <p className="mt-2">
+              Maßgeblich sind stets die im angenommenen Angebot ausgewiesenen Ersatzwerte, sofern
+              dort höhere oder konkretere Beträge genannt sind. Fehlt die Rücksendung vollständig
+              oder trifft die Ware nachweislich nicht innerhalb von fünfzehn Werktagen nach
+              Eventende beim Anbieter ein, kann der Anbieter für fehlende oder nicht zurückgegebene
+              Teile den jeweiligen Ersatzwert zusätzlich zu laufenden Miet- oder
+              Nutzungsentschädigungsansprüchen geltend machen.
             </p>
             <p className="mt-2">
-              Verspätete Rückgabe berechtigt den Anbieter zur Berechnung einer angemessenen
-              Nutzungsentschädigung für jeden angefangenen Tag der Verspätung, zusätzlich zu
-              eventuellen Schadensersatzansprüchen wegen entgangener Weitervermietung.
+              Verspätete Rückgabe über das vereinbarte Rücksendefenster hinaus (drei Werktage
+              nach Eventende bzw. acht Werktage bei gebuchter Flex-Rückgabe) berechtigt den
+              Anbieter zur Berechnung einer angemessenen Nutzungsentschädigung für jeden
+              angefangenen Tag der Verspätung, zusätzlich zu eventuellen Schadensersatzansprüchen
+              wegen entgangener Weitervermietung.
             </p>
             <p className="mt-2">
               Batterietausch während der Mietzeit erfolgt nach Absprache oder auf Anweisung des
@@ -278,9 +332,18 @@ export default function AgbPage() {
               der gesetzlichen Möglichkeiten.
             </p>
             <p className="mt-2">
-              Keine Gewährleistung besteht für Schäden, die auf unsachgemäße Handhabung, eigenmächtige
-              Änderungen, Nichtbeachtung der Betriebsanleitung oder äußere Einflüsse (z. B. Störungen
-              der Funkumgebung am Event) zurückzuführen sind.
+              Keine Gewährleistung besteht für Schäden oder Funktionsstörungen, die auf
+              unsachgemäße Handhabung, eigenmächtige Änderungen, Nichtbeachtung der Betriebsanleitung
+              oder äußere Einflüsse zurückzuführen sind. Dies umfasst insbesondere Störungen der
+              Funkumgebung am Event, parallele drahtlose Systeme auf ähnlichen Frequenzen sowie
+              bauliche Gegebenheiten wie Metallkonstruktionen, Bühnenelemente oder reflektierende
+              Materialien, die die Reichweite oder Reaktionszeit der LED-Armbänder beeinträchtigen
+              können.
+            </p>
+            <p className="mt-2">
+              Die LED-Armbänder dienen ausschließlich der Licht- und Show-Wirkung am Event. Sie sind
+              nicht als Notfall-, Alarm- oder Sicherheitssystem ausgelegt; eine gleichbleibende
+              Reaktionszeit oder Signalzuverlässigkeit wird nicht zugesichert.
             </p>
           </section>
 
@@ -296,7 +359,8 @@ export default function AgbPage() {
               Eine Haftung für entgangenen Gewinn, ausgebliebene Event-Wirkung, Folgeschäden aus
               technischen Störungen, Batterielaufzeit oder Funkinterferenzen am Veranstaltungsort ist
               – außer bei Vorsatz oder grober Fahrlässigkeit – ausgeschlossen, soweit gesetzlich
-              zulässig.
+              zulässig. Der Anbieter haftet nicht dafür, dass die Produkte ein bestimmtes
+              Erlebnis-, Marketing- oder Sicherheitsziel des Kunden erreichen.
             </p>
             <p className="mt-2">
               Die Haftung nach dem Produkthaftungsgesetz bleibt unberührt. Für Leistungen Dritter
