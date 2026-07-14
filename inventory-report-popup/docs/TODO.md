@@ -212,6 +212,9 @@ npx tsx scripts/test-fulfillment-timing.ts  # Fälligkeitslogik
 npx tsx scripts/test-lieferzeit.ts          # Lieferpaket/Legacy-Lieferzeit
 pnpm test:preis-engine    # Preisberechnung
 pnpm telegram:webhook     # Telegram-Webhook setzen
-vercel env ls production  # Vercel-Env prüfen
-vercel --prod             # Production-Deploy
+vercel env ls production  # Vercel-Env prüfen (aus Repo-Root, siehe unten)
+
+# Deploy (Monorepo: Root Directory in Vercel = inventory-report-popup)
+git push origin main      # Auto-Deploy auf Production (braceled-led-armband.com)
+cd .. && vercel --prod    # Manuell vom Repo-Root – NICHT aus inventory-report-popup/
 ```
