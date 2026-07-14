@@ -1,3 +1,4 @@
+/** @deprecated Ersetzt durch QuoteWarehousePanel – Rückgabe ist im Lager-Panel integriert. */
 "use client"
 
 import { useState } from "react"

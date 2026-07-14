@@ -38,7 +38,13 @@ function urgencyIcon(urgency: FulfillmentTimingUrgency) {
   return Clock
 }
 
-export function UpcomingFulfillmentOrders({ orders }: { orders: QuoteRequest[] }) {
+export function UpcomingFulfillmentOrders({
+  orders,
+  detailBasePath = "/warenverwaltung/auftraege",
+}: {
+  orders: QuoteRequest[]
+  detailBasePath?: string
+}) {
   if (orders.length === 0) return null
 
   return (
@@ -131,7 +137,7 @@ export function UpcomingFulfillmentOrders({ orders }: { orders: QuoteRequest[] }
                   <p className="text-sm text-muted-foreground">Kein weiterer Schritt</p>
                 )}
                 <Button asChild variant="outline" size="sm" className="w-full">
-                  <Link href={`/admin/anfragen/${quote.id}`}>Bearbeiten</Link>
+                  <Link href={`${detailBasePath}/${quote.id}`}>Bearbeiten</Link>
                 </Button>
               </div>
             </div>

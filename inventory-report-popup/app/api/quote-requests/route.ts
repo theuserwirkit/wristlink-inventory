@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     {
       success: true,
       quoteId: result.quoteId,
-      adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || ""}/admin/anfragen/${result.quoteId}`,
+      adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || ""}/warenverwaltung/auftraege/${result.quoteId}`,
     },
     { status: 201 },
   )

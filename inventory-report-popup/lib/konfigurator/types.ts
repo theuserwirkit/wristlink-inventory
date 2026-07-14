@@ -8,7 +8,7 @@ export type QuoteStatus =
   | "expired"
   | "cancelled"
 
-export type QuoteSource = "konfigurator" | "n8n_email"
+export type QuoteSource = "konfigurator" | "n8n_email" | "manual"
 
 export type PaymentMethod = "stripe" | "bank_transfer" | "manual"
 

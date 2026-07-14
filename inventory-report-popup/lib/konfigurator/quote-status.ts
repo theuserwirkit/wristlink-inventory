@@ -14,6 +14,7 @@ export const STATUS_LABELS: Record<QuoteStatus, string> = {
 export const SOURCE_LABELS: Record<QuoteSource, string> = {
   konfigurator: "Konfigurator",
   n8n_email: "E-Mail (n8n)",
+  manual: "Manuell",
 }
 
 export function statusBadgeVariant(

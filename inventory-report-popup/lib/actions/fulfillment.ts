@@ -17,6 +17,7 @@ import {
   isFulfillmentComplete,
 } from "@/lib/konfigurator/fulfillment-status"
 import { isVersandDienstleister } from "@/lib/konfigurator/versand-dienstleister"
+import { validateWarehouseForFulfillmentStep } from "@/lib/actions/quote-warehouse"
 import type { FulfillmentStatus, QuoteFulfillmentEvent, VersandDienstleister } from "@/lib/konfigurator/types"
 
 function mapEventRow(row: Record<string, unknown>): QuoteFulfillmentEvent {
@@ -84,6 +85,9 @@ export async function advanceFulfillmentStep(
         return { success: false, error: "Versand-Dienstleister erforderlich für Versand beauftragt" }
       }
     }
+
+    const warehouseCheck = await validateWarehouseForFulfillmentStep(quoteId, next)
+    if (!warehouseCheck.ok) return { success: false, error: warehouseCheck.error }
 
     const versandDienstleister =
       input.versandDienstleister || quote.versand_dienstleister || null
@@ -156,8 +160,8 @@ export async function advanceFulfillmentStep(
       )
     `
 
-    revalidatePath(`/admin/anfragen/${quoteId}`)
-    revalidatePath("/admin/anfragen")
+    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
+    revalidatePath("/warenverwaltung/auftraege")
     return { success: true }
   } catch (error) {
     console.error("advanceFulfillmentStep failed:", error)
@@ -212,7 +216,7 @@ export async function setReturnBookingId(
       updated_at = NOW()
     WHERE id = ${quoteId}
   `
-  revalidatePath(`/admin/anfragen/${quoteId}`)
+  revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
 }
 
 export async function getFulfillmentProgress(quoteId: number) {

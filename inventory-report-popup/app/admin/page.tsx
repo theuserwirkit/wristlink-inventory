@@ -34,7 +34,7 @@ export default async function AdminPage() {
             </div>
             <InventoryReportModal />
             <Button asChild variant="outline">
-              <Link href="/admin/anfragen">Anfragen</Link>
+              <Link href="/warenverwaltung/auftraege">Anfragen</Link>
             </Button>
             <Button asChild variant="ghost" size="sm">
               <Link href="/warenverwaltung">Dashboard</Link>

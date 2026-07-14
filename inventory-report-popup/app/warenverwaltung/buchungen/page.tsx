@@ -1,54 +1,44 @@
 import {
-  getStats,
+  getBookings,
   getGroups,
   getBatches,
   getBases,
-  getBaseStats,
   getCustomers,
   getOpenRentals,
   getInventoryLots,
 } from "@/lib/actions/bookings"
-import { getQuoteRequestStats, listPriorityFulfillmentOrders } from "@/lib/actions/quotes"
+import { getQuoteRequestStats } from "@/lib/actions/quotes"
 import { OperationsShell } from "@/components/dashboard/operations-shell"
 import {
   BookingModalProvider,
   OperationsHeaderActions,
 } from "@/components/dashboard/operations-header-actions"
-import { KPICards } from "@/components/dashboard/kpi-cards"
-import { AvailabilityTable } from "@/components/dashboard/availability-table"
-import { UpcomingFulfillmentOrders } from "@/components/admin/upcoming-fulfillment-orders"
+import { BookingsTableWithReturnModal } from "@/components/dashboard/bookings-table"
 import { isAuthenticated } from "@/lib/auth"
 import { redirect } from "next/navigation"
 
-export default async function DashboardPage() {
+export default async function BuchungenPage() {
   const authenticated = await isAuthenticated()
-
-  if (!authenticated) {
-    redirect("/login")
-  }
+  if (!authenticated) redirect("/login")
 
   const [
-    stats,
+    bookings,
     groups,
     batches,
     bases,
-    baseStats,
     customers,
     openRentals,
     inventoryLots,
     quoteStats,
-    priorityOrders,
   ] = await Promise.all([
-    getStats(),
+    getBookings(),
     getGroups(),
     getBatches(),
     getBases(),
-    getBaseStats(),
     getCustomers(),
     getOpenRentals(),
     getInventoryLots(),
     getQuoteRequestStats(),
-    listPriorityFulfillmentOrders(3),
   ])
 
   const userCanEdit = true
@@ -64,30 +54,24 @@ export default async function DashboardPage() {
       inventoryLots={inventoryLots}
     >
       <OperationsShell
-        activeTab="overview"
+        activeTab="buchungen"
         quoteStats={quoteStats}
         userCanAdmin={userCanAdmin}
         headerActions={
           <OperationsHeaderActions
             userCanEdit={userCanEdit}
             userCanAdmin={userCanAdmin}
-            mode="operations"
+            mode="ledger"
           />
         }
       >
-        <div className="flex flex-col gap-8">
-          <section>
-            <KPICards stats={stats} />
-          </section>
-
-          <section>
-            <AvailabilityTable stats={stats} baseStats={baseStats} />
-          </section>
-
-          <section>
-            <UpcomingFulfillmentOrders orders={priorityOrders} />
-          </section>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold">Bestandsprotokoll</h2>
+          <p className="text-sm text-muted-foreground">
+            Chronologisches Ledger aller Zugänge und Abgänge. Kundenaufträge bearbeiten Sie unter Aufträge.
+          </p>
         </div>
+        <BookingsTableWithReturnModal bookings={bookings} />
       </OperationsShell>
     </BookingModalProvider>
   )

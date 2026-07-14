@@ -24,6 +24,7 @@ export interface AvailabilityStats {
 export interface BookingWithRelations {
   id: number
   booking_type: BookingType
+  quote_id?: number | null
   status?: BookingStatus
   customer_id?: number | null
   bemerkung?: string | null
@@ -58,6 +59,7 @@ export interface BookingWithRelations {
     batch: { code: string; funktionsumfang: string }
   } | null
   referenceRental?: { id: number } | null
+  quote_modus?: string | null
 }
 
 export interface CreateBookingInput {

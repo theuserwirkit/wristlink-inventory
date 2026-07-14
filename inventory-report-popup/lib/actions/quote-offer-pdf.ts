@@ -35,7 +35,7 @@ export async function uploadQuoteOfferPdf(
     return { success: false, error: "Anfrage nicht gefunden" }
   }
 
-  revalidatePath(`/admin/anfragen/${quoteId}`)
+  revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
   return { success: true, filename: file.name || "angebot.pdf" }
 }
 
@@ -50,7 +50,7 @@ export async function removeQuoteOfferPdf(quoteId: number): Promise<{ success: b
       updated_at = NOW()
     WHERE id = ${quoteId}
   `
-  revalidatePath(`/admin/anfragen/${quoteId}`)
+  revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
   return { success: true }
 }
 

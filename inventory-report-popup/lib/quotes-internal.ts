@@ -3,10 +3,10 @@ import "server-only"
 import { randomUUID } from "crypto"
 import { revalidatePath } from "next/cache"
 import { getDb } from "@/lib/db"
-import { checkProductAvailability, createN8nBooking } from "@/lib/actions/n8n-api"
+import { checkProductAvailability } from "@/lib/actions/n8n-api"
 import {
-  confirmQuoteBooking,
   createQuoteHoldBooking,
+  finalizeQuoteBookingOnPayment,
   releaseQuoteBooking,
 } from "@/lib/actions/quote-booking"
 import { getLeadById, getOrCreateVerifiedLeadForEmail } from "@/lib/actions/leads"
@@ -34,8 +34,9 @@ import { getQuoteOfferPdfForEmail } from "@/lib/actions/quote-offer-pdf"
 const PAYMENT_EXPIRY_DAYS = 7
 
 export function mapQuoteRow(row: Record<string, unknown>): QuoteRequest {
+  const { offer_pdf_data: _pdf, offer_pdf_mime_type: _mime, ...safeRow } = row
   return {
-    ...row,
+    ...safeRow,
     source: (row.source as QuoteSource) || "konfigurator",
     booking_id: (row.booking_id as number | null) ?? null,
     external_ref: (row.external_ref as string | null) ?? null,
@@ -123,7 +124,7 @@ async function notifyTeamAboutQuote(
   price: { gesamt_netto: number; gesamt_brutto: number },
   source: QuoteSource = "konfigurator",
 ) {
-  const adminUrl = `${getAppBaseUrl()}/admin/anfragen/${quoteId}`
+  const adminUrl = `${getAppBaseUrl()}/warenverwaltung/auftraege/${quoteId}`
   const notificationTasks: Array<{ name: string; task: Promise<unknown> }> = [
     {
       name: "team-email",
@@ -233,7 +234,7 @@ export async function createQuoteWithHold(input: {
     })
   }
 
-  revalidatePath("/admin/anfragen")
+  revalidatePath("/warenverwaltung/auftraege")
   return { success: true, quoteId, publicToken }
 }
 
@@ -313,7 +314,7 @@ export async function expireStaleQuotes(): Promise<number> {
   }
 
   if (stale.length > 0) {
-    revalidatePath("/admin/anfragen")
+    revalidatePath("/warenverwaltung/auftraege")
   }
 
   return stale.length
@@ -385,8 +386,8 @@ export async function approveQuoteRequest(
       }
     }
 
-    revalidatePath("/admin/anfragen")
-    revalidatePath(`/admin/anfragen/${quoteId}`)
+    revalidatePath("/warenverwaltung/auftraege")
+    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
     return { success: true }
   }
 
@@ -416,8 +417,8 @@ export async function approveQuoteRequest(
       console.error("Approval email failed:", e)
     }
 
-    revalidatePath("/admin/anfragen")
-    revalidatePath(`/admin/anfragen/${quoteId}`)
+    revalidatePath("/warenverwaltung/auftraege")
+    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
     return { success: true }
   }
 
@@ -453,8 +454,8 @@ export async function approveQuoteRequest(
     console.error("Approval email failed:", e)
   }
 
-  revalidatePath("/admin/anfragen")
-  revalidatePath(`/admin/anfragen/${quoteId}`)
+  revalidatePath("/warenverwaltung/auftraege")
+  revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
   return { success: true }
 }
 
@@ -471,7 +472,7 @@ async function finalizeRejectedQuote(quote: QuoteRequest, reasonMessage: string)
     WHERE id = ${quote.id}
   `
 
-  revalidatePath("/admin/anfragen")
+  revalidatePath("/warenverwaltung/auftraege")
 }
 
 export async function rejectQuoteRequest(
@@ -529,7 +530,7 @@ export async function cancelQuoteRequest(
     WHERE id = ${quoteId}
   `
 
-  revalidatePath("/admin/anfragen")
+  revalidatePath("/warenverwaltung/auftraege")
   return { success: true }
 }
 
@@ -584,24 +585,22 @@ export async function finalizeQuoteAsPaid(
     WHERE id = ${quoteId}
   `
 
-  const config = quote.config_json
   const lead = await getLeadById(quote.lead_id)
 
-  if (config.modus === "miete" && config.von) {
-    if (quote.booking_id) {
-      await confirmQuoteBooking(quote.booking_id)
-    } else {
-      await createN8nBooking({
-        produkt: config.produkt,
-        modus: config.modus,
-        menge: config.menge,
-        von: config.von,
-        bis: config.bis || config.von,
-        kunde_email: lead?.email,
-        event: `Konfigurator #${quoteId}`,
-        status: "BESTAETIGT",
-      })
-    }
+  const paidQuoteForBooking = {
+    ...quote,
+    status: "paid" as const,
+    paid_at: new Date().toISOString(),
+    fulfillment_status: "angenommen" as const,
+  }
+
+  const bookingResult = await finalizeQuoteBookingOnPayment(quoteId, paidQuoteForBooking, {
+    leadEmail: lead?.email,
+    leadName: lead?.name,
+    leadFirma: lead?.firma,
+  })
+  if (!bookingResult.success) {
+    console.error(`Booking finalization failed for quote #${quoteId}:`, bookingResult.error)
   }
 
   const paidQuote = await getQuoteByIdInternal(quoteId)
@@ -640,8 +639,8 @@ export async function finalizeQuoteAsPaid(
     )
   `
 
-  revalidatePath("/admin/anfragen")
-  revalidatePath(`/admin/anfragen/${quoteId}`)
+  revalidatePath("/warenverwaltung/auftraege")
+  revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
   return { success: true }
 }
 

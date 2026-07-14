@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
+  AlertTriangle,
   Check,
   Circle,
   Copy,
@@ -40,6 +41,7 @@ import {
   RotateCcw,
 } from "lucide-react"
 import { advanceFulfillmentStep, previewFulfillmentEmail, getFulfillmentTemplateDefaults } from "@/lib/actions/fulfillment"
+import { getWarehouseFulfillmentBlockMessage } from "@/lib/actions/quote-warehouse"
 import {
   FULFILLMENT_STATUS_LABELS,
   getActiveFulfillmentSteps,
@@ -164,6 +166,7 @@ export function QuoteFulfillmentWorkflow({
   const [mailEdited, setMailEdited] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmSendMail, setConfirmSendMail] = useState(true)
+  const [blockMessage, setBlockMessage] = useState<string | null>(null)
 
   const hasDruck = Boolean(quote.config_json.druck)
   const steps = getActiveFulfillmentSteps(hasDruck)
@@ -206,12 +209,26 @@ export function QuoteFulfillmentWorkflow({
     return () => clearTimeout(timer)
   }, [comment, trackingNumber, versandDienstleister, next, loadPreview])
 
+  useEffect(() => {
+    if (!next) {
+      setBlockMessage(null)
+      return
+    }
+    let cancelled = false
+    void getWarehouseFulfillmentBlockMessage(quote.id, next).then((message) => {
+      if (!cancelled) setBlockMessage(message)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [quote.id, next])
+
   if (quote.status !== "paid") return null
 
   const trackingRequired = next === "versand_beauftragt"
   const trackingMissing = trackingRequired && !trackingNumber.trim()
   const carrierMissing = trackingRequired && !versandDienstleister
-  const stepBlocked = trackingMissing || carrierMissing
+  const stepBlocked = trackingMissing || carrierMissing || Boolean(blockMessage)
   const orderContext = buildOrderContext(quote)
 
   async function handleAdvance() {
@@ -398,6 +415,15 @@ export function QuoteFulfillmentWorkflow({
                 </Accordion>
               )}
             </div>
+            {blockMessage && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{blockMessage}</p>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => {

@@ -1,8 +1,9 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
 import { getDb } from "@/lib/db"
 import { checkProductAvailability } from "@/lib/actions/n8n-api"
-import { getVerifiedLead } from "@/lib/actions/leads"
+import { getOrCreateVerifiedLeadForEmail, getVerifiedLead } from "@/lib/actions/leads"
 import { rechnePreis } from "@/lib/pricing/preis-engine"
 import { renderEmailPreview } from "@/lib/konfigurator/email"
 import type { PaymentMethod, QuoteConfig, QuoteRequest, QuoteSource, QuoteStatus, FulfillmentStatus } from "@/lib/konfigurator/types"
@@ -25,6 +26,7 @@ import {
   compareFulfillmentUrgency,
   isFulfillmentWorkOpen,
 } from "@/lib/konfigurator/fulfillment-timing"
+import { defaultGroesseProGruppe, maxGruppenAnzahl } from "@/lib/konfigurator/gruppen-config"
 
 export type { ExternalQuoteInput }
 
@@ -37,6 +39,100 @@ export type QuoteListOptions = {
   skipExpire?: boolean
   tableView?: boolean
   limit?: number
+}
+
+export type ManualQuoteInput = {
+  email: string
+  kontaktName?: string
+  kontaktFirma?: string
+  produkt: string
+  modus: "miete" | "kauf"
+  menge: number
+  von?: string
+  bis?: string
+  station?: string
+  gruppen?: number
+  druck?: boolean
+  szenario?: string
+  notes?: string
+}
+
+export async function createManualQuoteRequest(
+  input: ManualQuoteInput,
+): Promise<{ success: boolean; error?: string; quoteId?: number }> {
+  await requireRole(["ADMIN"])
+
+  const email = input.email.trim().toLowerCase()
+  if (!email || !email.includes("@")) {
+    return { success: false, error: "Gültige E-Mail-Adresse erforderlich" }
+  }
+
+  if (input.modus === "miete" && !input.von?.trim()) {
+    return { success: false, error: "Mietzeitraum (von) ist erforderlich" }
+  }
+
+  const station = input.station ?? "keine"
+  if (station === "pro" && input.modus === "kauf") {
+    return {
+      success: false,
+      error: "PRO-Basis-Station ist nur zur Miete verfügbar. Bitte Modus „Miete“ wählen oder eine andere Station.",
+    }
+  }
+
+  const gruppen =
+    station === "pro"
+      ? Math.min(
+          maxGruppenAnzahl(input.menge),
+          Math.max(1, Math.floor(input.gruppen ?? 1)),
+        )
+      : 0
+
+  const config: QuoteConfig = {
+    kontaktName: input.kontaktName?.trim() || undefined,
+    kontaktFirma: input.kontaktFirma?.trim() || undefined,
+    szenario: input.szenario?.trim() || undefined,
+    produkt: input.produkt,
+    modus: input.modus,
+    menge: input.menge,
+    von: input.von?.trim() || undefined,
+    bis: input.bis?.trim() || undefined,
+    druck: input.druck ?? false,
+    station,
+    stationModus: station === "pro" ? "miete" : input.modus,
+    gruppen,
+    baenderProGruppe: gruppen > 0 ? defaultGroesseProGruppe(input.menge, gruppen) : 0,
+    kanalanzahl: 1,
+    lieferpaket: "regulaer",
+    land: "DE",
+    lieferzeit: "standard",
+  }
+
+  const price = rechnePreis(config)
+  if (!price.gueltig) {
+    return { success: false, error: price.fehler.join("; ") }
+  }
+
+  const lead = await getOrCreateVerifiedLeadForEmail(email)
+
+  const result = await createQuoteWithHold({
+    leadId: lead.id,
+    config,
+    price,
+    source: "manual",
+    notes: input.notes?.trim() || undefined,
+    sendCustomerEmail: false,
+    skipNotifications: true,
+  })
+
+  if (result.success) {
+    revalidatePath("/warenverwaltung/auftraege")
+  }
+
+  return {
+    success: result.success,
+    error: result.error,
+    quoteId: result.quoteId,
+  }
 }
 
 const ACTIVE_QUOTE_STATUSES: QuoteStatus[] = ["submitted", "payment_pending", "approved"]

@@ -166,7 +166,7 @@ export async function getAvailabilityForGroup(groupId: number, batchId?: number)
   return getAvailabilityForGroupInternal(groupId, batchId)
 }
 
-async function getAvailabilityForGroupInternal(groupId: number, batchId?: number) {
+export async function getAvailabilityForGroupInternal(groupId: number, batchId?: number) {
   const sql = getDb()
 
   let items
@@ -228,9 +228,11 @@ export async function getBookings(filters?: {
 
   const bookings = await sql`
     SELECT b.*,
-      c.id as customer_id_ref, c.name as customer_name
+      c.id as customer_id_ref, c.name as customer_name,
+      qr.id as quote_id, qr.config_json->>'modus' as quote_modus
     FROM bookings b
     LEFT JOIN customers c ON c.id = b.customer_id
+    LEFT JOIN quote_requests qr ON qr.booking_id = b.id
     ORDER BY b.created_at DESC
     LIMIT ${limit}
   `
@@ -279,6 +281,8 @@ export async function getBookings(filters?: {
 
   return bookings.map((b: any) => ({
     ...b,
+    quote_id: b.quote_id != null ? Number(b.quote_id) : null,
+    quote_modus: b.quote_modus ?? null,
     customer: b.customer_name ? { id: b.customer_id_ref, name: b.customer_name } : null,
     items: itemsByBooking.get(b.id) || [],
   }))
@@ -901,10 +905,23 @@ export async function getCalendarData() {
   const rentals = await sql`
     SELECT b.id, b.booking_type, b.status, b.datum_ausgabe, b.datum_rueckgabe_geplant, b.datum_rueckgabe_ist,
       b.reference_rental_id, b.bemerkung,
-      c.name as customer_name
+      c.name as customer_name,
+      qr.id as quote_id
     FROM bookings b
     LEFT JOIN customers c ON c.id = b.customer_id
+    LEFT JOIN quote_requests qr ON qr.booking_id = b.id
     WHERE b.booking_type = 'MIETE_AUSGABE'
+    ORDER BY b.datum_ausgabe ASC
+  `
+
+  const sales = await sql`
+    SELECT b.id, b.booking_type, b.status, b.datum_ausgabe, b.bemerkung,
+      c.name as customer_name,
+      qr.id as quote_id
+    FROM bookings b
+    LEFT JOIN customers c ON c.id = b.customer_id
+    LEFT JOIN quote_requests qr ON qr.booking_id = b.id
+    WHERE b.booking_type = 'VERKAUF'
     ORDER BY b.datum_ausgabe ASC
   `
 
@@ -945,6 +962,24 @@ export async function getCalendarData() {
   for (const item of rentalItems) {
     if (!itemsByRental.has(item.booking_id)) itemsByRental.set(item.booking_id, [])
     itemsByRental.get(item.booking_id)!.push(item)
+  }
+
+  const saleBookingIds = sales.map((sale: any) => Number(sale.id))
+  const saleItems = saleBookingIds.length > 0
+    ? await sql`
+        SELECT bi.booking_id, bi.group_id, bi.anzahl,
+          g.name as group_name
+        FROM booking_items bi
+        LEFT JOIN groups g ON g.id = bi.group_id
+        WHERE bi.booking_id = ANY(${saleBookingIds})
+          AND bi.group_id IS NOT NULL
+      `
+    : []
+
+  const itemsBySale = new Map<number, any[]>()
+  for (const item of saleItems) {
+    if (!itemsBySale.has(item.booking_id)) itemsBySale.set(item.booking_id, [])
+    itemsBySale.get(item.booking_id)!.push(item)
   }
 
   // Total stock (LED bands per group, bases per base)
@@ -1002,11 +1037,32 @@ export async function getCalendarData() {
       isReturned,
       bands,
       bases,
+      quoteId: rental.quote_id != null ? Number(rental.quote_id) : undefined,
+    }
+  })
+
+  const saleEvents = sales.map((sale: any) => {
+    const items = itemsBySale.get(sale.id) || []
+    const bands = items.map((item: any) => ({
+      groupId: item.group_id,
+      groupName: item.group_name,
+      anzahl: item.anzahl || 0,
+    }))
+
+    return {
+      id: sale.id,
+      customerName: sale.customer_name || "Unbekannt",
+      bemerkung: sale.bemerkung,
+      status: sale.status || "BESTAETIGT",
+      datumAusgabe: sale.datum_ausgabe,
+      bands,
+      quoteId: sale.quote_id != null ? Number(sale.quote_id) : undefined,
     }
   })
 
   return {
     rentalEvents,
+    saleEvents,
     bandStock: bandStock.map((s: any) => ({
       groupId: s.group_id,
       groupName: s.group_name,

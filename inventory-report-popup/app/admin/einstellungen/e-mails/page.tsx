@@ -18,7 +18,7 @@ export default async function EmailTemplatesPage() {
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
           <Button asChild variant="ghost" size="icon">
-            <Link href="/admin/anfragen">
+            <Link href="/warenverwaltung/auftraege">
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>

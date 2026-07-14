@@ -1,5 +1,7 @@
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
 import { REJECTION_REASONS } from "@/lib/konfigurator/rejection-reasons"
+import type { QuoteSource } from "@/lib/konfigurator/types"
+import { SOURCE_LABELS } from "@/lib/konfigurator/quote-status"
 
 function getBotToken(): string {
   const token = process.env.TELEGRAM_BOT_TOKEN
@@ -33,11 +35,11 @@ export async function sendQuoteTelegramNotification(params: {
   summary: string
   totalNetto: number
   totalBrutto: number
-  source?: "konfigurator" | "n8n_email"
+  source?: QuoteSource
 }) {
-  const adminUrl = `${getAppBaseUrl()}/admin/anfragen/${params.quoteId}`
-  const sourceLabel = params.source === "n8n_email" ? "E-Mail-Anfrage" : "Konfigurator-Anfrage"
-  const text = `📋 Neue ${sourceLabel} #${params.quoteId}
+  const adminUrl = `${getAppBaseUrl()}/warenverwaltung/auftraege/${params.quoteId}`
+  const sourceLabel = params.source ? SOURCE_LABELS[params.source] : "Konfigurator"
+  const text = `📋 Neue Anfrage (${sourceLabel}) #${params.quoteId}
 
 👤 ${params.email}
 💰 ${params.totalNetto.toFixed(2)} EUR netto

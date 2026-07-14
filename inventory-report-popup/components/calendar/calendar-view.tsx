@@ -21,6 +21,17 @@ interface RentalEvent {
   isReturned: boolean
   bands: Array<{ groupId: number; groupName: string; anzahl: number }>
   bases: Array<{ baseId: number; baseBezeichnung: string; anzahl: number }>
+  quoteId?: number
+}
+
+interface SaleEvent {
+  id: number
+  customerName: string
+  bemerkung: string | null
+  status: string
+  datumAusgabe: string | null
+  bands: Array<{ groupId: number; groupName: string; anzahl: number }>
+  quoteId?: number
 }
 
 interface BandStock {
@@ -37,6 +48,7 @@ interface BaseStock {
 
 interface CalendarViewProps {
   rentalEvents: RentalEvent[]
+  saleEvents?: SaleEvent[]
   bandStock: BandStock[]
   baseStock: BaseStock[]
   departureBufferDays?: number
@@ -138,6 +150,7 @@ function DayCell({
   isCurrentMonth,
   isToday,
   events,
+  sales,
   bandStock,
   baseStock,
   onDayClick,
@@ -148,9 +161,10 @@ function DayCell({
   isCurrentMonth: boolean
   isToday: boolean
   events: RentalEvent[]
+  sales: SaleEvent[]
   bandStock: BandStock[]
   baseStock: BaseStock[]
-  onDayClick: (date: Date, events: RentalEvent[]) => void
+  onDayClick: (date: Date, events: RentalEvent[], sales: SaleEvent[]) => void
   departureBufferDays: number
   returnBufferDays: number
 }) {
@@ -177,6 +191,11 @@ function DayCell({
     }
   }
 
+  const activeSales = sales.filter((ev) => {
+    if (!ev.datumAusgabe) return false
+    return isSameDay(new Date(ev.datumAusgabe), date)
+  })
+
   // Events that are active on this day (for dots)
   const activeEvents = events.filter((ev) => {
     if (!ev.datumAusgabe) return false
@@ -201,7 +220,7 @@ function DayCell({
 
   return (
     <button
-      onClick={() => onDayClick(date, activeEvents)}
+      onClick={() => onDayClick(date, activeEvents, activeSales)}
       className={cn(
         "relative min-h-[72px] w-full text-left p-1.5 rounded-lg border transition-all hover:border-wristlink-cyan/50 hover:shadow-sm",
         isCurrentMonth ? "border-border/50" : "border-border/20 opacity-40",
@@ -217,13 +236,13 @@ function DayCell({
       </span>
 
       {/* Event dots: solid = confirmed/returned, dashed ring = tentative */}
-      {activeEvents.length > 0 && (
+      {(activeEvents.length > 0 || activeSales.length > 0) && (
         <div className="flex flex-wrap gap-0.5 mt-1">
           {activeEvents.slice(0, 3).map((ev) => {
             const isTentative = ev.status === "ANFRAGE"
             return (
               <span
-                key={ev.id}
+                key={`r-${ev.id}`}
                 className={cn(
                   "w-1.5 h-1.5 rounded-full",
                   ev.isReturned ? "bg-slate-400" :
@@ -234,8 +253,17 @@ function DayCell({
               />
             )
           })}
-          {activeEvents.length > 3 && (
-            <span className="text-[9px] text-muted-foreground leading-none self-end">+{activeEvents.length - 3}</span>
+          {activeSales.slice(0, 2).map((ev) => (
+            <span
+              key={`s-${ev.id}`}
+              className="w-1.5 h-1.5 rounded-full bg-wristlink-purple"
+              title={`${ev.customerName} (Verkauf)`}
+            />
+          ))}
+          {activeEvents.length + activeSales.length > 3 && (
+            <span className="text-[9px] text-muted-foreground leading-none self-end">
+              +{activeEvents.length + activeSales.length - 3}
+            </span>
           )}
         </div>
       )}
@@ -261,10 +289,21 @@ function DayCell({
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-export function CalendarView({ rentalEvents, bandStock, baseStock, departureBufferDays = 6, returnBufferDays = 5 }: CalendarViewProps) {
+export function CalendarView({
+  rentalEvents,
+  saleEvents = [],
+  bandStock,
+  baseStock,
+  departureBufferDays = 6,
+  returnBufferDays = 5,
+}: CalendarViewProps) {
   const today = new Date()
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
-  const [selectedDay, setSelectedDay] = useState<{ date: Date; events: RentalEvent[] } | null>(null)
+  const [selectedDay, setSelectedDay] = useState<{
+    date: Date
+    events: RentalEvent[]
+    sales: SaleEvent[]
+  } | null>(null)
   const [viewMode, setViewMode] = useState<"kalender" | "auslastung">("kalender")
 
   const monthLabel = currentMonth.toLocaleDateString("de-DE", { month: "long", year: "numeric" })
@@ -310,8 +349,8 @@ export function CalendarView({ rentalEvents, bandStock, baseStock, departureBuff
     })
   }, [calendarDays, rentalEvents, bandStock, baseStock])
 
-  const handleDayClick = (date: Date, events: RentalEvent[]) => {
-    setSelectedDay({ date, events })
+  const handleDayClick = (date: Date, events: RentalEvent[], sales: SaleEvent[]) => {
+    setSelectedDay({ date, events, sales })
   }
 
   const dayNames = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -357,6 +396,7 @@ export function CalendarView({ rentalEvents, bandStock, baseStock, departureBuff
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-400 inline-block" /> 80–100% ausgelastet</div>
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> Überbucht</div>
         <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-wristlink-cyan inline-block" /> Aktive Vermietung</div>
+        <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-wristlink-purple inline-block" /> Verkauf / Lieferung</div>
         <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" /> Abgeschlossen</div>
         <div className="ml-auto text-[11px]">inkl. {departureBufferDays} WT Vorlauf · {returnBufferDays} Tage Nachlauf · 10% Schwund-Forecast</div>
       </div>
@@ -382,6 +422,7 @@ export function CalendarView({ rentalEvents, bandStock, baseStock, departureBuff
                       isCurrentMonth={day.getMonth() === currentMonth.getMonth()}
                       isToday={isSameDay(day, today)}
                       events={rentalEvents}
+                      sales={saleEvents}
                       bandStock={bandStock}
                       baseStock={baseStock}
                       onDayClick={handleDayClick}
@@ -407,10 +448,11 @@ export function CalendarView({ rentalEvents, bandStock, baseStock, departureBuff
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
-                  {selectedDay.events.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Keine Vermietungen an diesem Tag.</p>
+                  {selectedDay.events.length === 0 && selectedDay.sales.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Keine Buchungen an diesem Tag.</p>
                   ) : (
-                    selectedDay.events.map((ev) => {
+                    <>
+                    {selectedDay.events.map((ev) => {
                       const isTentative = ev.status === "ANFRAGE"
                       const statusLabel = ev.isReturned ? "Zurück" : ev.status === "ANFRAGE" ? "Anfrage" : "Bestatigt"
                       const borderColor = ev.isReturned ? "border-slate-400" : isTentative ? "border-amber-400" : "border-wristlink-cyan"
@@ -458,11 +500,35 @@ export function CalendarView({ rentalEvents, bandStock, baseStock, departureBuff
                         )}
                       </div>
                       )
-                    })
+                    })}
+                    {selectedDay.sales.map((ev) => (
+                      <div key={`sale-${ev.id}`} className="p-3 rounded-lg border-l-4 border-wristlink-purple bg-purple-50/50 dark:bg-purple-950/20">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-sm">{ev.customerName}</span>
+                          <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700 bg-purple-50">
+                            Verkauf
+                          </Badge>
+                        </div>
+                        {ev.bemerkung && <p className="text-xs text-muted-foreground mb-2">{ev.bemerkung}</p>}
+                        <div className="text-xs text-muted-foreground">
+                          Lieferung: {ev.datumAusgabe ? new Date(ev.datumAusgabe).toLocaleDateString("de-DE") : "—"}
+                        </div>
+                        {ev.bands.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {ev.bands.map((b) => (
+                              <span key={b.groupId} className="text-[10px] bg-wristlink-purple/10 text-wristlink-purple rounded px-1.5 py-0.5">
+                                {b.groupName}: {b.anzahl} St.
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    </>
                   )}
 
                   {/* Stock snapshot for selected day */}
-                  {selectedDay.events.length > 0 && (
+                  {(selectedDay.events.length > 0 || selectedDay.sales.length > 0) && (
                     <div className="flex flex-col gap-2 pt-2 border-t border-border/50">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Bestand an diesem Tag</p>
                       {(() => {

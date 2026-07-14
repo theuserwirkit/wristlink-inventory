@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo, useTransition } from "react"
+import { useState, useMemo, useTransition, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +16,8 @@ import { updateBookingStatus } from "@/lib/actions/bookings"
 import type { BookingStatus } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 
+import { useBookingReturnModal } from "@/components/dashboard/operations-header-actions"
+
 interface BookingsTableProps {
   bookings: BookingWithRelations[]
   onReturnClick?: (booking: BookingWithRelations) => void
@@ -24,7 +27,38 @@ type SortField = "date" | "type" | "group" | "batch" | "customer" | "amount" | "
 type SortDirection = "asc" | "desc"
 type FilterMode = "all" | "aktuell_vermietet"
 
-export function BookingsTable({ bookings, onReturnClick }: BookingsTableProps) {
+export function BookingsTable(props: BookingsTableProps) {
+  return (
+    <Suspense fallback={<BookingsTableContent {...props} />}>
+      <BookingsTableWithHighlight {...props} />
+    </Suspense>
+  )
+}
+
+function BookingsTableWithHighlight({ bookings, onReturnClick }: BookingsTableProps) {
+  const searchParams = useSearchParams()
+  const highlightId = searchParams.get("highlight")
+  const parsedHighlightId = highlightId ? Number(highlightId) : null
+
+  return (
+    <BookingsTableContent
+      bookings={bookings}
+      onReturnClick={onReturnClick}
+      highlightId={Number.isFinite(parsedHighlightId) ? parsedHighlightId : null}
+    />
+  )
+}
+
+export function BookingsTableWithReturnModal({ bookings }: { bookings: BookingWithRelations[] }) {
+  const { openReturn } = useBookingReturnModal()
+  return <BookingsTable bookings={bookings} onReturnClick={openReturn} />
+}
+
+interface BookingsTableContentProps extends BookingsTableProps {
+  highlightId?: number | null
+}
+
+function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: BookingsTableContentProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [sortField, setSortField] = useState<SortField>("date")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
@@ -277,6 +311,7 @@ export function BookingsTable({ bookings, onReturnClick }: BookingsTableProps) {
                   </Button>
                 </TableHead>
                 <TableHead>Bemerkung</TableHead>
+                <TableHead>Auftrag</TableHead>
                 <TableHead className="w-[140px]">Status</TableHead>
                 <TableHead className="w-[60px]">PDF</TableHead>
               </TableRow>
@@ -284,7 +319,7 @@ export function BookingsTable({ bookings, onReturnClick }: BookingsTableProps) {
             <TableBody>
               {filteredAndSortedBookings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     Keine Ergebnisse gefunden
                   </TableCell>
                 </TableRow>
@@ -294,6 +329,7 @@ export function BookingsTable({ bookings, onReturnClick }: BookingsTableProps) {
                   const item = booking.item
                   const isRental = booking.booking_type === "MIETE_AUSGABE"
                   const isActiveRental = isRental && !returnedRentalIds.has(booking.id)
+                  const isHighlighted = highlightId != null && booking.id === highlightId
                   const handleClick = isRental && onReturnClick ? () => onReturnClick(booking) : undefined
 
                   return (
@@ -302,7 +338,11 @@ export function BookingsTable({ bookings, onReturnClick }: BookingsTableProps) {
                       onClick={handleClick}
                       className={[
                         isRental && onReturnClick ? "cursor-pointer" : "",
-                        isActiveRental ? "bg-amber-50/60 hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30" : "hover:bg-muted/30",
+                        isHighlighted
+                          ? "bg-wristlink-cyan/15 ring-2 ring-wristlink-cyan/50 hover:bg-wristlink-cyan/20"
+                          : isActiveRental
+                            ? "bg-amber-50/60 hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30"
+                            : "hover:bg-muted/30",
                       ].join(" ").trim()}
                     >
                       <TableCell className="whitespace-nowrap">{formatDateTime(booking.created_at)}</TableCell>
@@ -338,6 +378,18 @@ export function BookingsTable({ bookings, onReturnClick }: BookingsTableProps) {
                         <span className="font-mono">{item?.base ? (item.anzahl_basen || 0) : (item?.anzahl || 0)}</span>
                       </TableCell>
                       <TableCell className="max-w-xs truncate">{booking.bemerkung || "-"}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {booking.quote_id ? (
+                          <Link
+                            href={`/warenverwaltung/auftraege/${booking.quote_id}`}
+                            className="text-primary underline font-mono text-xs"
+                          >
+                            #{booking.quote_id}
+                          </Link>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         {isRental ? (
                           <DropdownMenu>

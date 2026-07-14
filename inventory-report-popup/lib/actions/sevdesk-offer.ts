@@ -50,7 +50,7 @@ async function buildSevdeskOfferForQuoteId(
   try {
     const offer = await createSevdeskOfferForQuote(quote)
     await saveSevdeskOfferToQuote(quoteId, offer)
-    revalidatePath(`/admin/anfragen/${quoteId}`)
+    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
     return { success: true, orderNumber: offer.orderNumber }
   } catch (error) {
     const message = error instanceof Error ? error.message : "sevDesk Fehler"
