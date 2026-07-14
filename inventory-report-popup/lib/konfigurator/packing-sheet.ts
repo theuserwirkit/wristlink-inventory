@@ -135,6 +135,7 @@ export type PackingBookingRow = {
 export type PackingBaseRow = {
   bezeichnung: string
   hersteller: string
+  seriennummer: string | null
   anzahl: number
 }
 
@@ -196,6 +197,7 @@ function buildChecklistAccessories(
   const items: string[] = []
 
   if (druck) {
+    items.push("Zusammengepackt")
     items.push("Bedruckung abgeschlossen")
     if (hasLogo) {
       items.push("Logo-Datei geprüft / verfügbar")
@@ -292,6 +294,7 @@ export function buildPackingSheetData(
     .map((item) => ({
       bezeichnung: item.base?.bezeichnung ?? "Basis-Station",
       hersteller: item.base?.hersteller ?? "",
+      seriennummer: item.base?.seriennummer ?? null,
       anzahl: item.anzahl_basen ?? item.anzahl,
     }))
 

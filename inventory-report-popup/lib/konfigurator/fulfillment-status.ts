@@ -3,19 +3,20 @@ import type { FulfillmentStatus } from "@/lib/konfigurator/types"
 export const FULFILLMENT_STATUS_LABELS: Record<FulfillmentStatus, string> = {
   angenommen: "Angenommen",
   vorbereitet: "Vorbereitet",
+  verpackt: "Zusammengepackt",
   bedruckt: "Bedruckt",
-  verpackt: "Verpackt",
   versand_beauftragt: "Versand beauftragt",
   versandt: "Versandt",
   ruecksendung_angekommen: "Rücksendung angekommen",
   zurueckgepackt: "Zurückgepackt",
 }
 
+/** Mit Druck: erst zusammengepackt, dann bedrucken. */
 export const FULFILLMENT_STEPS: FulfillmentStatus[] = [
   "angenommen",
   "vorbereitet",
-  "bedruckt",
   "verpackt",
+  "bedruckt",
   "versand_beauftragt",
   "versandt",
   "ruecksendung_angekommen",

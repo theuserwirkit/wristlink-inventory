@@ -24,9 +24,9 @@ const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secon
 
 const CUSTOMER_FULFILLMENT_HINTS: Partial<Record<FulfillmentStatus, string>> = {
   angenommen: "Wir haben Ihre Bestellung angenommen",
-  vorbereitet: "Bänder werden in Tüten verpackt",
-  bedruckt: "Ihr Logo wird auf die Bänder gedruckt",
-  verpackt: "Alles sicher verpackt",
+  vorbereitet: "Material wird vorbereitet",
+  verpackt: "Sets sind zusammengepackt",
+  bedruckt: "Ihr Logo wurde auf die Bänder gedruckt",
   versand_beauftragt: "Versand ist beauftragt",
   versandt: "Paket ist unterwegs",
   ruecksendung_angekommen: "Rücksendung eingegangen",

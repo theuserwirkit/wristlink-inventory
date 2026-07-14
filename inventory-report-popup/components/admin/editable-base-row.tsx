@@ -15,6 +15,7 @@ interface EditableBaseRowProps {
   base: {
     id: number
     bezeichnung: string
+    seriennummer?: string | null
     batch_code?: string
     hersteller: string
     kanalanzahl: number
@@ -28,16 +29,25 @@ export function EditableBaseRow({ base }: EditableBaseRowProps) {
   const { toast } = useToast()
   const [editing, setEditing] = useState(false)
   const [bezeichnung, setBezeichnung] = useState(base.bezeichnung)
+  const [seriennummer, setSeriennummer] = useState(base.seriennummer ?? "")
   const [stationTyp, setStationTyp] = useState<BaseStationTyp>(
     (base.station_typ as BaseStationTyp) || "keine",
   )
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
-    if (!bezeichnung.trim()) return
+    if (!bezeichnung.trim() || !seriennummer.trim()) {
+      toast({
+        title: "Fehler",
+        description: "Bezeichnung und Seriennummer sind erforderlich.",
+        variant: "destructive",
+      })
+      return
+    }
     setSaving(true)
     const result = await updateBase(base.id, {
       bezeichnung: bezeichnung.trim(),
+      seriennummer: seriennummer.trim(),
       stationTyp,
     })
     setSaving(false)
@@ -51,6 +61,7 @@ export function EditableBaseRow({ base }: EditableBaseRowProps) {
 
   const handleCancel = () => {
     setBezeichnung(base.bezeichnung)
+    setSeriennummer(base.seriennummer ?? "")
     setStationTyp((base.station_typ as BaseStationTyp) || "keine")
     setEditing(false)
   }
@@ -58,25 +69,35 @@ export function EditableBaseRow({ base }: EditableBaseRowProps) {
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{base.id}</TableCell>
+      <TableCell className="font-mono text-xs">{base.seriennummer || "–"}</TableCell>
       <TableCell>
         {editing ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2">
             <Input
               value={bezeichnung}
               onChange={(e) => setBezeichnung(e.target.value)}
               className="h-8 w-48"
+              placeholder="Bezeichnung"
               autoFocus
+            />
+            <Input
+              value={seriennummer}
+              onChange={(e) => setSeriennummer(e.target.value)}
+              className="h-8 w-48 font-mono text-xs"
+              placeholder="Seriennummer"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSave()
                 if (e.key === "Escape") handleCancel()
               }}
             />
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" onClick={handleSave} disabled={saving}>
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={handleCancel}>
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" onClick={handleSave} disabled={saving}>
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={handleCancel}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-2 group">

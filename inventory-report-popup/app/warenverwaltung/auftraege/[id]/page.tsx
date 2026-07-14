@@ -11,7 +11,7 @@ import {
   getOpenRentals,
   getInventoryLots,
 } from "@/lib/actions/bookings"
-import { getQuoteWarehouseData } from "@/lib/actions/quote-warehouse"
+import { getQuoteWarehouseData, isQuoteWarehouseReadyForPrint } from "@/lib/actions/quote-warehouse"
 import { isStripeConfigured } from "@/lib/konfigurator/stripe"
 import { isSevdeskConfigured } from "@/lib/konfigurator/sevdesk"
 import { formatKontaktAdresse } from "@/lib/konfigurator/kontakt-adresse"
@@ -65,7 +65,7 @@ export default async function AuftragDetailPage({
     (config.modus === "miete" && Boolean(quote.booking_id)) ||
     needsReturnModal
 
-  const [events, warehouseData, bookingModalData] = await Promise.all([
+  const [events, warehouseData, bookingModalData, canPrintWarehouseLabels] = await Promise.all([
     ["paid", "approved", "payment_pending", "submitted"].includes(quote.status)
       ? listFulfillmentEvents(quoteId).catch(() => [])
       : Promise.resolve([]),
@@ -87,6 +87,7 @@ export default async function AuftragDetailPage({
           openRentals,
         }))
       : Promise.resolve(null),
+    quote.status === "paid" ? isQuoteWarehouseReadyForPrint(quoteId) : Promise.resolve(false),
   ])
 
   const bookingModalProps = bookingModalData
@@ -124,7 +125,11 @@ export default async function AuftragDetailPage({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <QuotePackingPrintModal quoteId={quote.id} quoteStatus={quote.status} />
+            <QuotePackingPrintModal
+              quoteId={quote.id}
+              quoteStatus={quote.status}
+              canPrint={canPrintWarehouseLabels}
+            />
             <Badge variant="outline">{SOURCE_LABELS[quote.source]}</Badge>
             <Badge variant={statusBadgeVariant(quote.status)}>
               {STATUS_LABELS[quote.status] || quote.status}

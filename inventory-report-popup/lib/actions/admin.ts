@@ -146,11 +146,28 @@ export async function createBase(input: {
       ? input.stationTyp
       : "keine"
 
+    const prefix = `WL-${stationTyp.toUpperCase()}`
+    const latest = await sql`
+      SELECT seriennummer FROM bases
+      WHERE seriennummer LIKE ${`${prefix}-%`}
+      ORDER BY seriennummer DESC
+      LIMIT 1
+    `
+    let nextSeq = 1
+    if (latest.length > 0) {
+      const match = String(latest[0].seriennummer).match(/(\d+)$/)
+      if (match) nextSeq = Number(match[1]) + 1
+    }
+
     const names = Array.from({ length: count }, (_, i) =>
       count > 1 ? `${bezeichnung} ${i + 1}` : bezeichnung,
     )
+    const serials = Array.from({ length: count }, (_, i) =>
+      `${prefix}-${String(nextSeq + i).padStart(5, "0")}`,
+    )
+
     const created = await sql`
-      INSERT INTO bases (bezeichnung, hersteller, kanalanzahl, batch_id, firmwareversion, funktionsumfang, station_typ)
+      INSERT INTO bases (bezeichnung, hersteller, kanalanzahl, batch_id, firmwareversion, funktionsumfang, station_typ, seriennummer)
       SELECT
         generated.name,
         ${hersteller},
@@ -158,8 +175,9 @@ export async function createBase(input: {
         ${batchId},
         ${firmwareversion},
         ${funktionsumfang},
-        ${stationTyp}
-      FROM UNNEST(${names}::text[]) AS generated(name)
+        ${stationTyp},
+        generated.serial
+      FROM UNNEST(${names}::text[], ${serials}::text[]) AS generated(name, serial)
       RETURNING *
     `
 
@@ -173,7 +191,7 @@ export async function createBase(input: {
 
 export async function updateBase(
   id: number,
-  input: { bezeichnung: string; stationTyp?: string },
+  input: { bezeichnung: string; stationTyp?: string; seriennummer?: string },
 ) {
   try {
     await requireRole(["ADMIN"])
@@ -184,10 +202,33 @@ export async function updateBase(
         ? input.stationTyp
         : undefined
 
-    if (stationTyp) {
+    const seriennummer = input.seriennummer?.trim() || undefined
+
+    if (seriennummer) {
+      const duplicate = await sql`
+        SELECT id FROM bases WHERE seriennummer = ${seriennummer} AND id <> ${id} LIMIT 1
+      `
+      if (duplicate.length > 0) {
+        return { success: false, error: `Seriennummer „${seriennummer}“ ist bereits vergeben` }
+      }
+    }
+
+    if (stationTyp && seriennummer) {
+      await sql`
+        UPDATE bases
+        SET bezeichnung = ${input.bezeichnung}, station_typ = ${stationTyp}, seriennummer = ${seriennummer}
+        WHERE id = ${id}
+      `
+    } else if (stationTyp) {
       await sql`
         UPDATE bases
         SET bezeichnung = ${input.bezeichnung}, station_typ = ${stationTyp}
+        WHERE id = ${id}
+      `
+    } else if (seriennummer) {
+      await sql`
+        UPDATE bases
+        SET bezeichnung = ${input.bezeichnung}, seriennummer = ${seriennummer}
         WHERE id = ${id}
       `
     } else {

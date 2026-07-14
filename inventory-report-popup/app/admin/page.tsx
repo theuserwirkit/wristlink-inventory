@@ -140,6 +140,7 @@ export default async function AdminPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>ID</TableHead>
+                      <TableHead>Seriennummer</TableHead>
                       <TableHead>Bezeichnung</TableHead>
                       <TableHead>Stationstyp</TableHead>
                       <TableHead>Charge</TableHead>

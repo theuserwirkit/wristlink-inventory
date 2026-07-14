@@ -44,7 +44,7 @@ export interface BookingWithRelations {
     anzahl_basen?: number | null
     group?: { id: number; name: string } | null
     batch?: { id: number; code: string; funktionsumfang: string } | null
-    base?: { id: number; bezeichnung: string; hersteller: string; kanalanzahl: number } | null
+    base?: { id: number; bezeichnung: string; hersteller: string; kanalanzahl: number; seriennummer?: string | null } | null
   }>
   /** Legacy-Felder für ältere Komponenten */
   typ?: string
@@ -117,6 +117,7 @@ export interface BaseRow {
   bezeichnung: string
   hersteller: string
   kanalanzahl: number
+  seriennummer?: string | null
   firmwareversion: string | null
   funktionsumfang: string | null
   batch_id?: number | null

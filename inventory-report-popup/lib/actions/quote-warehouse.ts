@@ -45,6 +45,7 @@ export type QuoteWarehouseBaseOption = {
   bezeichnung: string
   hersteller: string
   kanalanzahl: number
+  seriennummer: string | null
   verfuegbar: number
 }
 
@@ -79,7 +80,7 @@ async function loadAvailableBases(
   const sql = getDb()
   const stationTyp = station.toLowerCase()
   const rows = await sql`
-    SELECT id, bezeichnung, hersteller, kanalanzahl
+    SELECT id, bezeichnung, hersteller, kanalanzahl, seriennummer
     FROM bases
     WHERE station_typ = ${stationTyp}
       AND kanalanzahl = ${kanalanzahl}
@@ -94,6 +95,7 @@ async function loadAvailableBases(
         bezeichnung: String(row.bezeichnung),
         hersteller: String(row.hersteller ?? ""),
         kanalanzahl: Number(row.kanalanzahl),
+        seriennummer: row.seriennummer ? String(row.seriennummer) : null,
         verfuegbar: availability.verfuegbar,
       }
     }),
@@ -165,7 +167,12 @@ function fulfillmentStepRequiresBooking(targetStep: FulfillmentStatus): boolean 
 }
 
 function fulfillmentStepRequiresFullAllocation(targetStep: FulfillmentStatus): boolean {
-  return targetStep === "verpackt" || targetStep === "versand_beauftragt" || targetStep === "versandt"
+  return (
+    targetStep === "verpackt" ||
+    targetStep === "bedruckt" ||
+    targetStep === "versand_beauftragt" ||
+    targetStep === "versandt"
+  )
 }
 
 export async function isQuoteBaseAllocationComplete(quoteId: number): Promise<boolean> {
@@ -199,6 +206,14 @@ export async function isQuoteAllocationComplete(quoteId: number): Promise<boolea
 
   const assignedTotal = bandItems.reduce((sum, item) => sum + (item.anzahl || 0), 0)
   return assignedTotal === quote.config_json.menge
+}
+
+export async function isQuoteWarehouseReadyForPrint(quoteId: number): Promise<boolean> {
+  const [bandComplete, baseComplete] = await Promise.all([
+    isQuoteAllocationComplete(quoteId),
+    isQuoteBaseAllocationComplete(quoteId),
+  ])
+  return bandComplete && baseComplete
 }
 
 export async function validateWarehouseForFulfillmentStep(
@@ -438,6 +453,19 @@ export async function updateQuoteBookingBaseAllocation(
     }
 
     const sql = getDb()
+
+    const baseRow = await sql`
+      SELECT seriennummer FROM bases WHERE id = ${input.baseId} LIMIT 1
+    `
+    const seriennummer = baseRow[0]?.seriennummer
+      ? String(baseRow[0].seriennummer).trim()
+      : ""
+    if (!seriennummer) {
+      return {
+        success: false,
+        error: "Basis hat keine Seriennummer. Bitte unter Admin eine eindeutige Seriennummer pflegen.",
+      }
+    }
 
     if (existingBaseItem) {
       await sql`

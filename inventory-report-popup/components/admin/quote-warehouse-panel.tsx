@@ -577,6 +577,7 @@ function BaseAllocationEditor({
         <SelectContent>
           {availableBases.map((base) => (
             <SelectItem key={base.id} value={String(base.id)}>
+              {base.seriennummer ? `${base.seriennummer} · ` : ""}
               {base.bezeichnung} · frei {base.verfuegbar}
             </SelectItem>
           ))}
@@ -650,6 +651,7 @@ function StationBasesSection({
             <TableHeader>
               <TableRow>
                 <TableHead>Basis-Station</TableHead>
+                <TableHead>Seriennummer</TableHead>
                 <TableHead>Hersteller</TableHead>
                 <TableHead className="text-right">Anzahl</TableHead>
               </TableRow>
@@ -658,6 +660,7 @@ function StationBasesSection({
               {baseItems.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.base?.bezeichnung || "–"}</TableCell>
+                  <TableCell className="font-mono text-xs">{item.base?.seriennummer || "–"}</TableCell>
                   <TableCell>{item.base?.hersteller || "–"}</TableCell>
                   <TableCell className="text-right font-mono">
                     {item.anzahl_basen ?? item.anzahl ?? 0}

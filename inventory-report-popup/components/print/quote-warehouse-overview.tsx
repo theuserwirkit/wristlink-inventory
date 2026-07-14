@@ -148,9 +148,10 @@ export function QuoteWarehouseOverview({ data }: QuoteWarehouseOverviewProps) {
           <div className="mt-3">
             <h2 className="mb-1 text-[9pt] font-black uppercase">Basen</h2>
             <CompactTable
-              headers={["Bezeichnung", "Herst.", "Anz."]}
+              headers={["Bezeichnung", "S/N", "Herst.", "Anz."]}
               rows={data.baseRows.map((row) => [
                 row.bezeichnung,
+                row.seriennummer ?? "–",
                 row.hersteller || "–",
                 String(row.anzahl),
               ])}

@@ -245,7 +245,7 @@ export async function getBookings(filters?: {
       ba.id as batch_id_ref, ba.code as batch_code, ba.funktionsumfang as batch_funktionsumfang,
       ba.lieferant as batch_lieferant, ba.lieferdatum as batch_lieferdatum,
       bases.id as base_id_ref, bases.bezeichnung as base_bezeichnung, bases.hersteller as base_hersteller,
-      bases.kanalanzahl as base_kanalanzahl
+      bases.kanalanzahl as base_kanalanzahl, bases.seriennummer as base_seriennummer
     FROM booking_items bi
     LEFT JOIN groups g ON g.id = bi.group_id
     LEFT JOIN batches ba ON ba.id = bi.batch_id
@@ -275,6 +275,7 @@ export async function getBookings(filters?: {
       base: item.base_id_ref ? {
         id: item.base_id_ref, bezeichnung: item.base_bezeichnung,
         hersteller: item.base_hersteller, kanalanzahl: item.base_kanalanzahl,
+        seriennummer: item.base_seriennummer ?? null,
       } : null,
     })
   }
@@ -1094,7 +1095,7 @@ export async function getBookingById(bookingId: number): Promise<BookingWithRela
       ba.id as batch_id_ref, ba.code as batch_code, ba.funktionsumfang as batch_funktionsumfang,
       ba.lieferant as batch_lieferant, ba.lieferdatum as batch_lieferdatum,
       bases.id as base_id_ref, bases.bezeichnung as base_bezeichnung, bases.hersteller as base_hersteller,
-      bases.kanalanzahl as base_kanalanzahl
+      bases.kanalanzahl as base_kanalanzahl, bases.seriennummer as base_seriennummer
     FROM booking_items bi
     LEFT JOIN groups g ON g.id = bi.group_id
     LEFT JOIN batches ba ON ba.id = bi.batch_id
@@ -1111,7 +1112,7 @@ export async function getBookingById(bookingId: number): Promise<BookingWithRela
       anzahl_basen: item.anzahl_basen, batch_id: item.batch_id, base_id: item.base_id,
       group: item.group_id_ref ? { id: item.group_id_ref, name: item.group_name } : null,
       batch: item.batch_id_ref ? { id: item.batch_id_ref, code: item.batch_code, funktionsumfang: item.batch_funktionsumfang, lieferant: item.batch_lieferant, lieferdatum: item.batch_lieferdatum } : null,
-      base: item.base_id_ref ? { id: item.base_id_ref, bezeichnung: item.base_bezeichnung, hersteller: item.base_hersteller, kanalanzahl: item.base_kanalanzahl } : null,
+      base: item.base_id_ref ? { id: item.base_id_ref, bezeichnung: item.base_bezeichnung, hersteller: item.base_hersteller, kanalanzahl: item.base_kanalanzahl, seriennummer: item.base_seriennummer ?? null } : null,
     })),
   } as BookingWithRelations
 }
