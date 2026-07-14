@@ -1,7 +1,9 @@
 import {
   compareFulfillmentUrgency,
+  getAnlieferungDeadlineForPacking,
   getFulfillmentDueDate,
   getFulfillmentTiming,
+  getVersandDeadlineForPacking,
 } from "../lib/konfigurator/fulfillment-timing"
 import type { QuoteRequest } from "../lib/konfigurator/types"
 
@@ -68,6 +70,18 @@ const due = getFulfillmentDueDate(makeQuote({}))
 assert(
   "Anlieferung 2 Tage vor Event",
   due?.toISOString().slice(0, 10) === "2026-07-30",
+)
+
+const anlieferung = getAnlieferungDeadlineForPacking(makeQuote({}))
+assert(
+  "Pack-Anlieferung 2 Tage vor Event",
+  anlieferung?.toISOString().slice(0, 10) === "2026-07-30",
+)
+
+const versand = getVersandDeadlineForPacking(makeQuote({}))
+assert(
+  "Pack-Versand 1 Tag vor Anlieferung",
+  versand?.toISOString().slice(0, 10) === "2026-07-29",
 )
 
 const overdue = getFulfillmentTiming(

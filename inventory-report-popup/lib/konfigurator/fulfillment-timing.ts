@@ -133,6 +133,43 @@ function formatDeDate(date: Date): string {
   }).format(date)
 }
 
+/** Kalendertage UPS/TNT-Transit (DE) vor Anlieferung beim Kunden */
+export const VERSAND_TRANSIT_KALENDERTAGE = 1
+
+/** Spätestes Anlieferdatum beim Kunden (unabhängig vom Fulfillment-Status). */
+export function getAnlieferungDeadlineForPacking(quote: TimingQuote): Date | null {
+  const config = quote.config_json
+  const paket = normalizeLieferpaket(config)
+
+  if (config.von && paket !== "eil") {
+    return addCalendarDays(parseDateOnly(config.von), -ANLIEFERUNG_TAGE_VOR_EVENT)
+  }
+
+  const anchorIso = quote.paid_at || quote.submitted_at
+  if (!anchorIso) return null
+
+  const anchor = parseDateOnly(anchorIso)
+  if (paket === "eil") {
+    return addCalendarDays(anchor, 2)
+  }
+
+  return addCalendarDays(anchor, minTageForConfig(config))
+}
+
+/** Spätestes Versanddatum aus dem Lager (Transit vor Anlieferung). */
+export function getVersandDeadlineForPacking(quote: TimingQuote): Date | null {
+  const anlieferung = getAnlieferungDeadlineForPacking(quote)
+  if (!anlieferung) return null
+
+  const paket = normalizeLieferpaket(quote.config_json)
+  const transitDays = paket === "eil" ? 1 : VERSAND_TRANSIT_KALENDERTAGE
+  return addCalendarDays(anlieferung, -transitDays)
+}
+
+export function formatPackingDeadline(date: Date | null): string | null {
+  return date ? formatDeDate(date) : null
+}
+
 export function isFulfillmentWorkOpen(
   quote: Pick<QuoteRequest, "status" | "fulfillment_status" | "config_json">,
 ): boolean {

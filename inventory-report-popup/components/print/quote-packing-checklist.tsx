@@ -3,6 +3,7 @@
 import type { PackingSheetData } from "@/lib/konfigurator/packing-sheet"
 import { modusAnzeige } from "@/lib/konfigurator/product-info"
 import { A6PrintStyles } from "@/components/print/print-a6-styles"
+import { PackingShippingDates } from "@/components/print/packing-shipping-dates"
 
 type QuotePackingChecklistProps = {
   data: PackingSheetData
@@ -46,6 +47,14 @@ function ChecklistMeta({ data }: { data: PackingSheetData }) {
   )
 }
 
+function formatGroupLine(row: PackingSheetData["warehouseRows"][number]): string {
+  if (!row.lagerGruppe) {
+    return `Gruppe ${row.slot}: – · ${row.anzahl} Stk`
+  }
+  const charge = row.charge ? ` · ${row.charge}` : ""
+  return `Gruppe ${row.slot}: ${row.lagerGruppe}${charge} · ${row.anzahl} Stk`
+}
+
 function ChecklistGroups({ rows }: { rows: PackingSheetData["warehouseRows"] }) {
   return (
     <div className="mb-4">
@@ -54,9 +63,7 @@ function ChecklistGroups({ rows }: { rows: PackingSheetData["warehouseRows"] }) 
         {rows.map((row) => (
           <li key={row.slot} className="flex items-baseline gap-2 text-sm">
             <span className="shrink-0 text-base leading-none">☐</span>
-            <span>
-              <span className="font-bold">G{row.slot}</span> — {row.anzahl} Stk
-            </span>
+            <span>{formatGroupLine(row)}</span>
           </li>
         ))}
       </ul>
@@ -82,12 +89,10 @@ function ChecklistAccessories({ items }: { items: string[] }) {
   )
 }
 
-function VersandFooter() {
+function VersandFooter({ data }: { data: PackingSheetData }) {
   return (
     <div className="mt-auto border-t-2 border-black pt-3">
-      <p className="text-sm font-bold">
-        Versand am: <span className="inline-block min-w-[8rem] border-b border-black" />
-      </p>
+      <PackingShippingDates data={data} />
     </div>
   )
 }
@@ -103,11 +108,12 @@ export function QuotePackingChecklist({ data }: QuotePackingChecklistProps) {
           <div className="a6-page flex flex-col">
             <ChecklistMeta data={data} />
             <ChecklistAccessories items={data.checklistAccessories} />
-            <VersandFooter />
+            <VersandFooter data={data} />
           </div>
           <div className="a6-page flex flex-col">
             <p className="mb-3 text-xs font-bold">Auftrag #{data.quoteId} — Gruppen</p>
             <ChecklistGroups rows={data.warehouseRows} />
+            <VersandFooter data={data} />
           </div>
         </>
       ) : (
@@ -115,7 +121,7 @@ export function QuotePackingChecklist({ data }: QuotePackingChecklistProps) {
           <ChecklistMeta data={data} />
           <ChecklistGroups rows={data.warehouseRows} />
           <ChecklistAccessories items={data.checklistAccessories} />
-          <VersandFooter />
+          <VersandFooter data={data} />
         </div>
       )}
     </div>

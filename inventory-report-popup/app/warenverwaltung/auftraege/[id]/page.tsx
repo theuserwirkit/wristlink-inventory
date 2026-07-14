@@ -149,6 +149,7 @@ export default async function AuftragDetailPage({
           quoteId={quote.id}
           quoteStatus={quote.status}
           modus={config.modus as "miete" | "kauf"}
+          requiredMenge={config.menge}
           hasDruck={Boolean(config.druck)}
           fulfillmentStatus={quote.fulfillment_status}
           warehouseData={{
@@ -157,6 +158,7 @@ export default async function AuftragDetailPage({
             remainingByGroup: warehouseData.remainingByGroup,
             stationInfo: warehouseData.stationInfo,
             availableBases: warehouseData.availableBases,
+            bandBatchPools: warehouseData.bandBatchPools,
           }}
           groups={bookingModalData?.groups ?? []}
           batches={bookingModalData?.batches ?? []}

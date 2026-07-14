@@ -102,12 +102,13 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 - [ ] Login testen: `/login` → `/warenverwaltung`
 - [ ] Konfigurator: vollständige Firmenadresse (Straße, PLZ, Ort) + PLZ-Hinweis als Status-Zugang
 - [x] Anfrage-Bestätigungs-Mail: Status-Link (`/angebot/[token]`) in HTML vollständig anklickbar (kein Zeilenumbruch mitten in der URL)
+- [ ] Freigabe-/Fulfillment-Mails: Status-Link als „Angebot und Status öffnen“ anklickbar (nach Deploy + Migration 17)
 - [ ] Kunden-Statusseite `/angebot/[token]`: PLZ-Gate, Fulfillment-Timeline, Zahlungslink
 - [x] Admin-Anfragen: Freigabe mit/ohne Stripe, Mail-Vorschau (14.07.2026 – inkl. Stripe-Checkout-Fix)
 - [ ] Admin-Anfragen: nächste 3 gebuchte Aufträge mit Fälligkeit (überfällig/heute/in X Tagen) und nächstem Schritt
 - [ ] Manueller Zahlungseingang → Fulfillment startet (`angenommen`)
 - [x] Fulfillment-Schritte + Kunden-Mails (inkl. Versand-Dienstleister, Migration 14; Kundenkommentar auto, interne Notiz, Migration 18)
-- [ ] E-Mail-Templates unter `/admin/einstellungen/e-mails` (Migration 13: kundenfreundliche Texte + `{{status_url}}`)
+- [ ] E-Mail-Templates unter `/admin/einstellungen/e-mails` (Migration 17: Freigabe-Texte mit Menge/Event/Lieferort; URL-Fix in Code)
 - [ ] Rückgabe-Buchung bei `zurueckgepackt`
 - [ ] Landing testen: `/` (Impressum, Datenschutz, AGB im Footer)
 - [ ] Telegram Freigabe/Ablehnung End-to-End testen
@@ -216,6 +217,7 @@ pnpm build                # Production-Build (Dev-Server vorher stoppen – .nex
 pnpm db:migrate           # alle Migrationen 01–18
 pnpm db:indexes           # Performance-Indizes
 npx tsx scripts/test-fulfillment-timing.ts  # Fälligkeitslogik
+npx tsx scripts/test-email-links.ts         # Status-/Zahlungs-URLs in Kunden-Mails
 npx tsx scripts/test-lieferzeit.ts          # Lieferpaket/Legacy-Lieferzeit
 pnpm test:preis-engine    # Preisberechnung
 pnpm telegram:webhook     # Telegram-Webhook setzen

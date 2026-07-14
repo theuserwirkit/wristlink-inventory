@@ -29,7 +29,21 @@ Zentrale Konstanten: `lib/contact-emails.ts`
 | `TEAM_NOTIFICATION_EMAIL` | `angebote@braceled-led-armband.com` – interne Anfrage-Benachrichtigungen |
 | `RESEND_API_KEY` | Resend API (Double-Opt-In, Freigabe, Fulfillment) |
 
-Transaktions-Mails werden als Plain-Text und HTML versendet (`lib/konfigurator/email-html.ts` → `lib/konfigurator/email.ts`), damit lange Status-URLs in E-Mail-Clients vollständig anklickbar bleiben.
+Transaktions-Mails werden zentral über `lib/konfigurator/email.ts` als **Plain-Text und HTML** versendet (`buildEmailBodies` in `lib/konfigurator/email-html.ts`):
+
+| Mechanismus | Zweck |
+|-------------|--------|
+| `normalizeBrokenUrls()` | Zeilenumbrüche mitten in URLs zusammenführen (z. B. Domain + `/angebot/uuid` auf zwei Zeilen) |
+| Plain-Text | URLs in spitze Klammern: `<https://…>` – besser erkennbar für Mail-Clients |
+| HTML | `<a href="…">` mit kurzem Linktext statt langer UUID-URL |
+
+**HTML-Linktexte:** `/angebot/…` → „Angebot und Status öffnen“ · Stripe-Checkout → „Jetzt online bezahlen“ · DOI → „E-Mail-Adresse bestätigen“
+
+**Mails mit Status-Link (`{{status_url}}` / `{{angebot_url}}`):** `quote_approved_stripe`, `quote_approved_manual`, `quote_paid`, alle `fulfillment_*` (8 Schritte). Zusätzlich hardcoded: Anfrage-Bestätigung nach Konfigurator-Submit (`sendCustomerSubmittedEmail`).
+
+**Freigabe-Texte (Migration 17):** Platzhalter `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{zahlungslink_block}}` – siehe `lib/konfigurator/email-template-render.ts`.
+
+**Regressionstest:** `npx tsx scripts/test-email-links.ts` (11 Szenarien: alle Status-Templates + Anfrage-Bestätigung)
 
 Allgemeine Firmenadressen (Impressum, Datenschutz): `@wirkung-digital.de` (`info@`, `legal@`, `datenschutz@`).
 
@@ -213,7 +227,7 @@ vercel --prod
   Konfigurator-Stress-Ampeln, Gruppen-Zuordnung für PRO-Programmierung (max. 3 physische Lagergruppen).
 - **Konfigurator-API:** `POST /api/konfigurator/session` (price, availability, station-availability, group-availability).
 - **Admin-Anfragen:** `/admin/anfragen` – Freigabe, Zahlung, Fulfillment, E-Mail-Vorschau, Prioritäts-Karte (3 dringendste offene Aufträge nach `fulfillment-timing`).
-- **E-Mail-Templates:** `/admin/einstellungen/e-mails` – Vorlagen bearbeiten (Platzhalter `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{status_url}}`, `{{angebot_url}}`, …). Standardtexte: Migration `13`.
+- **E-Mail-Templates:** `/admin/einstellungen/e-mails` – Vorlagen bearbeiten (Platzhalter `{{kunde_anrede}}`, `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{status_url}}`, …). Standardtexte: Migrationen `13`, `15`, `17`. URL-Versand: Abschnitt „E-Mail & Kontakt“ oben.
 - **Kunden-Statusseite:** `/angebot/[public_token]` – Angebot, Zahlung, Fulfillment-Timeline; Zugang per Firmen-PLZ (`kontaktPlz` in `config_json`, Fallback: PLZ aus Eventadresse). PLZ-Prüfung: `lib/konfigurator/plz.ts`, Cookie: `lib/konfigurator/angebot-access.ts`.
 
 ---
@@ -262,8 +276,9 @@ Pro Schritt: **Kundenkommentar** (optional, erscheint automatisch in der Mail vo
 | `lib/actions/fulfillment.ts` | Schrittwechsel, Events, Tracking, Versand-Dienstleister |
 | `lib/actions/email-templates.ts` | CRUD für `email_templates` |
 | `lib/konfigurator/email-template-render.ts` | Platzhalter `{{…}}`, automatisches Einfügen von Kundenkommentaren (`appendCustomerCommentToEmail`) |
-| `lib/konfigurator/email-html.ts` | Plain-Text → HTML mit klickbaren URLs |
+| `lib/konfigurator/email-html.ts` | URL-Normalisierung, Plain-Text-Klammern, HTML-Linktexte (`buildEmailBodies`) |
 | `lib/konfigurator/email.ts` | Resend-Versand aller Transaktions-Mails (`text` + `html`) |
+| `scripts/test-email-links.ts` | Regressionstest: Status-/Zahlungs-URLs in allen Kunden-Mails |
 | `lib/konfigurator/fulfillment-timing.ts` | Fälligkeitsberechnung, Dringlichkeit, Sortierung offener Aufträge |
 | `lib/konfigurator/versand-dienstleister.ts` | UPS/DHL/TNT-Optionen |
 | `lib/konfigurator/kontakt-adresse.ts` | Firmenadresse, PLZ für Status-Zugang |

@@ -7,6 +7,7 @@ import {
   isBaseStationTyp,
 } from "@/lib/konfigurator/station-types"
 import { A6PrintStyles } from "@/components/print/print-a6-styles"
+import { PackingShippingDates } from "@/components/print/packing-shipping-dates"
 
 type QuoteWarehouseOverviewProps = {
   data: PackingSheetData
@@ -113,6 +114,7 @@ export function QuoteWarehouseOverview({ data }: QuoteWarehouseOverviewProps) {
             <span className="font-bold">Menge gesamt:</span> {data.menge.toLocaleString("de-DE")}{" "}
             Stk · <span className="font-bold">Gruppen:</span> {data.gruppenAnzahl}
           </p>
+          <PackingShippingDates data={data} compact />
         </div>
 
         <div className="mt-3">

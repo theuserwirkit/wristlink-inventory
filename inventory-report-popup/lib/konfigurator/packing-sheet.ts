@@ -1,6 +1,14 @@
 import type { QuoteWarehouseData } from "@/lib/actions/quote-warehouse"
+import { allocateGroupProgramming } from "@/lib/konfigurator/group-allocation"
+import type { InventoryGroupPool } from "@/lib/konfigurator/group-allocation"
 import { FULFILLMENT_STATUS_LABELS } from "@/lib/konfigurator/fulfillment-status"
+import {
+  formatPackingDeadline,
+  getAnlieferungDeadlineForPacking,
+  getVersandDeadlineForPacking,
+} from "@/lib/konfigurator/fulfillment-timing"
 import { normalizeGruppenGroessen } from "@/lib/konfigurator/gruppen-config"
+import { parseLeuchtgruppeName } from "@/lib/konfigurator/leuchtgruppen"
 import { formatKontaktAdresse } from "@/lib/konfigurator/kontakt-adresse"
 import {
   getLieferpaketLabel,
@@ -17,8 +25,91 @@ import {
   STATION_TYP_LABELS,
   isBaseStationTyp,
 } from "@/lib/konfigurator/station-types"
-import type { QuoteRequest } from "@/lib/konfigurator/types"
+import type { QuoteFulfillmentEvent, QuoteRequest } from "@/lib/konfigurator/types"
+import type { BookingWithRelations } from "@/lib/types"
 import { formatDate } from "@/lib/utils/date"
+
+export function formatPhysicalGroupDisplay(name: string): string {
+  return name.trim().replace(/_/g, " ")
+}
+
+type SlotWarehouseAssignment = {
+  lagerGruppe: string | null
+  charge: string | null
+}
+
+function buildInventoryPoolsFromBooking(
+  bandItems: BookingWithRelations["items"],
+): InventoryGroupPool[] {
+  const byGroup = new Map<number, InventoryGroupPool>()
+
+  for (const item of bandItems) {
+    if (item.group_id == null) continue
+    const groupId = item.group_id
+    const name = item.group?.name ?? `Gruppe ${groupId}`
+    const parsed = parseLeuchtgruppeName(name)
+    const existing = byGroup.get(groupId)
+
+    if (existing) {
+      existing.frei += item.anzahl
+      continue
+    }
+
+    byGroup.set(groupId, {
+      groupId,
+      name,
+      kanalanzahl: parsed?.kanalanzahl ?? 40,
+      frei: item.anzahl,
+    })
+  }
+
+  return [...byGroup.values()]
+}
+
+function buildChargeByGroupId(
+  bandItems: BookingWithRelations["items"],
+): Map<number, string | null> {
+  const charges = new Map<number, string | null>()
+  for (const item of bandItems) {
+    if (item.group_id == null) continue
+    if (!charges.has(item.group_id)) {
+      charges.set(item.group_id, item.batch?.code ?? null)
+    }
+  }
+  return charges
+}
+
+export function resolveSlotWarehouseAssignments(
+  gruppenGroessen: number[],
+  bookingItems: BookingWithRelations["items"],
+): SlotWarehouseAssignment[] {
+  const empty = gruppenGroessen.map(() => ({
+    lagerGruppe: null,
+    charge: null,
+  }))
+
+  const bandItems = bookingItems.filter((item) => item.group_id != null)
+  if (bandItems.length === 0) return empty
+
+  const pools = buildInventoryPoolsFromBooking(bandItems)
+  const charges = buildChargeByGroupId(bandItems)
+  const { slots } = allocateGroupProgramming(gruppenGroessen, pools)
+
+  return slots.map((slot) => {
+    if (slot.zuteilungen.length === 0) {
+      return { lagerGruppe: null, charge: null }
+    }
+
+    const primary = slot.zuteilungen.reduce((best, current) =>
+      current.anzahl >= best.anzahl ? current : best,
+    )
+
+    return {
+      lagerGruppe: formatPhysicalGroupDisplay(primary.name),
+      charge: charges.get(primary.groupId) ?? null,
+    }
+  })
+}
 
 export type PackingBagLabel = {
   slot: number
@@ -60,12 +151,15 @@ export type PackingSheetData = {
   druckLabel: string
   probedruckLabel: string | null
   hasLogo: boolean
+  logoUrl: string | null
   lieferpaket: string
   station: string | null
   stationModus: string | null
   adresse: string | null
   telefon: string | null
   fulfillmentStatus: string | null
+  versandDatum: string | null
+  anlieferungDatum: string | null
   bagLabels: PackingBagLabel[]
   warehouseRows: PackingWarehouseRow[]
   bookingRows: PackingBookingRow[]
@@ -139,40 +233,56 @@ function buildChecklistAccessories(
 export function buildPackingSheetData(
   quote: QuoteRequest,
   warehouse: QuoteWarehouseData,
+  fulfillmentEvents: QuoteFulfillmentEvent[] = [],
 ): PackingSheetData {
   const config = quote.config_json
   const gruppenGroessen = normalizeGruppenGroessen(config)
   const totalSlots = gruppenGroessen.length
   const station = config.station || "keine"
   const isMiete = config.modus === "miete"
+  const bookingItems = warehouse.primaryBooking?.items ?? []
+  const slotAssignments = resolveSlotWarehouseAssignments(gruppenGroessen, bookingItems)
 
   let bagLabels: PackingBagLabel[] = gruppenGroessen.map((anzahl, index) => ({
     slot: index + 1,
     totalSlots,
     anzahl,
-    lagerGruppe: null,
-    charge: null,
+    lagerGruppe: slotAssignments[index]?.lagerGruppe ?? null,
+    charge: slotAssignments[index]?.charge ?? null,
   }))
 
   let warehouseRows: PackingWarehouseRow[] = gruppenGroessen.map((anzahl, index) => ({
     slot: index + 1,
     anzahl,
-    lagerGruppe: null,
-    charge: null,
+    lagerGruppe: slotAssignments[index]?.lagerGruppe ?? null,
+    charge: slotAssignments[index]?.charge ?? null,
   }))
 
   if (bagLabels.length === 0 && config.menge > 0) {
+    const fallbackAssignment = resolveSlotWarehouseAssignments([config.menge], bookingItems)[0]
     bagLabels = [
-      { slot: 1, totalSlots: 1, anzahl: config.menge, lagerGruppe: null, charge: null },
+      {
+        slot: 1,
+        totalSlots: 1,
+        anzahl: config.menge,
+        lagerGruppe: fallbackAssignment?.lagerGruppe ?? null,
+        charge: fallbackAssignment?.charge ?? null,
+      },
     ]
-    warehouseRows = [{ slot: 1, anzahl: config.menge, lagerGruppe: null, charge: null }]
+    warehouseRows = [
+      {
+        slot: 1,
+        anzahl: config.menge,
+        lagerGruppe: fallbackAssignment?.lagerGruppe ?? null,
+        charge: fallbackAssignment?.charge ?? null,
+      },
+    ]
   }
 
-  const bookingItems = warehouse.primaryBooking?.items ?? []
   const bookingRows: PackingBookingRow[] = bookingItems
     .filter((item) => item.group_id != null)
     .map((item) => ({
-      lagerGruppe: item.group?.name ?? `Gruppe ${item.group_id}`,
+      lagerGruppe: formatPhysicalGroupDisplay(item.group?.name ?? `Gruppe ${item.group_id}`),
       charge: item.batch?.code ?? null,
       anzahl: item.anzahl,
     }))
@@ -194,6 +304,17 @@ export function buildPackingSheetData(
     szenarioLabel(config.szenario) ??
     (isMiete ? formatEventDateRange(config.von, config.bis) : null)
 
+  const versandEvent = [...fulfillmentEvents]
+    .reverse()
+    .find((e) => e.to_status === "versand_beauftragt" || e.to_status === "versandt")
+
+  const versandDatum =
+    versandEvent != null
+      ? formatDate(versandEvent.created_at)
+      : formatPackingDeadline(getVersandDeadlineForPacking(quote))
+
+  const anlieferungDatum = formatPackingDeadline(getAnlieferungDeadlineForPacking(quote))
+
   return {
     quoteId: quote.id,
     kunde: config.kontaktFirma || config.kontaktName || quote.lead_email || "–",
@@ -207,6 +328,7 @@ export function buildPackingSheetData(
     druckLabel: getDruckLabel(config.druck, druckArt),
     probedruckLabel: getProbedruckLabel(probedruckOption),
     hasLogo,
+    logoUrl: hasLogo && config.logoId ? `/api/konfigurator/logo/${config.logoId}` : null,
     lieferpaket: getLieferpaketLabel(normalizeLieferpaket(config)),
     station: station === "keine" ? null : station,
     stationModus: station === "keine" ? null : config.stationModus || config.modus,
@@ -215,6 +337,8 @@ export function buildPackingSheetData(
     fulfillmentStatus: quote.fulfillment_status
       ? FULFILLMENT_STATUS_LABELS[quote.fulfillment_status]
       : null,
+    versandDatum,
+    anlieferungDatum,
     bagLabels,
     warehouseRows,
     bookingRows,

@@ -12,6 +12,12 @@ import {
 } from "@/lib/actions/bookings"
 import { getQuoteByIdInternal } from "@/lib/quotes-internal"
 import { normalizeKanalanzahl } from "@/lib/konfigurator/kanalanzahl"
+import {
+  suggestBandAllocation,
+  type BandAllocationLine,
+  type BandBatchPool,
+} from "@/lib/konfigurator/band-allocation"
+import { isWristlinkProdukt, resolveGroupsForProduct } from "@/lib/product-mapping"
 import type { FulfillmentStatus, QuoteConfig, QuoteStatus } from "@/lib/konfigurator/types"
 import type { BookingWithRelations } from "@/lib/types"
 
@@ -53,6 +59,7 @@ export type QuoteWarehouseData = {
   remainingByGroup: Record<number, number>
   stationInfo: QuoteStationInfo | null
   availableBases: QuoteWarehouseBaseOption[]
+  bandBatchPools: BandBatchPool[]
 }
 
 function resolveKanalanzahlForBases(config: QuoteConfig): number {
@@ -127,6 +134,8 @@ export async function getQuoteWarehouseData(quoteId: number): Promise<QuoteWareh
     ? await loadAvailableBases(stationInfo.station, resolveKanalanzahlForBases(config))
     : []
 
+  const bandBatchPools = await loadBandBatchPools(quote, primaryBooking)
+
   return {
     quoteId: quote.id,
     modus: config.modus,
@@ -138,6 +147,7 @@ export async function getQuoteWarehouseData(quoteId: number): Promise<QuoteWareh
     remainingByGroup,
     stationInfo,
     availableBases,
+    bandBatchPools,
   }
 }
 
@@ -184,7 +194,11 @@ export async function isQuoteAllocationComplete(quoteId: number): Promise<boolea
   const bandItems = booking.items.filter((item) => item.group_id != null)
   if (bandItems.length === 0) return false
 
-  return bandItems.every((item) => item.group_id != null && item.batch_id != null)
+  const allAssigned = bandItems.every((item) => item.group_id != null && item.batch_id != null)
+  if (!allAssigned) return false
+
+  const assignedTotal = bandItems.reduce((sum, item) => sum + (item.anzahl || 0), 0)
+  return assignedTotal === quote.config_json.menge
 }
 
 export async function validateWarehouseForFulfillmentStep(
@@ -261,6 +275,80 @@ async function resolveLotId(
     SELECT id FROM inventory_lots WHERE sku_id = ${skuId} AND batch_id = ${batchId} LIMIT 1
   `
   return existingLot.length > 0 ? existingLot[0].id : null
+}
+
+async function loadBandBatchPools(
+  quote: Awaited<ReturnType<typeof getQuoteByIdInternal>>,
+  primaryBooking: BookingWithRelations | null,
+): Promise<BandBatchPool[]> {
+  if (!quote) return []
+
+  const config = quote.config_json
+  const produkt = String(config.produkt || "").toLowerCase()
+  if (!isWristlinkProdukt(produkt)) return []
+
+  const kanalanzahl =
+    produkt === "armband" ? normalizeKanalanzahl(config.kanalanzahl) : undefined
+  const groups = await resolveGroupsForProduct(produkt, kanalanzahl)
+  if (groups.length === 0) return []
+
+  const sql = getDb()
+  const groupIds = groups.map((group) => group.id)
+  const pairs = await sql`
+    SELECT DISTINCT group_id, batch_id
+    FROM (
+      SELECT bi.group_id, bi.batch_id
+      FROM booking_items bi
+      WHERE bi.group_id = ANY(${groupIds}) AND bi.batch_id IS NOT NULL
+      UNION
+      SELECT s.group_id, il.batch_id
+      FROM inventory_lots il
+      JOIN skus s ON s.id = il.sku_id
+      WHERE s.group_id = ANY(${groupIds}) AND il.batch_id IS NOT NULL
+    ) AS gb
+    ORDER BY group_id ASC, batch_id ASC
+  `
+
+  const bandItems =
+    primaryBooking?.items.filter((item) => item.group_id != null && item.batch_id != null) ?? []
+  const ownByPair = new Map<string, number>()
+  for (const item of bandItems) {
+    const key = `${item.group_id}:${item.batch_id}`
+    ownByPair.set(key, (ownByPair.get(key) || 0) + (item.anzahl || 0))
+  }
+
+  const pools: BandBatchPool[] = []
+  for (const pair of pairs) {
+    const groupId = Number(pair.group_id)
+    const batchId = Number(pair.batch_id)
+    const group = groups.find((entry) => entry.id === groupId)
+    if (!group) continue
+
+    const batchRows = await sql`SELECT code FROM batches WHERE id = ${batchId} LIMIT 1`
+    const availability = await getAvailabilityForGroupInternal(groupId, batchId)
+    const key = `${groupId}:${batchId}`
+    const ownQty = ownByPair.get(key) || 0
+
+    pools.push({
+      groupId,
+      groupName: group.name,
+      batchId,
+      batchCode: String(batchRows[0]?.code ?? `#${batchId}`),
+      verfuegbar: availability.verfuegbar + ownQty,
+      gesamtsumme: availability.gesamtsumme + ownQty,
+      inVermietung: availability.inVermietung,
+    })
+  }
+
+  return pools.sort((a, b) => b.verfuegbar - a.verfuegbar)
+}
+
+export async function getQuoteBandAllocationSuggestion(
+  quoteId: number,
+): Promise<BandAllocationLine[]> {
+  await ensureAuthed()
+  const data = await getQuoteWarehouseData(quoteId)
+  return suggestBandAllocation(data.menge, data.bandBatchPools)
 }
 
 async function checkBaseAvailabilityForBooking(
@@ -372,8 +460,113 @@ export async function updateQuoteBookingBaseAllocation(
     revalidatePath("/")
 
     return { success: true }
-  } catch {
-    return { success: false, error: "Fehler beim Aktualisieren der Basis-Zuweisung" }
+  } catch (error) {
+    console.error("updateQuoteBookingBaseAllocation failed:", error)
+    const message = error instanceof Error ? error.message : "Unbekannter Fehler"
+    return { success: false, error: `Fehler beim Aktualisieren der Basis-Zuweisung: ${message}` }
+  }
+}
+
+async function effectiveBandAvailability(
+  groupId: number,
+  batchId: number,
+  booking: BookingWithRelations,
+  bandItems: BookingWithRelations["items"],
+): Promise<number> {
+  const availability = await getAvailabilityForGroupInternal(groupId, batchId)
+  const ownQty = bandItems
+    .filter((item) => item.group_id === groupId && item.batch_id === batchId)
+    .reduce((sum, item) => sum + (item.anzahl || 0), 0)
+  return availability.verfuegbar + ownQty
+}
+
+export async function saveQuoteBandAllocations(
+  quoteId: number,
+  allocations: Array<{ groupId: number; batchId: number; anzahl: number }>,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const authed = await isAuthenticated()
+    if (!authed) return { success: false, error: "Nicht authentifiziert" }
+
+    const quote = await getQuoteByIdInternal(quoteId)
+    if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
+    if (!quote.booking_id) {
+      return { success: false, error: "Keine Buchung mit dieser Anfrage verknüpft" }
+    }
+    if (!ACTIVE_QUOTE_STATUSES.includes(quote.status)) {
+      return { success: false, error: `Zuweisung bei Status ${quote.status} nicht erlaubt` }
+    }
+
+    const requiredMenge = quote.config_json.menge
+    const normalized = allocations
+      .map((row) => ({
+        groupId: Number(row.groupId),
+        batchId: Number(row.batchId),
+        anzahl: Number(row.anzahl),
+      }))
+      .filter((row) => row.anzahl > 0)
+
+    if (normalized.length === 0) {
+      return { success: false, error: "Mindestens eine Zuweisungszeile erforderlich" }
+    }
+
+    const total = normalized.reduce((sum, row) => sum + row.anzahl, 0)
+    if (total !== requiredMenge) {
+      return {
+        success: false,
+        error: `Summe (${total}) muss exakt der Auftragsmenge (${requiredMenge}) entsprechen`,
+      }
+    }
+
+    const booking = await getBookingById(quote.booking_id)
+    if (!booking) return { success: false, error: "Buchung nicht gefunden" }
+    if (booking.booking_type !== "MIETE_AUSGABE" && booking.booking_type !== "VERKAUF") {
+      return { success: false, error: "Zuweisung nur für Miet- oder Verkaufsbuchungen möglich" }
+    }
+
+    const bandItems = booking.items.filter((item) => item.group_id != null)
+    for (const row of normalized) {
+      const effective = await effectiveBandAvailability(
+        row.groupId,
+        row.batchId,
+        booking,
+        bandItems,
+      )
+      if (effective < row.anzahl) {
+        const groupRows = await getDb()`SELECT name FROM groups WHERE id = ${row.groupId} LIMIT 1`
+        const batchRows = await getDb()`SELECT code FROM batches WHERE id = ${row.batchId} LIMIT 1`
+        return {
+          success: false,
+          error: `Nicht genügend verfügbar für ${groupRows[0]?.name ?? "Gruppe"} / ${batchRows[0]?.code ?? "Charge"}. Verfügbar: ${effective}, benötigt: ${row.anzahl}`,
+        }
+      }
+    }
+
+    const sql = getDb()
+    const bandItemIds = bandItems.map((item) => item.id)
+    if (bandItemIds.length > 0) {
+      await sql`DELETE FROM booking_items WHERE id = ANY(${bandItemIds})`
+    }
+
+    for (const row of normalized) {
+      const skuId = await resolveSkuId(sql, row.groupId)
+      const lotId = await resolveLotId(sql, skuId, row.batchId)
+      await sql`
+        INSERT INTO booking_items (booking_id, group_id, sku_id, lot_id, batch_id, anzahl, anzahl_fehlt)
+        VALUES (${quote.booking_id}, ${row.groupId}, ${skuId}, ${lotId}, ${row.batchId}, ${row.anzahl}, 0)
+      `
+    }
+
+    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
+    revalidatePath("/warenverwaltung/buchungen")
+    revalidatePath("/kalender")
+    revalidatePath("/")
+
+    return { success: true }
+  } catch (error) {
+    console.error("saveQuoteBandAllocations failed:", error)
+    const message = error instanceof Error ? error.message : "Unbekannter Fehler"
+    return { success: false, error: `Fehler beim Speichern der Zuweisung: ${message}` }
   }
 }
 
@@ -411,52 +604,23 @@ export async function updateQuoteBookingAllocation(
     const sameAllocation =
       targetItem.group_id === input.groupId && targetItem.batch_id === input.batchId
     if (!sameAllocation) {
-      const availability = await getAvailabilityForGroupInternal(input.groupId, input.batchId)
-      if (availability.verfuegbar < targetItem.anzahl) {
+      const effective = await effectiveBandAvailability(
+        input.groupId,
+        input.batchId,
+        booking,
+        bandItems,
+      )
+      if (effective < targetItem.anzahl) {
         return {
           success: false,
-          error: `Nicht genügend verfügbar. Verfügbar: ${availability.verfuegbar}, benötigt: ${targetItem.anzahl}`,
+          error: `Nicht genügend verfügbar. Verfügbar: ${effective}, benötigt: ${targetItem.anzahl}`,
         }
       }
     }
 
     const sql = getDb()
-    const itemRows = await sql`
-      SELECT sku_id, lot_id, anzahl FROM booking_items WHERE id = ${targetItem.id} LIMIT 1
-    `
-    if (!itemRows.length) {
-      return { success: false, error: "Buchungsposition nicht gefunden" }
-    }
-    const { lot_id: oldLotId, anzahl } = itemRows[0]
-
     const newSkuId = await resolveSkuId(sql, input.groupId)
     const newLotId = await resolveLotId(sql, newSkuId, input.batchId)
-
-    if (booking.booking_type === "VERKAUF") {
-      if (oldLotId && !sameAllocation) {
-        const oldLot = await sql`SELECT menge FROM inventory_lots WHERE id = ${oldLotId} LIMIT 1`
-        if (oldLot.length > 0) {
-          await sql`
-            UPDATE inventory_lots SET menge = ${oldLot[0].menge + anzahl} WHERE id = ${oldLotId}
-          `
-        }
-      }
-
-      if (newLotId) {
-        const newLot = await sql`SELECT menge FROM inventory_lots WHERE id = ${newLotId} LIMIT 1`
-        if (newLot.length > 0) {
-          if (newLot[0].menge < anzahl) {
-            return {
-              success: false,
-              error: `Nicht genügend Bestand in der Ziel-Charge. Verfügbar: ${newLot[0].menge}`,
-            }
-          }
-          await sql`
-            UPDATE inventory_lots SET menge = ${newLot[0].menge - anzahl} WHERE id = ${newLotId}
-          `
-        }
-      }
-    }
 
     await sql`
       UPDATE booking_items
@@ -473,7 +637,9 @@ export async function updateQuoteBookingAllocation(
     revalidatePath("/")
 
     return { success: true }
-  } catch {
-    return { success: false, error: "Fehler beim Aktualisieren der Zuweisung" }
+  } catch (error) {
+    console.error("updateQuoteBookingAllocation failed:", error)
+    const message = error instanceof Error ? error.message : "Unbekannter Fehler"
+    return { success: false, error: `Fehler beim Aktualisieren der Zuweisung: ${message}` }
   }
 }

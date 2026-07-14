@@ -2,9 +2,15 @@
 
 import type { PackingSheetData } from "@/lib/konfigurator/packing-sheet"
 import { A6PrintStyles } from "@/components/print/print-a6-styles"
+import { PackingShippingDates } from "@/components/print/packing-shipping-dates"
 
 type QuoteBagLabelsProps = {
   data: PackingSheetData
+}
+
+function formatGroupLine(slot: number, lagerGruppe: string | null, charge: string | null): string {
+  if (!lagerGruppe) return `Gruppe ${slot}: –`
+  return charge ? `Gruppe ${slot}: ${lagerGruppe} · ${charge}` : `Gruppe ${slot}: ${lagerGruppe}`
 }
 
 export function QuoteBagLabels({ data }: QuoteBagLabelsProps) {
@@ -12,20 +18,31 @@ export function QuoteBagLabels({ data }: QuoteBagLabelsProps) {
     <div className="a6-print-root">
       <A6PrintStyles />
       {data.bagLabels.map((label) => (
-        <div key={label.slot} className="a6-page flex flex-col justify-between">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-wide">Auftrag #{data.quoteId}</p>
-            <p className="mt-2 text-lg font-bold">
-              Gruppe {label.slot} von {label.totalSlots}
+        <div key={label.slot} className="a6-page flex flex-col">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-bold uppercase tracking-wide">Auftrag #{data.quoteId}</p>
+            {data.druck && data.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={data.logoUrl}
+                alt="Kundenlogo"
+                className="a6-logo h-10 w-auto bg-black p-0.5"
+              />
+            )}
+          </div>
+
+          <div className="my-3 text-center">
+            <p className="text-6xl font-black leading-none">
+              {label.slot}/{label.totalSlots}
             </p>
+            <p className="mt-2 text-4xl font-black leading-none">{label.anzahl}</p>
+            <p className="mt-1 text-lg font-bold">Bänder</p>
           </div>
 
-          <div className="my-4 text-center">
-            <p className="text-5xl font-black leading-none">{label.anzahl}</p>
-            <p className="mt-1 text-xl font-bold">Bänder</p>
-          </div>
-
-          <div className="space-y-2 text-sm">
+          <div className="space-y-1.5 text-sm">
+            <p className="text-base font-bold">
+              {formatGroupLine(label.slot, label.lagerGruppe, label.charge)}
+            </p>
             <p>
               <span className="font-bold">Kunde:</span> {data.kunde}
             </p>
@@ -34,38 +51,13 @@ export function QuoteBagLabels({ data }: QuoteBagLabelsProps) {
                 <span className="font-bold">Event:</span> {data.eventDatum}
               </p>
             )}
-            {data.druck ? (
-              <div className="border-2 border-black p-2">
-                <p className="font-black uppercase text-xs">Bedruckung</p>
-                <p className="text-sm font-bold">{data.druckLabel}</p>
-                {data.probedruckLabel && (
-                  <p className="mt-1 text-xs">
-                    <span className="font-bold">Probedruck:</span> {data.probedruckLabel}
-                  </p>
-                )}
-                {data.hasLogo && (
-                  <p className="mt-1 text-xs font-bold">Logo-Datei vorhanden</p>
-                )}
-              </div>
-            ) : (
-              <p>
-                <span className="font-bold">Druck:</span> Nein
+            {data.druck && (
+              <p className="text-xs">
+                <span className="font-bold">Bedruckung:</span> {data.druckLabel}
+                {data.probedruckLabel ? ` · ${data.probedruckLabel}` : ""}
               </p>
             )}
-            {label.lagerGruppe ? (
-              <div>
-                <p>
-                  <span className="font-bold">Lager:</span> {label.lagerGruppe}
-                </p>
-                {label.charge && (
-                  <p className="a6-mono text-xs">
-                    <span className="font-bold font-sans">Charge:</span> {label.charge}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-black/80">Lager: siehe Übersicht</p>
-            )}
+            <PackingShippingDates data={data} />
           </div>
         </div>
       ))}

@@ -22,6 +22,12 @@ export const A6_PRINT_CSS = `
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
+  .a6-logo {
+    max-height: 12mm;
+    max-width: 28mm;
+    object-fit: contain;
+  }
+
   @media print {
     @page {
       size: 105mm 148mm;
@@ -33,8 +39,8 @@ export const A6_PRINT_CSS = `
       padding: 0;
       color: #000 !important;
       background: #fff !important;
-      -webkit-print-color-adjust: economy;
-      print-color-adjust: economy;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
 
     .no-print {

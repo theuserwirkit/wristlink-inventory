@@ -416,7 +416,27 @@ Test: `npx tsx scripts/test-fulfillment-timing.ts`
 
 `{{status_url}}` und `{{angebot_url}}` zeigen auf dieselbe Route (`/angebot/[public_token]`). In Mails wird auf den Zugang mit der **Postleitzahl der Firmenadresse** hingewiesen.
 
-**Versandformat:** Alle Transaktions-Mails werden als Plain-Text **und** HTML versendet (`lib/konfigurator/email-html.ts`). URLs werden vor dem Versand normalisiert (Zeilenumbrüche mitten in Links werden zusammengeführt), im Plain-Text in spitze Klammern gesetzt (`<https://…>`) und in HTML als `<a>`-Link mit kurzem Linktext gerendert (z. B. „Angebot und Status öffnen“ statt der langen UUID-URL). Test: `npx tsx scripts/test-email-links.ts`
+**Templates mit Status-Link:**
+
+| Template | Anlass |
+|----------|--------|
+| `quote_approved_stripe` | Freigabe mit Stripe |
+| `quote_approved_manual` | Freigabe ohne Stripe |
+| `quote_paid` | Zahlung eingegangen |
+| `fulfillment_*` (8 Schritte) | Fulfillment-Updates |
+| *(hardcoded)* | Anfrage-Bestätigung nach Konfigurator-Submit |
+
+**Versandformat:** Alle Transaktions-Mails werden als Plain-Text **und** HTML versendet (`lib/konfigurator/email-html.ts` → `lib/konfigurator/email.ts`).
+
+| Schritt | Verhalten |
+|---------|-----------|
+| `normalizeBrokenUrls()` | Getrennte URL-Zeilen (`https://domain` + `/angebot/uuid`) zusammenführen |
+| Plain-Text | URLs in spitze Klammern: `<https://…>` |
+| HTML | `<a href="…">` mit kurzem Linktext (z. B. „Angebot und Status öffnen“) |
+
+**Freigabe-Mail (Migration 17):** neuer Angebotstext mit `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, nur Netto-Summe, optional `{{zahlungslink_block}}` bei Stripe.
+
+**Tests:** `npx tsx scripts/test-email-links.ts` · `npx tsx scripts/test-fulfillment-timing.ts`
 
 ### Admin-UI-Komponenten
 
@@ -510,8 +530,9 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `lib/konfigurator/fulfillment-timing.ts` | Fälligkeitsberechnung, Dringlichkeit, Sortierung |
 | `lib/konfigurator/versand-dienstleister.ts` | UPS/DHL/TNT-Optionen und Labels |
 | `lib/konfigurator/email-template-render.ts` | E-Mail-Platzhalter |
-| `lib/konfigurator/email-html.ts` | Plain-Text → HTML (klickbare URLs) |
-| `lib/konfigurator/email.ts` | Resend-Versand (`text` + `html`) |
+| `lib/konfigurator/email-html.ts` | URL-Normalisierung, Plain-Text-Klammern, HTML-Linktexte |
+| `lib/konfigurator/email.ts` | Resend-Versand (`text` + `html`, zentral) |
+| `scripts/test-email-links.ts` | Regressionstest Status-/Zahlungs-URLs in Kunden-Mails |
 | `lib/konfigurator/kontakt-adresse.ts` | Firmenadresse formatieren, PLZ für Status-Zugang |
 | `lib/konfigurator/plz.ts` | PLZ-Hilfsfunktionen (client-sicher) |
 | `lib/konfigurator/angebot-access.ts` | Server: Cookie-Zugang für Statusseite |

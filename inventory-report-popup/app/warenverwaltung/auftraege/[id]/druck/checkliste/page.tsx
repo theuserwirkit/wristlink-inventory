@@ -1,8 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 import { isAuthenticated } from "@/lib/auth"
-import { getQuoteById } from "@/lib/actions/quotes"
-import { getQuoteWarehouseData } from "@/lib/actions/quote-warehouse"
-import { buildPackingSheetData } from "@/lib/konfigurator/packing-sheet"
+import { loadPackingSheetForQuote } from "@/lib/konfigurator/packing-sheet-loader"
 import { QuotePackingPrintView } from "@/components/print/quote-packing-print-view"
 
 export const dynamic = "force-dynamic"
@@ -19,11 +17,9 @@ export default async function PackingChecklistPrintPage({ params, searchParams }
   const quoteId = Number(id)
   if (!Number.isFinite(quoteId)) notFound()
 
-  const quote = await getQuoteById(quoteId)
-  if (!quote) notFound()
+  const data = await loadPackingSheetForQuote(quoteId)
+  if (!data) notFound()
 
-  const warehouse = await getQuoteWarehouseData(quoteId)
-  const data = buildPackingSheetData(quote, warehouse)
   const { autoprint } = await searchParams
 
   return (
