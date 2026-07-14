@@ -6,7 +6,7 @@ import { getEmailTemplateByKey } from "@/lib/konfigurator/email-template-store"
 import {
   buildQuoteTemplateVars,
   formatAblehnungsgrundBlock,
-  formatKommentarBlock,
+  appendCustomerCommentToEmail,
   renderTemplateText,
   type TemplateVars,
 } from "@/lib/konfigurator/email-template-render"
@@ -253,22 +253,31 @@ export async function sendFulfillmentStepEmail(params: {
   customSubject?: string
   customBody?: string
 }) {
+  let subject: string
+  let text: string
+
   if (params.customSubject?.trim() && params.customBody?.trim()) {
-    return sendTemplatedEmail({
-      email: params.email,
-      subject: params.customSubject.trim(),
-      text: params.customBody.trim(),
-    })
-  }
-  return sendFromTemplateKey({
-    templateKey: params.templateKey,
-    email: params.email,
-    quote: params.quote,
-    extraVars: {
-      kommentar: formatKommentarBlock(params.comment),
+    subject = params.customSubject.trim()
+    text = params.customBody.trim()
+  } else {
+    const template = await getEmailTemplateByKey(params.templateKey)
+    if (!template) {
+      return { success: false, error: `Template ${params.templateKey} nicht gefunden` }
+    }
+    const vars = buildQuoteTemplateVars(params.quote, params.email, {
       tracking_nr: params.trackingNumber || params.quote.tracking_number || "",
       versand_dienstleister:
         params.versandDienstleister || params.quote.versand_dienstleister || "",
-    },
+    })
+    subject = renderTemplateText(template.subject, vars)
+    text = renderTemplateText(template.body, vars)
+  }
+
+  text = appendCustomerCommentToEmail(text, params.comment)
+
+  return sendTemplatedEmail({
+    email: params.email,
+    subject,
+    text,
   })
 }

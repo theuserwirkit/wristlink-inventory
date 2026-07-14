@@ -30,6 +30,7 @@ import {
   type QuoteStationInfo,
   type QuoteWarehouseBaseOption,
 } from "@/lib/actions/quote-warehouse"
+import { ensureQuoteBooking } from "@/lib/actions/quote-booking"
 import { modusAnzeige } from "@/lib/konfigurator/product-info"
 import {
   isBaseStationTyp,
@@ -510,6 +511,10 @@ function StationBasesSection({
           stationInfo={stationInfo}
           availableBases={availableBases}
         />
+      ) : stationInfo && !primaryBooking ? (
+        <p className="text-sm text-amber-700 dark:text-amber-400">
+          Zuerst Buchung anlegen (siehe oben), dann Basis-Station zuweisen.
+        </p>
       ) : stationInfo ? (
         <p className="text-sm text-muted-foreground">
           Basis-Station im Auftrag gebucht — Zuweisung bei Packen
@@ -642,6 +647,98 @@ function ReturnSection({
   )
 }
 
+function MissingBookingState({
+  quoteId,
+  modus,
+  quoteStatus,
+}: {
+  quoteId: number
+  modus: string
+  quoteStatus: QuoteStatus
+}) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const [isPending, startTransition] = useTransition()
+
+  const canRetry =
+    quoteStatus === "paid" ||
+    (modus === "miete" && isActiveQuoteStatus(quoteStatus))
+
+  const handleRetry = () => {
+    startTransition(async () => {
+      const result = await ensureQuoteBooking(quoteId)
+      if (result.success) {
+        toast({
+          title: "Buchung angelegt",
+          description: result.bookingId
+            ? `Buchung #${result.bookingId} wurde verknüpft.`
+            : "Buchung wurde verknüpft.",
+        })
+        router.refresh()
+      } else {
+        toast({
+          title: "Buchung fehlgeschlagen",
+          description: result.error || "Unbekannter Fehler",
+          variant: "destructive",
+        })
+      }
+    })
+  }
+
+  if (modus === "miete" && quoteStatus === "submitted") {
+    return (
+      <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+        <p className="text-sm text-amber-900 dark:text-amber-200">
+          Keine Miet-Reservierung verknüpft. Ohne Reservierung erscheint der Auftrag nicht im
+          Kalender und nicht unter Buchungen.
+        </p>
+        <Button size="sm" variant="outline" onClick={handleRetry} disabled={isPending}>
+          {isPending ? "Wird angelegt…" : "Reservierung jetzt anlegen"}
+        </Button>
+      </div>
+    )
+  }
+
+  if (modus === "kauf" && quoteStatus === "paid") {
+    return (
+      <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+        <p className="text-sm text-amber-900 dark:text-amber-200">
+          <strong>Verkaufsbuchung fehlt.</strong> Bei der Zahlung konnte keine Bestandsbuchung
+          angelegt werden (z. B. noch kein Zugang im Bestand). Ohne Buchung können Charge und
+          Basis-Station nicht zugewiesen werden.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Hinweis: Dies ist ein <strong>Kauf</strong>-Auftrag. Eine Miet-Reservierung (Status
+          „Anfrage“) gibt es nur bei Produktmodus Miete — nicht bei Kauf mit gemieteter
+          Basis-Station.
+        </p>
+        {canRetry && (
+          <Button size="sm" onClick={handleRetry} disabled={isPending}>
+            {isPending ? "Wird angelegt…" : "Verkaufsbuchung jetzt anlegen"}
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  if (modus === "miete" && isActiveQuoteStatus(quoteStatus)) {
+    return (
+      <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+        <p className="text-sm text-amber-900 dark:text-amber-200">
+          Noch keine Miet-Buchung verknüpft.
+        </p>
+        {canRetry && (
+          <Button size="sm" variant="outline" onClick={handleRetry} disabled={isPending}>
+            {isPending ? "Wird angelegt…" : "Miet-Buchung jetzt anlegen"}
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  return <p className="text-sm text-muted-foreground">Noch keine Buchung verknüpft.</p>
+}
+
 function EmptyWarehouseState({
   modus,
   quoteStatus,
@@ -649,15 +746,15 @@ function EmptyWarehouseState({
   modus: string
   quoteStatus: QuoteStatus
 }) {
-  if (modus === "miete" && isActiveQuoteStatus(quoteStatus)) {
-    const message =
-      quoteStatus === "submitted"
-        ? "Reservierung wird bei Anfrage angelegt."
-        : "Noch keine Buchung verknüpft."
-    return <p className="text-sm text-muted-foreground">{message}</p>
+  if (modus === "miete" && quoteStatus === "submitted") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Reservierung wird normalerweise beim Absenden angelegt.
+      </p>
+    )
   }
 
-  if (modus === "kauf" && quoteStatus === "paid") {
+  if (modus === "kauf" && quoteStatus !== "paid") {
     return (
       <p className="text-sm text-muted-foreground">
         Verkaufsbuchung wird bei Zahlung angelegt.
@@ -686,7 +783,7 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
   if (!shouldShowPanel(props)) return null
 
   return (
-    <Card>
+    <Card id="lager-bestand">
       <CardHeader>
         <CardTitle>Lager & Bestand</CardTitle>
       </CardHeader>
@@ -710,6 +807,9 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
               batches={batches}
             />
           </div>
+        ) : quoteStatus === "paid" ||
+          (modus === "miete" && isActiveQuoteStatus(quoteStatus)) ? (
+          <MissingBookingState quoteId={quoteId} modus={modus} quoteStatus={quoteStatus} />
         ) : (
           <EmptyWarehouseState modus={modus} quoteStatus={quoteStatus} />
         )}

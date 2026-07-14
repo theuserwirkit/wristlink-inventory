@@ -6,7 +6,35 @@ import { formatDate } from "@/lib/utils/date"
 export type TemplateVars = Record<string, string>
 
 export function renderTemplateText(template: string, vars: TemplateVars): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? "")
+  const withoutLegacyKommentar = template
+    .replace(/\n?\{\{kommentar\}\}\n?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+  return withoutLegacyKommentar.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? "")
+}
+
+function insertBeforeEmailFooter(body: string, block: string): string {
+  const markers = [
+    "\nBitte nicht auf diese E-Mail",
+    "\nFragen bitte an",
+    "\nViele Grüße",
+  ]
+  for (const marker of markers) {
+    const idx = body.indexOf(marker)
+    if (idx >= 0) {
+      const before = body.slice(0, idx).trimEnd()
+      const after = body.slice(idx)
+      return `${before}\n\n${block}\n${after}`
+    }
+  }
+  return `${body.trimEnd()}\n\n${block}\n`
+}
+
+/** Kundenkommentar vor der Signatur einfügen – nur wenn Text vorhanden. */
+export function appendCustomerCommentToEmail(body: string, comment?: string): string {
+  const trimmed = comment?.trim()
+  if (!trimmed) return body
+  if (body.includes(trimmed)) return body
+  return insertBeforeEmailFooter(body, `Hinweis:\n${trimmed}`)
 }
 
 function formatEventDatum(von?: string, bis?: string): string {
@@ -61,7 +89,7 @@ export function buildQuoteTemplateVars(
     tracking_nr: trackingNr,
     versand_dienstleister: versandDienstleister,
     tracking_info: trackingInfo,
-    kommentar: extra.kommentar || "",
+    kommentar: "",
     ablehnungsgrund: extra.ablehnungsgrund || quote.rejection_reason || "",
     zahlungsnotiz: extra.zahlungsnotiz || quote.payment_note || "",
     ...extra,

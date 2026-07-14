@@ -8,7 +8,7 @@ import { getQuoteByIdInternal } from "@/lib/quotes-internal"
 import { getEmailTemplateByKey } from "@/lib/konfigurator/email-template-store"
 import {
   buildQuoteTemplateVars,
-  formatKommentarBlock,
+  appendCustomerCommentToEmail,
 } from "@/lib/konfigurator/email-template-render"
 import { sendFulfillmentStepEmail, renderEmailPreview } from "@/lib/konfigurator/email"
 import {
@@ -27,6 +27,7 @@ function mapEventRow(row: Record<string, unknown>): QuoteFulfillmentEvent {
     from_status: (row.from_status as FulfillmentStatus | null) ?? null,
     to_status: row.to_status as FulfillmentStatus,
     comment: (row.comment as string | null) ?? null,
+    internal_note: (row.internal_note as string | null) ?? null,
     tracking_number: (row.tracking_number as string | null) ?? null,
     versand_dienstleister: (row.versand_dienstleister as VersandDienstleister | null) ?? null,
     mail_sent: Boolean(row.mail_sent),
@@ -51,6 +52,7 @@ export async function advanceFulfillmentStep(
   quoteId: number,
   input: {
     comment?: string
+    internalNote?: string
     trackingNumber?: string
     versandDienstleister?: VersandDienstleister
     sendMail?: boolean
@@ -100,7 +102,6 @@ export async function advanceFulfillmentStep(
     const shouldSend = input.sendMail ?? template?.send_by_default ?? false
 
     const extraVars = {
-      kommentar: formatKommentarBlock(input.comment),
       tracking_nr: input.trackingNumber?.trim() || quote.tracking_number || "",
       versand_dienstleister: versandDienstleister || "",
     }
@@ -145,13 +146,14 @@ export async function advanceFulfillmentStep(
 
     await sql`
       INSERT INTO quote_fulfillment_events (
-        quote_id, from_status, to_status, comment, tracking_number, versand_dienstleister,
+        quote_id, from_status, to_status, comment, internal_note, tracking_number, versand_dienstleister,
         mail_sent, mail_subject, created_by
       ) VALUES (
         ${quoteId},
         ${fromStatus},
         ${next},
         ${input.comment?.trim() || null},
+        ${input.internalNote?.trim() || null},
         ${input.trackingNumber?.trim() || null},
         ${versandDienstleister},
         ${mailSent},
@@ -186,16 +188,20 @@ export async function previewFulfillmentEmail(
   const versandDienstleister =
     input?.versandDienstleister || quote.versand_dienstleister || null
 
-  return renderEmailPreview({
+  const preview = await renderEmailPreview({
     templateKey: fulfillmentTemplateKey(toStatus),
     quote,
     leadEmail: lead.email,
     extraVars: {
-      kommentar: formatKommentarBlock(input?.comment),
       tracking_nr: input?.trackingNumber?.trim() || quote.tracking_number || "",
       versand_dienstleister: versandDienstleister || "",
     },
   })
+  if (!preview) return null
+  return {
+    subject: preview.subject,
+    body: appendCustomerCommentToEmail(preview.body, input?.comment),
+  }
 }
 
 export async function getFulfillmentTemplateDefaults(toStatus: FulfillmentStatus) {

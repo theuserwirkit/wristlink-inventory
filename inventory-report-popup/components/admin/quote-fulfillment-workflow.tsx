@@ -156,6 +156,7 @@ export function QuoteFulfillmentWorkflow({
   const [previewLoading, setPreviewLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [comment, setComment] = useState("")
+  const [internalNote, setInternalNote] = useState("")
   const [trackingNumber, setTrackingNumber] = useState(quote.tracking_number || "")
   const [versandDienstleister, setVersandDienstleister] = useState<VersandDienstleister | "">(
     quote.versand_dienstleister || "",
@@ -238,6 +239,7 @@ export function QuoteFulfillmentWorkflow({
     try {
       const result = await advanceFulfillmentStep(quote.id, {
         comment,
+        internalNote,
         trackingNumber: trackingRequired ? trackingNumber : undefined,
         versandDienstleister:
           trackingRequired && versandDienstleister ? versandDienstleister : undefined,
@@ -259,6 +261,7 @@ export function QuoteFulfillmentWorkflow({
           : "Ohne Kunden-Mail fortgefahren.",
       })
       setComment("")
+      setInternalNote("")
       setConfirmOpen(false)
       router.refresh()
     } catch (e) {
@@ -290,16 +293,28 @@ export function QuoteFulfillmentWorkflow({
             </p>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="space-y-2">
-              <Label>
-                Kommentar (optional)
-                <span className="ml-1 font-normal text-muted-foreground">
-                  — erscheint in der Mail, wenn das Template {"{{kommentar}}"} nutzt
-                </span>
-              </Label>
+              <Label htmlFor="fulfillment-comment">Kommentar für den Kunden (optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Wird in der Kunden-Mail vor der Signatur eingefügt, sobald du hier etwas einträgst.
+              </p>
               <Textarea
+                id="fulfillment-comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="z. B. voraussichtlicher Versandtermin …"
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fulfillment-internal-note">Interne Notiz (optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Nur für euch im Backend – erscheint nicht in der Kunden-Mail.
+              </p>
+              <Textarea
+                id="fulfillment-internal-note"
+                value={internalNote}
+                onChange={(e) => setInternalNote(e.target.value)}
+                placeholder="z. B. Lagerplatz, interne Absprache …"
                 rows={2}
               />
             </div>
@@ -504,7 +519,16 @@ export function QuoteFulfillmentWorkflow({
                     {ev.created_by && (
                       <p className="mt-0.5 text-xs text-muted-foreground">von {ev.created_by}</p>
                     )}
-                    {ev.comment && <p className="mt-1 text-muted-foreground">{ev.comment}</p>}
+                    {ev.comment && (
+                      <p className="mt-1 text-muted-foreground">
+                        <span className="font-medium text-foreground">Kundenkommentar:</span> {ev.comment}
+                      </p>
+                    )}
+                    {ev.internal_note && (
+                      <p className="mt-1 text-muted-foreground">
+                        <span className="font-medium text-foreground">Interne Notiz:</span> {ev.internal_note}
+                      </p>
+                    )}
                     {ev.tracking_number && (
                       <p className="mt-1 font-mono text-xs">
                         {ev.versand_dienstleister ? `${ev.versand_dienstleister}: ` : "Tracking: "}

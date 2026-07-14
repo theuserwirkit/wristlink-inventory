@@ -635,6 +635,12 @@ export async function finalizeQuoteAsPaid(
   })
   if (!bookingResult.success) {
     console.error(`Booking finalization failed for quote #${quoteId}:`, bookingResult.error)
+    await sql`
+      UPDATE quote_requests SET
+        notes = COALESCE(notes || E'\n', '') || ${`[System] Buchung fehlgeschlagen: ${bookingResult.error}`},
+        updated_at = NOW()
+      WHERE id = ${quoteId}
+    `
   }
 
   const paidQuote = await getQuoteByIdInternal(quoteId)

@@ -41,6 +41,7 @@ export type QuoteFulfillmentEvent = {
   from_status: FulfillmentStatus | null
   to_status: FulfillmentStatus
   comment: string | null
+  internal_note: string | null
   tracking_number: string | null
   versand_dienstleister: VersandDienstleister | null
   mail_sent: boolean
