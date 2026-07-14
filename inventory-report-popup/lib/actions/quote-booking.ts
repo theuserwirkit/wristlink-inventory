@@ -1,3 +1,5 @@
+"use server"
+
 import { getDb } from "@/lib/db"
 import { createN8nBooking } from "@/lib/actions/n8n-api"
 import { createBookingInternal, getAvailabilityForGroupInternal } from "@/lib/actions/bookings"
