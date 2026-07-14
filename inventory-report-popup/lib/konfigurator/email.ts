@@ -10,6 +10,7 @@ import {
   renderTemplateText,
   type TemplateVars,
 } from "@/lib/konfigurator/email-template-render"
+import { getGlobalCcEmail, resolveCcRecipients } from "@/lib/konfigurator/email-settings"
 import type { QuoteRequest, VersandDienstleister } from "@/lib/konfigurator/types"
 
 function getResend() {
@@ -43,9 +44,12 @@ export async function sendTemplatedEmail(params: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const resend = getResend()
+    const globalCc = await getGlobalCcEmail()
+    const cc = resolveCcRecipients(params.email, globalCc)
     await resend.emails.send({
       from: getFromEmail(),
       to: params.email,
+      ...(cc ? { cc } : {}),
       subject: params.subject,
       ...buildEmailContent(params.text),
       attachments: params.attachments?.map((a) => ({

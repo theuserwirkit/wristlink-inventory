@@ -39,7 +39,7 @@ Transaktions-Mails werden zentral über `lib/konfigurator/email.ts` als **Plain-
 
 **HTML-Linktexte:** `/angebot/…` → „Angebot und Status öffnen“ · Stripe-Checkout → „Jetzt online bezahlen“ · DOI → „E-Mail-Adresse bestätigen“
 
-**Mails mit Status-Link (`{{status_url}}` / `{{angebot_url}}`):** `quote_approved_stripe`, `quote_approved_manual`, `quote_paid`, alle `fulfillment_*` (8 Schritte). Zusätzlich hardcoded: Anfrage-Bestätigung nach Konfigurator-Submit (`sendCustomerSubmittedEmail`).
+**Mails mit Status-Link (`{{status_url}}` / `{{angebot_url}}`):** `quote_approved_stripe`, `quote_approved_manual`, `quote_paid`, alle `fulfillment_*` (8 Schritte; mit Druck: erst „Zusammengepackt“, dann „Bedruckt“). Zusätzlich hardcoded: Anfrage-Bestätigung nach Konfigurator-Submit (`sendCustomerSubmittedEmail`).
 
 **Freigabe-Texte (Migration 17):** Platzhalter `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{zahlungslink_block}}` – siehe `lib/konfigurator/email-template-render.ts`.
 
@@ -136,6 +136,7 @@ Migration `14`: `versand_dienstleister` (UPS/DHL/TNT).
 | `departure_buffer_days` | `6` | Werktage Vorlauf: Artikel verlässt Lager X Werktage vor Event |
 | `return_buffer_days` | `5` | Tage Nachlauf: Artikel wieder verfügbar X Tage nach Event-Ende |
 | `product_mapping` | JSON | Suchmuster für `groups.name` je Produktkategorie |
+| `global_cc_email` | `` (leer) | CC-Adresse für alle ausgehenden E-Mails |
 
 ### Controller-Bestand (wichtig)
 
@@ -175,17 +176,29 @@ psql "$DATABASE_URL" -f scripts/migration/01-schema.sql
 | `16-users-auth.sql` | `users`-Tabelle (optional, Multi-User-Login) |
 | `17-email-templates-angebot.sql` | Freigabe-Mails: Menge, Eventdatum, Lieferort, neuer Angebotstext |
 | `18-fulfillment-comments.sql` | `internal_note` auf `quote_fulfillment_events`; `{{kommentar}}` aus Fulfillment-Templates entfernt |
+| `19-booking-items-nullable-group.sql` | `booking_items.group_id` optional – Basis-Stationen ohne Leuchtgruppe zuweisbar |
+| `20-bases-seriennummer.sql` | `bases.seriennummer` (UNIQUE, physisch aufgedruckt); Backfill bestehender Basen |
+| `21-packing-docs-printed.sql` | Packlisten-Druckstatus |
+| `22-global-cc-email.sql` | `global_cc_email` in `system_settings` (CC für alle Mails) |
 
-Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op). Migrationen `13`, `15` und `17` überschreiben Standardtexte in `email_templates` (Admin-Anpassungen gehen verloren, falls nicht gesichert). Migration `18` entfernt `{{kommentar}}` aus Fulfillment-Templates – Kundenkommentare werden beim Versand automatisch vor der Signatur eingefügt (`appendCustomerCommentToEmail`).
+**Lager-Zuweisung (Auftragsdetail):** Karte „Lager & Bestand“ auf `/warenverwaltung/auftraege/[id]` – Verfügbarkeit je Charge, Chargen-Split mit Vorschlag, Basis mit Seriennummer. Lagerlabels erst nach vollständiger Zuweisung (`isQuoteWarehouseReadyForPrint`). Reparatur fehlender Buchungen: `scripts/repair-quote-bookings.mjs`.
+
+Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op). Migrationen `13`, `15` und `17` überschreiben Standardtexte in `email_templates` (Admin-Anpassungen gehen verloren, falls nicht gesichert). Migration `18` entfernt `{{kommentar}}` aus Fulfillment-Templates – Kundenkommentare werden beim Versand automatisch vor der Signatur eingefügt (`appendCustomerCommentToEmail`). Migration `20` vergibt Seriennummern im Format `WL-ECO-00001` / `WL-PRO-00002` für bestehende Datensätze ohne Nummer.
 
 ```bash
 pnpm db:migrate
 ```
 
+Lokal: `.env.local` vorher laden, sonst fehlt `DATABASE_URL`:
+
+```bash
+set -a && . ./.env.local && set +a && pnpm db:migrate
+```
+
 Alternativ per `psql`:
 
 ```bash
-for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2 14-versand-dienstleister 15-email-templates-du 16-users-auth 17-email-templates-angebot 18-fulfillment-comments; do
+for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2 14-versand-dienstleister 15-email-templates-du 16-users-auth 17-email-templates-angebot 18-fulfillment-comments 19-booking-items-nullable-group 20-bases-seriennummer 21-packing-docs-printed 22-global-cc-email; do
   psql "$DATABASE_URL" -f "scripts/migration/${f}.sql"
 done
 ```
@@ -221,13 +234,15 @@ vercel --prod
 
 ## 4. Was wo gespeichert / abgefragt wird
 
-- **Gespeichert:** Produktgruppen (mit Kanalanzahl), Chargen, Basen (mit Stationstyp),
+- **Gespeichert:** Produktgruppen (mit Kanalanzahl), Chargen, Basen (mit Stationstyp und Seriennummer),
   Kunden, Bestand je SKU × Charge, Buchungen, Konfigurator-Anfragen, Systemparameter.
 - **Berechnet:** Verfügbarkeit je Gruppe/Basis (zeitraumbezogen mit Vor-/Nachlauf),
   Konfigurator-Stress-Ampeln, Gruppen-Zuordnung für PRO-Programmierung (max. 3 physische Lagergruppen).
+- **LED-Bänder (gemeinsamer Pool):** Verkauf und Miete ziehen aus demselben Bestand. Ledger-Formel: `ZUGANG − VERKAUF − Defekt − In Vermietung` (je Gruppe/Charge). Konfigurator aggregiert über alle Chargen; Lager-Zuweisung arbeitet charge-spezifisch.
+- **Aufträge vs. Buchungen:** Konfigurator-Anfragen erscheinen unter `/warenverwaltung/auftraege` (nicht unter „Buchungen“). Tab „Buchungen“ = manuelle Lagerbuchungen. Verkaufsbuchung bei Kauf erst bei Zahlung; Miet-Reservierung (`ANFRAGE`) nur bei `modus: miete` beim Submit.
 - **Konfigurator-API:** `POST /api/konfigurator/session` (price, availability, station-availability, group-availability).
 - **Admin-Anfragen:** `/admin/anfragen` – Freigabe, Zahlung, Fulfillment, E-Mail-Vorschau, Prioritäts-Karte (3 dringendste offene Aufträge nach `fulfillment-timing`).
-- **E-Mail-Templates:** `/admin/einstellungen/e-mails` – Vorlagen bearbeiten (Platzhalter `{{kunde_anrede}}`, `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{status_url}}`, …). Standardtexte: Migrationen `13`, `15`, `17`. URL-Versand: Abschnitt „E-Mail & Kontakt“ oben.
+- **E-Mail-Einstellungen:** `/admin/einstellungen/e-mails` – globale CC-Adresse (`global_cc_email`, Migration 22) und Vorlagen bearbeiten (Platzhalter `{{kunde_anrede}}`, `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{status_url}}`, …). Standardtexte: Migrationen `13`, `15`, `17`. CC wird zentral in `sendTemplatedEmail()` gesetzt (`lib/konfigurator/email-settings.ts`).
 - **Kunden-Statusseite:** `/angebot/[public_token]` – Angebot, Zahlung, Fulfillment-Timeline; Zugang per Firmen-PLZ (`kontaktPlz` in `config_json`, Fallback: PLZ aus Eventadresse). PLZ-Prüfung: `lib/konfigurator/plz.ts`, Cookie: `lib/konfigurator/angebot-access.ts`.
 
 ---
@@ -259,8 +274,8 @@ Schritte in Reihenfolge (`lib/konfigurator/fulfillment-status.ts`):
 
 1. `angenommen` (automatisch bei Zahlung)
 2. `vorbereitet`
-3. `bedruckt` – **nur** wenn `config_json.druck = true`
-4. `verpackt`
+3. `verpackt` – Label „Zusammengepackt“; vollständige Lager-Zuweisung (Gruppen + Chargen + Basis) Pflicht vor `bedruckt` und Lagerlabels
+4. `bedruckt` – **nur** wenn `config_json.druck = true`; physisch **nach** Zusammenpacken
 5. `versand_beauftragt` – Tracking-Nummer + Versand-Dienstleister (UPS/DHL/TNT) Pflicht
 6. `versandt`
 7. `ruecksendung_angekommen`
@@ -290,6 +305,10 @@ Pro Schritt: **Kundenkommentar** (optional, erscheint automatisch in der Mail vo
 | `components/admin/quote-approval-actions.tsx` | Freigabe-UI |
 | `components/admin/quote-payment-actions.tsx` | Manueller Zahlungseingang |
 | `components/admin/quote-fulfillment-workflow.tsx` | Stepper + Kundenkommentar + interne Notiz + Historie + Versand-Dienstleister |
+| `components/admin/quote-warehouse-panel.tsx` | Lager & Bestand: Chargen-Split, Vorschlag, Basis-Zuweisung |
+| `lib/actions/quote-warehouse.ts` | Zuweisung speichern, `isQuoteWarehouseReadyForPrint` |
+| `lib/actions/quote-booking.ts` | Verkaufsbuchung / Reservierung, `ensureQuoteBooking` |
+| `lib/konfigurator/band-allocation.ts` | Chargen-Vorschlag (`suggestBandAllocation`) |
 | `components/admin/upcoming-fulfillment-orders.tsx` | Prioritäts-Karte (3 dringendste Aufträge) auf `/admin/anfragen` |
 | `components/admin/quote-offer-pdf-upload.tsx` | sevDesk-Angebot + PDF-Upload |
 | `components/admin/email-template-editor.tsx` | Template-Editor |
@@ -303,7 +322,7 @@ Details zum sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
 | Datei | Zweck |
 |-------|--------|
 | `scripts/migration/01-schema.sql` | Konsolidiertes Basisschema |
-| `scripts/migration/02`–`15-*.sql` | Inkrementelle Feature-Migrationen |
+| `scripts/migration/02`–`20-*.sql` | Inkrementelle Feature-Migrationen |
 | `scripts/migration/02-export-data.js` | Exportiert alle Daten als `INSERT`-SQL |
 | `docs/konfigurator.md` | Fachliche Konfigurator-Dokumentation |
 | `docs/sevdesk-angebote.md` | sevDesk-Angebote: wann erstellt, PDF an Kunden |

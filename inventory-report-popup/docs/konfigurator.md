@@ -27,6 +27,8 @@ Consent-Versionierung: `CONSENT_TEXT_VERSION` (aktuell 1.4), Speicherung von `co
 
 **E-Mail-Domains:** Allgemein `@wirkung-digital.de` · Absender/Team `@braceled-led-armband.com` → `lib/contact-emails.ts`
 
+**Globale CC-Kopie:** Unter `/admin/einstellungen/e-mails` → Versandeinstellungen kann eine CC-Adresse hinterlegt werden (`system_settings.global_cc_email`, Migration 22). Sie erhält bei **allen** ausgehenden Transaktions-Mails eine Kopie (Kunden, Team, DOI, Fulfillment). Leer lassen = deaktiviert. Kein doppeltes CC, wenn Empfänger und CC identisch sind.
+
 **Testmode:** DOI-Bypass nur in Development oder mit `KONFIGURATOR_TESTMODE_ENABLED` + Secret in Production; UI-Button nur außerhalb Production.
 
 ### Kontaktdaten & Firmenadresse (Schritt 0)
@@ -219,6 +221,9 @@ Controller werden **nicht** mehr per Namensraten (`eco`/`pro` im Bezeichnungsfel
 |-----------------|-------|----------------------|
 | `station_typ` | `eco` \| `pro` \| `keine` | Ja (Admin „Neue Basis“) |
 | `kanalanzahl` | `40` \| `80` | Ja |
+| `seriennummer` | z. B. `WL-PRO-00001` | Ja (physisch aufgedruckt; Migration 20); Pflicht bei Lager-Zuweisung |
+
+Neue Basen erhalten automatisch die nächste freie Nummer (`WL-ECO-…` / `WL-PRO-…`). Admin bearbeitbar in `editable-base-row.tsx`.
 
 Der Konfigurator filtert: `WHERE station_typ = {eco|pro} AND kanalanzahl = {aufgelöste CH}`.
 
@@ -352,6 +357,10 @@ Bearbeiten: `EditableBaseRow` – Bezeichnung und `station_typ` änderbar.
 | `14-versand-dienstleister.sql` | `versand_dienstleister` auf `quote_requests` und `quote_fulfillment_events` |
 | `17-email-templates-angebot.sql` | Freigabe-Mails: Menge, Eventdatum, Lieferort |
 | `18-fulfillment-comments.sql` | `internal_note` auf Events; `{{kommentar}}` aus Fulfillment-Templates entfernt |
+| `19-booking-items-nullable-group.sql` | `booking_items.group_id` optional (Basis-Zuweisung) |
+| `20-bases-seriennummer.sql` | `bases.seriennummer` (UNIQUE, physisch aufgedruckt) |
+| `21-packing-docs-printed.sql` | Packlisten-Druckstatus |
+| `22-global-cc-email.sql` | `global_cc_email` in `system_settings` (CC für alle Mails) |
 | `11-lead-consent-doi.sql` | B2B-Bestätigung, Marketing nach DOI |
 
 ---
@@ -373,7 +382,9 @@ submitted → approved (ohne Stripe) / payment_pending (mit Stripe)
 - **Freigabe-Performance:** Kunden-Mail wird asynchron versendet (`after()`), UI antwortet sofort nach DB-Update.
 - **Angebots-PDF:** vor Freigabe manuell anlegen (sevDesk-Button oder Upload); Anhang bei Freigabe- und Zahlungs-Mail – siehe **`docs/sevdesk-angebote.md`**.
 - **Fulfillment** startet erst nach `paid` (nicht bei Freigabe).
-- **Bestandsbuchung** (Miete): Hold bei Submit; `BESTAETIGT` erst bei Zahlung.
+- **Bestandsbuchung (Miete):** Hold (`ANFRAGE`) bei Submit; `BESTAETIGT` erst bei Zahlung.
+- **Bestandsbuchung (Kauf):** keine Reservierung beim Submit; Verkaufsbuchung (`VERKAUF`) erst bei Zahlung (`finalizeQuoteBookingOnPayment`). Fehlende Buchung: Retry über Lager-Panel oder `scripts/repair-quote-bookings.mjs`.
+- **Aufträge vs. Buchungen:** Konfigurator-Anfragen unter `/warenverwaltung/auftraege`; Tab „Buchungen“ = manuelle Lagerbuchungen.
 
 ### Fulfillment-Schritte
 
@@ -381,8 +392,8 @@ submitted → approved (ohne Stripe) / payment_pending (mit Stripe)
 |---------|---------------|------------|
 | `angenommen` | – | automatisch bei Zahlung |
 | `vorbereitet` | `fulfillment_vorbereitet` | |
-| `bedruckt` | `fulfillment_bedruckt` | nur bei Bedruckung |
-| `verpackt` | `fulfillment_verpackt` | |
+| `verpackt` | `fulfillment_verpackt` | Label „Zusammengepackt“; vollständige Lager-Zuweisung Pflicht vor `bedruckt` und Lagerlabels |
+| `bedruckt` | `fulfillment_bedruckt` | nur bei Bedruckung; physisch **nach** Zusammenpacken |
 | `versand_beauftragt` | `fulfillment_versand_beauftragt` | Tracking + Versand-Dienstleister (UPS/DHL/TNT) Pflicht |
 | `versandt` | `fulfillment_versandt` | |
 | `ruecksendung_angekommen` | `fulfillment_ruecksendung_angekommen` | |
@@ -392,7 +403,9 @@ Pro Fulfillment-Schritt im Admin:
 - **Kundenkommentar** (optional) – wird automatisch vor der Signatur in die Mail eingefügt, wenn ausgefüllt
 - **Interne Notiz** (optional) – nur in der Backend-Historie, nicht in der Kunden-Mail
 
-Vorlagen editierbar unter `/admin/einstellungen/e-mails`. Kundenfreundliche Standardtexte ab Migration `13-email-templates-v2.sql`.
+Vorlagen und Versandeinstellungen unter `/admin/einstellungen/e-mails`:
+- **Versandeinstellungen:** globale CC-Adresse für alle ausgehenden Mails (`global_cc_email`)
+- **Templates:** Freigabe, Zahlung, Fulfillment – Kundenfreundliche Standardtexte ab Migration `13-email-templates-v2.sql`
 
 **Platzhalter:** `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{kunde_name}}`, `{{kunde_firma}}`, `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{angebot_netto}}`, `{{angebot_brutto}}`, `{{zahlungslink}}`, `{{zahlungslink_block}}`, `{{status_url}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{versand_dienstleister}}`, `{{tracking_info}}`, `{{ablehnungsgrund}}`, `{{zahlungsnotiz}}`
 
@@ -424,9 +437,22 @@ Admin-Übersicht `/warenverwaltung/auftraege`: Karte **„Nächste Aufträge in 
 
 Test: `npx tsx scripts/test-fulfillment-timing.ts`
 
+### Lager & Bestand (Auftragsdetail)
+
+Karte **„Lager & Bestand“** auf `/warenverwaltung/auftraege/[id]` (`components/admin/quote-warehouse-panel.tsx`):
+
+| Bereich | Verhalten |
+|---------|-----------|
+| Verfügbarkeit | Tabelle je Leuchtgruppe × Charge (Ledger-basiert, eigene Buchung wird zurückgerechnet) |
+| Chargen-Zuweisung | Mehrere Zeilen möglich (z. B. 100× G1 + 200× G2); Summe = Auftragsmenge; Button „Vorschlag übernehmen“ (`suggestBandAllocation`) |
+| Basis-Station | Einzelnes Gerät mit **Seriennummer** (`bases.seriennummer`, Migration 20); Pflicht vor Zuweisung |
+| Fehlende Buchung | Button „Verkaufsbuchung jetzt anlegen“ / „Reservierung jetzt anlegen“ (`ensureQuoteBooking`) |
+
+**LED-Bänder (gemeinsamer Pool):** Verkauf und Miete ziehen aus demselben Bestand. Ledger: `ZUGANG − VERKAUF − Defekt − In Vermietung` (je Gruppe/Charge). Konfigurator aggregiert über alle Chargen; Lager-Zuweisung arbeitet charge-spezifisch.
+
 ### Lagerunterlagen drucken (A6 Thermodruck)
 
-Button **„Lagerunterlagen“** auf der Auftragsdetailseite (`/warenverwaltung/auftraege/[id]`), sichtbar bei `status === paid`.
+Button **„Lagerunterlagen“** auf der Auftragsdetailseite (`/warenverwaltung/auftraege/[id]`), sichtbar bei `status === paid`. **Gesperrt**, bis Zuweisung vollständig ist (`isQuoteWarehouseReadyForPrint` – Gruppen + Chargen + Basis).
 
 | Tab | Inhalt |
 |-----|--------|
@@ -454,7 +480,7 @@ Format: A6 (105 × 148 mm), s/w, ein Thermodrucker.
 | `fulfillment_*` (8 Schritte) | Fulfillment-Updates |
 | *(hardcoded)* | Anfrage-Bestätigung nach Konfigurator-Submit |
 
-**Versandformat:** Alle Transaktions-Mails werden als Plain-Text **und** HTML versendet (`lib/konfigurator/email-html.ts` → `lib/konfigurator/email.ts`).
+**Versandformat:** Alle Transaktions-Mails werden als Plain-Text **und** HTML versendet (`lib/konfigurator/email-html.ts` → `lib/konfigurator/email.ts`). Optionale globale CC-Kopie: `lib/konfigurator/email-settings.ts` (`getGlobalCcEmail`, `resolveCcRecipients`).
 
 | Schritt | Verhalten |
 |---------|-----------|
@@ -470,6 +496,9 @@ Format: A6 (105 × 148 mm), s/w, ein Thermodrucker.
 
 | Route / Komponente | Funktion |
 |--------------------|----------|
+| `/admin/einstellungen/e-mails` | E-Mail-Einstellungen: globale CC-Adresse + Template-Editor |
+| `email-delivery-settings` | CC-Adresse speichern (`global_cc_email`) |
+| `email-template-editor` | Betreff/Body/`send_by_default` je Template |
 | `/admin/anfragen` | Liste inkl. Fulfillment-Spalte + Prioritäts-Karte (3 dringendste Aufträge) |
 | `/admin/anfragen/[id]` | Detail: Freigabe, Zahlung, Fulfillment, Rückgabe |
 | `upcoming-fulfillment-orders` | Fälligkeits-Karte auf der Anfragen-Übersicht |
@@ -477,6 +506,7 @@ Format: A6 (105 × 148 mm), s/w, ein Thermodrucker.
 | `quote-payment-actions` | „Zahlung eingegangen“ (Überweisung) |
 | `quote-offer-pdf-upload` | sevDesk-Angebot erstellen / PDF hochladen |
 | `quote-fulfillment-workflow` | Stepper, Kundenkommentar, interne Notiz, Tracking, Historie |
+| `quote-warehouse-panel` | Lager & Bestand: Chargen-Split, Vorschlag, Basis-Zuweisung |
 | `quote-return-section` | Rückgabe bei `zurueckgepackt` |
 
 Details: `MIGRATION.md` Abschnitt 5 · sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
@@ -551,7 +581,10 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `lib/product-mapping.ts` | Leuchtgruppen-Zuordnung, `resolveGroupsForProduct()` |
 | `lib/actions/n8n-api.ts` | Produkt-Verfügbarkeit |
 | `lib/actions/bookings.ts` | Basis-Bestand (1 Gerät ohne ZUGANG) |
-| `lib/actions/admin.ts` | `createGroup`, `createBase` mit Pflichtfeldern |
+| `lib/actions/quote-booking.ts` | Verkaufsbuchung / Reservierung, `ensureQuoteBooking` |
+| `lib/actions/quote-warehouse.ts` | Lager-Zuweisung, `isQuoteWarehouseReadyForPrint` |
+| `lib/konfigurator/band-allocation.ts` | Chargen-Vorschlag (`suggestBandAllocation`) |
+| `lib/actions/admin.ts` | `createGroup`, `createBase` mit Pflichtfeldern inkl. Seriennummer |
 | `lib/actions/quotes.ts` | Freigabe, Zahlung, Mail-Vorschau |
 | `lib/actions/fulfillment.ts` | Fulfillment-Schritte, Tracking, Versand-Dienstleister |
 | `lib/konfigurator/fulfillment-status.ts` | Schritt-Labels und Reihenfolge |
@@ -567,7 +600,10 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `lib/konfigurator/versand-dienstleister.ts` | UPS/DHL/TNT-Optionen und Labels |
 | `lib/konfigurator/email-template-render.ts` | E-Mail-Platzhalter |
 | `lib/konfigurator/email-html.ts` | URL-Normalisierung, Plain-Text-Klammern, HTML-Linktexte |
-| `lib/konfigurator/email.ts` | Resend-Versand (`text` + `html`, zentral) |
+| `lib/konfigurator/email.ts` | Resend-Versand (`text` + `html`, zentral, optional CC) |
+| `lib/konfigurator/email-settings.ts` | Globale CC-Adresse aus `system_settings` |
+| `components/admin/email-delivery-settings.tsx` | Admin-UI: CC-Adresse |
+| `components/admin/email-template-editor.tsx` | Admin-UI: E-Mail-Templates |
 | `scripts/test-email-links.ts` | Regressionstest Status-/Zahlungs-URLs in Kunden-Mails |
 | `lib/konfigurator/kontakt-adresse.ts` | Firmenadresse formatieren, PLZ für Status-Zugang |
 | `lib/konfigurator/plz.ts` | PLZ-Hilfsfunktionen (client-sicher) |
@@ -577,7 +613,8 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `app/angebot/[token]/page.tsx` | Öffentliche Status-Route |
 | `components/admin/admin-actions.tsx` | Admin-Formulare Gruppe/Basis |
 | `components/admin/upcoming-fulfillment-orders.tsx` | Prioritäts-Karte „Nächste Aufträge in Bearbeitung“ |
-| `components/admin/editable-base-row.tsx` | Stationstyp bearbeiten |
+| `components/admin/editable-base-row.tsx` | Stationstyp + Seriennummer bearbeiten |
+| `components/admin/quote-warehouse-panel.tsx` | Lager & Bestand auf Auftragsdetail |
 | `app/api/konfigurator/session/route.ts` | Session-API mit allen Actions |
 
 ---
@@ -626,3 +663,7 @@ HTTP-Smoke (nach `pnpm dev`): `/`, `/login`, `/konfigurator`, `/impressum`, `/da
 | Fulfillment-Fälligkeit + Prioritäts-Karte im Admin | ✓ |
 | Versand-Dienstleister bei `versand_beauftragt` (Migration 14) | ✓ |
 | Lager-Packlisten A6 (Labels, Checkliste, Übersicht) bei bezahltem Auftrag | ✓ |
+| Lagerlabels erst nach vollständiger Zuweisung | ✓ |
+| Fulfillment mit Druck: Zusammengepackt vor Bedruckt | ✓ |
+| Basis-Seriennummer Pflicht bei Zuweisung | ✓ (Migration 20) |
+| Chargen-Split mit Vorschlag im Lager-Panel | ✓ |

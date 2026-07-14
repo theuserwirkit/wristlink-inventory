@@ -145,11 +145,13 @@ export function QuoteFulfillmentWorkflow({
   leadEmail,
   events,
   embedded = false,
+  hideAdvanceButtons = false,
 }: {
   quote: QuoteRequest
   leadEmail: string
   events: QuoteFulfillmentEvent[]
   embedded?: boolean
+  hideAdvanceButtons?: boolean
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -288,9 +290,11 @@ export function QuoteFulfillmentWorkflow({
 
       {next ? (
           <div className="space-y-4 rounded-lg border p-4">
-            <p className="font-medium">
-              Nächster Schritt: {FULFILLMENT_STATUS_LABELS[next as FulfillmentStatus]}
-            </p>
+            {!hideAdvanceButtons && (
+              <p className="font-medium">
+                Nächster Schritt: {FULFILLMENT_STATUS_LABELS[next as FulfillmentStatus]}
+              </p>
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="space-y-2">
               <Label htmlFor="fulfillment-comment">Kommentar für den Kunden (optional)</Label>
@@ -439,8 +443,9 @@ export function QuoteFulfillmentWorkflow({
                 <p>{blockMessage}</p>
               </div>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className={hideAdvanceButtons ? "sr-only" : "flex flex-wrap gap-2"}>
               <Button
+                id="fulfillment-advance-btn"
                 onClick={() => {
                   setConfirmSendMail(sendMail)
                   setConfirmOpen(true)

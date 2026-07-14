@@ -53,6 +53,7 @@ export function mapQuoteRow(row: Record<string, unknown>): QuoteRequest {
     offer_pdf_filename: (row.offer_pdf_filename as string | null) ?? null,
     sevdesk_order_id: (row.sevdesk_order_id as string | null) ?? null,
     sevdesk_order_number: (row.sevdesk_order_number as string | null) ?? null,
+    packing_docs_printed_at: (row.packing_docs_printed_at as string | null) ?? null,
     config_json: typeof row.config_json === "string" ? JSON.parse(row.config_json) : row.config_json,
     price_snapshot_json:
       typeof row.price_snapshot_json === "string"

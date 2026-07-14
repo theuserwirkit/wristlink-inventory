@@ -1,6 +1,6 @@
 # TODO – Sicherheit, Betrieb & Restarbeiten
 
-Stand: 14. Juli 2026 (Freigabe-Fix, Fulfillment-Kommentare, Migration 18)
+Stand: 14. Juli 2026 (globale CC-E-Mail, Migrationen 21–22)
 
 ## Kritisch (vor Go-Live)
 
@@ -31,9 +31,14 @@ Stand: 14. Juli 2026 (Freigabe-Fix, Fulfillment-Kommentare, Migration 18)
   - [x] `14-versand-dienstleister.sql` – Spalte `versand_dienstleister` auf `quote_requests` + `quote_fulfillment_events`
   - [x] `15-email-templates-du.sql` – E-Mail-Vorlagen Du-Ansprache (überschreibt Admin-Texte aus Migration 13!)
   - [x] `16-users-auth.sql` – Tabelle `users` für Multi-User-Login (1 Admin-User angelegt)
-- [x] **DB-Migrationen 17–18** auf Production (14.07.2026)
+- [x] **DB-Migrationen 17–20** (14.07.2026)
   - [x] `17-email-templates-angebot.sql` – Freigabe-Mails: Menge, Eventdatum, Lieferort
   - [x] `18-fulfillment-comments.sql` – `internal_note` auf `quote_fulfillment_events`, `{{kommentar}}` aus Templates entfernt
+  - [x] `19-booking-items-nullable-group.sql` – `booking_items.group_id` optional (Basis-Zuweisung ohne Leuchtgruppe)
+  - [x] `20-bases-seriennummer.sql` – `bases.seriennummer` (eindeutig, physisch aufgedruckt)
+- [x] **DB-Migrationen 21–22** (14.07.2026)
+  - [x] `21-packing-docs-printed.sql` – Packlisten-Druckstatus
+  - [x] `22-global-cc-email.sql` – `global_cc_email` in `system_settings` (CC für alle Mails)
 - [ ] **Resend:** Domain `braceled-led-armband.com` verifizieren (SPF/DKIM), DOI-Testmail senden
 - [ ] **Telegram-Webhook registrieren/aktualisieren:** `pnpm telegram:webhook`
 - [x] **Redeploy** auf Vercel – Auto-Deploy via `git push origin main` (14.07.2026 verifiziert)
@@ -108,8 +113,10 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 - [ ] Admin-Anfragen: nächste 3 gebuchte Aufträge mit Fälligkeit (überfällig/heute/in X Tagen) und nächstem Schritt
 - [ ] Manueller Zahlungseingang → Fulfillment startet (`angenommen`)
 - [x] Fulfillment-Schritte + Kunden-Mails (inkl. Versand-Dienstleister, Migration 14; Kundenkommentar auto, interne Notiz, Migration 18)
-- [ ] **Lagerunterlagen drucken** (bezahlter Auftrag): Modal mit Tüten-Labels / Checkliste / Übersicht, A6-Thermodruck, Versand- + Anliefertermine
-- [ ] E-Mail-Templates unter `/admin/einstellungen/e-mails` (Migration 17: Freigabe-Texte mit Menge/Event/Lieferort; URL-Fix in Code)
+- [ ] **Lagerunterlagen drucken** (bezahlter Auftrag): erst nach vollständiger Zuweisung (Gruppen + Chargen + Basis); Modal mit Tüten-Labels / Checkliste / Übersicht, A6-Thermodruck
+- [ ] **Lager-Panel** (`/warenverwaltung/auftraege/[id]`): Chargen-Split (z. B. 100× G1 + 200× G2), Vorschlag übernehmen, Basis mit Seriennummer
+- [ ] Fulfillment-Reihenfolge mit Druck: **Zusammengepackt** vor **Bedruckt** (physischer Ablauf im Lager)
+- [ ] E-Mail-Einstellungen unter `/admin/einstellungen/e-mails` (Templates + globale CC-Adresse testen)
 - [ ] Rückgabe-Buchung bei `zurueckgepackt`
 - [ ] Landing testen: `/` (Impressum, Datenschutz, AGB im Footer)
 - [ ] Telegram Freigabe/Ablehnung End-to-End testen
@@ -119,7 +126,7 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 
 ### DB-Migration Production
 
-`pnpm db:migrate` führt **alle** Skripte 01–18 idempotent aus (`scripts/run-migrations.mjs`).
+`pnpm db:migrate` führt **alle** Skripte 01–22 idempotent aus (`scripts/run-migrations.mjs`). Lokal `.env.local` laden (`set -a && . ./.env.local && set +a`), sonst fehlt `DATABASE_URL`.
 
 **Vor dem Lauf:**
 
@@ -147,7 +154,8 @@ psql "$DATABASE_URL" -c "\d users"
 ```
 
 - [x] Backup Neon vor Migration (bereits migriert vor erneutem Lauf)
-- [x] Migration 17–18 auf Production – idempotent bestätigt
+- [x] Migration 17–20 lokal – idempotent bestätigt
+- [ ] Migration 21–22 auf Production (`pnpm db:migrate` mit `.env.production.local`)
 - [x] `pnpm db:indexes` auf Production
 
 ### AGB-Review
@@ -175,6 +183,8 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 
 ## Geplant / später
 
+- [ ] **Bestands-Engine vereinheitlichen:** Ledger (`booking_items`) vs. `inventory_lots` vs. zeitraumbezogene Verfügbarkeit (Konfigurator aggregiert Pools, Auto-Buchung braucht eine Charge) – Subagent-Review 14.07.2026
+- [ ] Konfigurator-Miet-Hold: Reservierung (`ANFRAGE`) erscheint nur bei **Modus Miete**; Kauf-Anfragen haben keine Hold-Buchung bis Zahlung
 - [x] **Sevdesk API** – Angebotserstellung im Admin – Doku: `docs/sevdesk-angebote.md`
 - [ ] TypeScript: `stripe_event_id` auf `QuoteRequest`-Typ (falls noch offen)
 - [ ] Impressum/Datenschutz/AGB optional in Nav sichtbarer machen
@@ -208,7 +218,12 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 - [x] Stripe-Freigabe: `NEXT_PUBLIC_APP_URL` trimmen + Vercel-Env ohne Zeilenumbruch (Fix „Not a valid URL“, 14.07.2026)
 - [x] Fulfillment: Kundenkommentar automatisch vor Signatur; `{{kommentar}}` aus Templates; Feld „Interne Notiz“ pro Schritt (Migration 18, 14.07.2026)
 - [x] Vercel-Deploy-Doku: `git push origin main` für Auto-Deploy; `vercel --prod` nur vom Repo-Root
-- [x] **Lagerunterlagen drucken** (14.07.2026): Button „Lagerunterlagen“ auf `/warenverwaltung/auftraege/[id]` (nur `paid`); Modal mit A6-Vorschau; Druckrouten `/druck/labels`, `/druck/checkliste`, `/druck/uebersicht`; Tüten-Label mit `1/7`, Logo bei Bedruckung, physische Gruppe + Charge; Versand-/Anliefertermine aus `fulfillment-timing.ts` (3 KT Transit Standard, 2 WT Anlieferung; Flex +5 WT / +2 KT Puffer; Kurier/Eil 1 WT / 1 KT)
+- [x] **Lagerunterlagen drucken** (14.07.2026): Button „Lagerunterlagen“ auf `/warenverwaltung/auftraege/[id]` (nur `paid`); **gesperrt bis Zuweisung** (Gruppen + Chargen + Basis); Modal mit A6-Vorschau; Druckrouten `/druck/labels`, `/druck/checkliste`, `/druck/uebersicht`
+- [x] **Lager-Panel** (14.07.2026): Karte „Lager & Bestand“ auf Auftragsdetail; Verfügbarkeit je Charge; Chargen-Split mit Vorschlag (`lib/konfigurator/band-allocation.ts`); `saveQuoteBandAllocations`; Retry „Buchung anlegen“ bei fehlender Verkaufsbuchung (`ensureQuoteBooking`)
+- [x] **Fulfillment-Reihenfolge** (14.07.2026): Mit Druck: `vorbereitet` → `verpackt` (Label „Zusammengepackt“) → `bedruckt` → Versand; Bedrucken erst nach Zusammenpacken
+- [x] **Basis-Seriennummer** (14.07.2026): `bases.seriennummer` (Migration 20); Pflicht bei Zuweisung; Admin bearbeitbar; auf Lagerübersicht-Druck
+- [x] Migration 19: `booking_items.group_id` nullable – Basis-Stationen als eigene Position ohne Leuchtgruppe
+- [x] **Globale CC-E-Mail** (14.07.2026): Admin unter `/admin/einstellungen/e-mails` → Versandeinstellungen; Key `global_cc_email` in `system_settings`; CC in `sendTemplatedEmail()` für alle ausgehenden Mails (Migration 22)
 
 ## Nützliche Befehle
 
@@ -216,7 +231,7 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 cd inventory-report-popup
 pnpm dev                  # lokal http://localhost:3000
 pnpm build                # Production-Build (Dev-Server vorher stoppen – .next-Konflikt)
-pnpm db:migrate           # alle Migrationen 01–18
+pnpm db:migrate           # alle Migrationen 01–22 (lokal: .env.local laden)
 pnpm db:indexes           # Performance-Indizes
 npx tsx scripts/test-fulfillment-timing.ts  # Fälligkeitslogik
 npx tsx scripts/test-email-links.ts         # Status-/Zahlungs-URLs in Kunden-Mails

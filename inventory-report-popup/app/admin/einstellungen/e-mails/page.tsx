@@ -1,17 +1,19 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { isAuthenticated } from "@/lib/auth"
+import { getSystemSettings } from "@/lib/actions/admin"
 import { listEmailTemplates } from "@/lib/actions/email-templates"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { EmailTemplateEditor } from "@/components/admin/email-template-editor"
+import { EmailDeliverySettings } from "@/components/admin/email-delivery-settings"
 
 export const dynamic = "force-dynamic"
 
 export default async function EmailTemplatesPage() {
   if (!(await isAuthenticated())) redirect("/login")
 
-  const templates = await listEmailTemplates()
+  const [templates, settings] = await Promise.all([listEmailTemplates(), getSystemSettings()])
 
   return (
     <div className="min-h-screen bg-background">
@@ -23,15 +25,16 @@ export default async function EmailTemplatesPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">E-Mail-Templates</h1>
+            <h1 className="text-2xl font-bold">E-Mail-Einstellungen</h1>
             <p className="text-sm text-muted-foreground">
-              Texte für Freigabe, Zahlung und Fulfillment-Schritte
+              Versandeinstellungen und Texte für Freigabe, Zahlung und Fulfillment
             </p>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-5xl">
+      <main className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
+        <EmailDeliverySettings globalCcEmail={settings.global_cc_email || ""} />
         <EmailTemplateEditor templates={templates} />
       </main>
     </div>

@@ -105,8 +105,8 @@ export function getLieferartLabel(lieferart: Lieferart): string {
 
 export const STATION_IMAGES = {
   eco: "/images/konfigurator/stations/eco-handcontroller.webp",
-  pro: "/images/konfigurator/stations/pro-basis-station.png",
-  proBack: "/images/konfigurator/stations/pro-basis-station-back.png",
+  pro: "/images/konfigurator/stations/pro-basis-station.webp",
+  proBack: "/images/konfigurator/stations/pro-basis-station-back.webp",
 } as const
 
 export const STATION_TECH_DOC_URL = "https://www.led-leuchtarmbaender.com/techdoku"

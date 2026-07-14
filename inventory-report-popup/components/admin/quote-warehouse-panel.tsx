@@ -86,6 +86,8 @@ export interface QuoteWarehousePanelProps {
   groups: GroupRow[]
   batches: BatchRow[]
   bookingModalProps: BookingModalPropsInput | null
+  variant?: "reference" | "workflow"
+  embedded?: boolean
 }
 
 function isActiveQuoteStatus(status: QuoteStatus): boolean {
@@ -112,6 +114,7 @@ function PrimaryBookingSection({
   bandBatchPools,
   stationInfo,
   availableBases,
+  variant = "reference",
 }: {
   quoteId: number
   quoteStatus: QuoteStatus
@@ -120,6 +123,7 @@ function PrimaryBookingSection({
   bandBatchPools: BandBatchPool[]
   stationInfo: QuoteStationInfo | null
   availableBases: QuoteWarehouseBaseOption[]
+  variant?: "reference" | "workflow"
 }) {
   const [openPacking, setOpenPacking] = useState(false)
   const isEditable =
@@ -203,7 +207,7 @@ function PrimaryBookingSection({
         </Table>
       </div>
 
-      {isEditable && (
+      {isEditable && variant === "workflow" && (
         <div className="border-t pt-4 space-y-2">
           <Button
             onClick={() => setOpenPacking(true)}
@@ -212,9 +216,24 @@ function PrimaryBookingSection({
             <Package className="h-4 w-4" />
             Packen & Material zuweisen
           </Button>
-          <p className="text-xs text-muted-foreground">
-            Leuchtgruppen, Chargen und Basis-Station im bekannten Buchungs-Dialog zuweisen.
-          </p>
+          <QuoteWarehouseModal
+            open={openPacking}
+            onOpenChange={setOpenPacking}
+            quoteId={quoteId}
+            requiredMenge={requiredMenge}
+            booking={booking}
+            bandBatchPools={bandBatchPools}
+            stationInfo={stationInfo}
+            availableBases={availableBases}
+          />
+        </div>
+      )}
+
+      {isEditable && variant === "reference" && (
+        <div className="border-t pt-3">
+          <Button variant="outline" size="sm" onClick={() => setOpenPacking(true)}>
+            Zuweisung ändern
+          </Button>
           <QuoteWarehouseModal
             open={openPacking}
             onOpenChange={setOpenPacking}
@@ -739,23 +758,30 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
     modus,
     requiredMenge,
     hasDruck = false,
-    canPrint = false,
     fulfillmentStatus,
     warehouseData,
     groups,
     bookingModalProps,
+    variant = "reference",
+    embedded = false,
   } = props
   const { primaryBooking, returnBooking, remainingByGroup, stationInfo, availableBases, bandBatchPools } =
     warehouseData
 
-  if (!shouldShowPanel(props)) return null
+  if (!shouldShowPanel(props)) {
+    if (embedded) {
+      return (
+        <p className="text-sm text-amber-700 dark:text-amber-400">
+          Noch keine Buchung verknüpft. Reservierung wird bei Freigabe bzw. Zahlung angelegt.
+        </p>
+      )
+    }
+    return null
+  }
 
-  return (
-    <Card id="lager-bestand">
-      <CardHeader>
-        <CardTitle>Lager & Bestand</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+  const body = (
+    <div className="space-y-4">
+      {!embedded && (
         <FulfillmentReadinessHint
           quoteStatus={quoteStatus}
           fulfillmentStatus={fulfillmentStatus}
@@ -764,56 +790,54 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
           stationInfo={stationInfo}
           requiredMenge={requiredMenge}
         />
+      )}
 
-        {primaryBooking ? (
-          <div className="space-y-1">
-            <h4 className="text-sm font-semibold">Ausgabe / Reservierung</h4>
-            <PrimaryBookingSection
-              quoteId={quoteId}
-              quoteStatus={quoteStatus}
-              booking={primaryBooking}
-              requiredMenge={requiredMenge}
-              bandBatchPools={bandBatchPools}
-              stationInfo={stationInfo}
-              availableBases={availableBases}
-            />
-          </div>
-        ) : quoteStatus === "paid" ||
-          (modus === "miete" && isActiveQuoteStatus(quoteStatus)) ? (
-          <MissingBookingState quoteId={quoteId} modus={modus} quoteStatus={quoteStatus} />
-        ) : (
-          <EmptyWarehouseState modus={modus} quoteStatus={quoteStatus} />
-        )}
-
-        <StationBasesSection
-          stationInfo={stationInfo}
-          primaryBooking={primaryBooking}
-        />
-
-        {quoteStatus === "paid" && primaryBooking && (
-          <PackingCompletionSection
-            quoteId={quoteId}
-            canPrint={canPrint}
-            fulfillmentStatus={fulfillmentStatus}
-            primaryBooking={primaryBooking}
-            stationInfo={stationInfo}
-            requiredMenge={requiredMenge}
-          />
-        )}
-
-        {modus === "miete" && (
-          <ReturnSection
+      {primaryBooking ? (
+        <div className="space-y-1">
+          {!embedded && <h4 className="text-sm font-semibold">Ausgabe / Reservierung</h4>}
+          <PrimaryBookingSection
             quoteId={quoteId}
             quoteStatus={quoteStatus}
-            fulfillmentStatus={fulfillmentStatus}
-            primaryBooking={primaryBooking}
-            returnBooking={returnBooking}
-            remainingByGroup={remainingByGroup}
-            groups={groups}
-            bookingModalProps={bookingModalProps}
+            booking={primaryBooking}
+            requiredMenge={requiredMenge}
+            bandBatchPools={bandBatchPools}
+            stationInfo={stationInfo}
+            availableBases={availableBases}
+            variant={embedded ? "workflow" : variant}
           />
-        )}
-      </CardContent>
+        </div>
+      ) : quoteStatus === "paid" ||
+        (modus === "miete" && isActiveQuoteStatus(quoteStatus)) ? (
+        <MissingBookingState quoteId={quoteId} modus={modus} quoteStatus={quoteStatus} />
+      ) : (
+        <EmptyWarehouseState modus={modus} quoteStatus={quoteStatus} />
+      )}
+
+      <StationBasesSection stationInfo={stationInfo} primaryBooking={primaryBooking} />
+
+      {modus === "miete" && !embedded && (
+        <ReturnSection
+          quoteId={quoteId}
+          quoteStatus={quoteStatus}
+          fulfillmentStatus={fulfillmentStatus}
+          primaryBooking={primaryBooking}
+          returnBooking={returnBooking}
+          remainingByGroup={remainingByGroup}
+          groups={groups}
+          bookingModalProps={bookingModalProps}
+        />
+      )}
+    </div>
+  )
+
+  if (embedded) return body
+
+  return (
+    <Card id="lager-bestand">
+      <CardHeader>
+        <CardTitle>Lager & Bestand</CardTitle>
+      </CardHeader>
+      <CardContent>{body}</CardContent>
     </Card>
   )
 }

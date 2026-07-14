@@ -671,3 +671,68 @@ export async function updateQuoteBookingAllocation(
     return { success: false, error: `Fehler beim Aktualisieren der Zuweisung: ${message}` }
   }
 }
+
+export async function confirmPackingDocsPrinted(
+  quoteId: number,
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    await ensureAuthed()
+
+    const quote = await getQuoteByIdInternal(quoteId)
+    if (!quote) {
+      return { success: false, error: "Auftrag nicht gefunden." }
+    }
+
+    if (quote.packing_docs_printed_at) {
+      revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
+      return { success: true }
+    }
+
+    const ready = await isQuoteWarehouseReadyForPrint(quoteId)
+    if (!ready) {
+      return {
+        success: false,
+        error: "Erst Leuchtgruppen, Chargen und Basis-Station vollständig zuweisen.",
+      }
+    }
+
+    const sql = getDb()
+    await sql`
+      UPDATE quote_requests
+      SET packing_docs_printed_at = NOW()
+      WHERE id = ${quoteId}
+    `
+
+    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
+    revalidatePath("/warenverwaltung/auftraege")
+    return { success: true }
+  } catch (error) {
+    console.error("confirmPackingDocsPrinted failed:", error)
+    const message = error instanceof Error ? error.message : "Unbekannter Fehler"
+    if (message.includes("packing_docs_printed_at")) {
+      return {
+        success: false,
+        error: "Datenbank-Migration 21 fehlt (packing_docs_printed_at). Bitte pnpm db:migrate ausführen.",
+      }
+    }
+    return { success: false, error: message }
+  }
+}
+
+export async function getWarehousePipelineContext(quoteId: number): Promise<{
+  allocationComplete: boolean
+  packingDocsPrinted: boolean
+}> {
+  await ensureAuthed()
+
+  const quote = await getQuoteByIdInternal(quoteId)
+  const [bandComplete, baseComplete] = await Promise.all([
+    isQuoteAllocationComplete(quoteId),
+    isQuoteBaseAllocationComplete(quoteId),
+  ])
+
+  return {
+    allocationComplete: bandComplete && baseComplete,
+    packingDocsPrinted: Boolean(quote?.packing_docs_printed_at),
+  }
+}

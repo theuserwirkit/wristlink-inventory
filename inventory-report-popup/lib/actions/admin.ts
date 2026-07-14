@@ -3,6 +3,7 @@
 import { getDb } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireRole } from "@/lib/auth"
+import { isValidEmailAddress } from "@/lib/konfigurator/email-settings"
 import {
   formatLeuchtgruppeName,
   LEUCHTGRUPPE_MAX_SLOT,
@@ -259,7 +260,9 @@ export async function deleteBase(id: number) {
   }
 }
 
-const ALLOWED_SETTING_KEYS = ["departure_buffer_days", "return_buffer_days"] as const
+const NUMERIC_SETTING_KEYS = ["departure_buffer_days", "return_buffer_days"] as const
+const EMAIL_SETTING_KEYS = ["global_cc_email"] as const
+const ALLOWED_SETTING_KEYS = [...NUMERIC_SETTING_KEYS, ...EMAIL_SETTING_KEYS] as const
 
 export async function getSystemSettings(): Promise<Record<string, string>> {
   await requireRole(["ADMIN"])
@@ -276,26 +279,37 @@ export async function updateSystemSetting(key: string, value: string) {
   try {
     await requireRole(["ADMIN"])
 
-    if (!ALLOWED_SETTING_KEYS.includes(key as any)) {
+    if (!ALLOWED_SETTING_KEYS.includes(key as (typeof ALLOWED_SETTING_KEYS)[number])) {
       return { success: false, error: `Ungültiger Einstellungsschlüssel: ${key}` }
     }
 
-    const numVal = parseInt(value, 10)
-    if (isNaN(numVal) || numVal < 0 || numVal > 30) {
-      return { success: false, error: "Wert muss eine Zahl zwischen 0 und 30 sein" }
+    let storedValue: string
+
+    if (EMAIL_SETTING_KEYS.includes(key as (typeof EMAIL_SETTING_KEYS)[number])) {
+      storedValue = value.trim()
+      if (storedValue && !isValidEmailAddress(storedValue)) {
+        return { success: false, error: "Bitte eine gültige E-Mail-Adresse eingeben oder das Feld leer lassen" }
+      }
+    } else {
+      const numVal = parseInt(value, 10)
+      if (isNaN(numVal) || numVal < 0 || numVal > 30) {
+        return { success: false, error: "Wert muss eine Zahl zwischen 0 und 30 sein" }
+      }
+      storedValue = String(numVal)
     }
 
     const sql = getDb()
 
     await sql`
       UPDATE system_settings
-      SET value = ${String(numVal)}, updated_at = NOW()
+      SET value = ${storedValue}, updated_at = NOW()
       WHERE key = ${key}
     `
 
     revalidatePath("/admin")
     revalidatePath("/")
     revalidatePath("/kalender")
+    revalidatePath("/admin/einstellungen/e-mails")
     return { success: true }
   } catch (error: any) {
     return { success: false, error: toSafeErrorMessage(error, "updateSystemSetting") }
