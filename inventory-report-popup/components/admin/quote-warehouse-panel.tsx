@@ -1,12 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react"
+import { useMemo, useState, useTransition, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -15,27 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { BookingModal } from "@/components/booking/booking-modal"
+import { QuoteWarehouseModal } from "@/components/admin/quote-warehouse-modal"
 import { useToast } from "@/hooks/use-toast"
-import {
-  saveQuoteBandAllocations,
-  updateQuoteBookingBaseAllocation,
-  type QuoteStationInfo,
-  type QuoteWarehouseBaseOption,
-} from "@/lib/actions/quote-warehouse"
 import { ensureQuoteBooking } from "@/lib/actions/quote-booking"
-import {
-  suggestBandAllocation,
-  type BandAllocationLine,
-  type BandBatchPool,
-} from "@/lib/konfigurator/band-allocation"
+import type { QuoteStationInfo, QuoteWarehouseBaseOption } from "@/lib/actions/quote-warehouse"
+import type { BandBatchPool } from "@/lib/konfigurator/band-allocation"
 import { modusAnzeige } from "@/lib/konfigurator/product-info"
 import {
   isBaseStationTyp,
@@ -49,7 +33,7 @@ import type { FulfillmentStatus, QuoteStatus } from "@/lib/konfigurator/types"
 import type { BatchRow, BookingStatus, BookingWithRelations, GroupRow } from "@/lib/types"
 import { formatDate } from "@/lib/utils/date"
 import { getBookingTypeColor, getBookingTypeLabel } from "@/lib/utils/booking"
-import { ExternalLink, FileText } from "lucide-react"
+import { ExternalLink, FileText, Package, RotateCcw } from "lucide-react"
 
 const STATUS_META: Record<BookingStatus, { label: string; className: string }> = {
   ANFRAGE: {
@@ -120,318 +104,24 @@ function shouldShowPanel(props: QuoteWarehousePanelProps): boolean {
   return false
 }
 
-function getPoolVerfuegbar(bandBatchPools: BandBatchPool[], groupId: number, batchId: number) {
-  const pool = bandBatchPools.find((p) => p.groupId === groupId && p.batchId === batchId)
-  return pool?.verfuegbar ?? 0
-}
-
-function AvailabilityOverviewDetails({ bandBatchPools }: { bandBatchPools: BandBatchPool[] }) {
-  return (
-    <details className="group rounded-md border">
-      <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-        Bestandsübersicht je Charge anzeigen
-      </summary>
-      <div className="border-t px-3 pb-3 pt-2">
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Leuchtgruppe</TableHead>
-                <TableHead>Charge</TableHead>
-                <TableHead className="text-right">Verfügbar</TableHead>
-                <TableHead className="text-right">In Vermietung</TableHead>
-                <TableHead className="text-right">Gesamt</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bandBatchPools.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-sm text-muted-foreground">
-                    Keine Chargen mit Bestand gefunden.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                bandBatchPools.map((pool) => (
-                  <TableRow key={`${pool.groupId}-${pool.batchId}`}>
-                    <TableCell className="font-medium">{pool.groupName}</TableCell>
-                    <TableCell className="font-mono text-xs">{pool.batchCode}</TableCell>
-                    <TableCell className="text-right font-mono">{pool.verfuegbar}</TableCell>
-                    <TableCell className="text-right font-mono text-muted-foreground">
-                      {pool.inVermietung}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">{pool.gesamtsumme}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    </details>
-  )
-}
-
-function BandAllocationPlanner({
-  quoteId,
-  requiredMenge,
-  booking,
-  groups,
-  batches,
-  bandBatchPools,
-  isEditable,
-}: {
-  quoteId: number
-  requiredMenge: number
-  booking: BookingWithRelations
-  groups: GroupRow[]
-  batches: BatchRow[]
-  bandBatchPools: BandBatchPool[]
-  isEditable: boolean
-}) {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [isPending, startTransition] = useTransition()
-
-  const currentAllocations = useMemo(() => {
-    return booking.items
-      .filter((item) => item.group_id != null)
-      .map((item) => ({
-        groupId: item.group_id as number,
-        batchId: item.batch_id as number,
-        anzahl: item.anzahl || 0,
-        groupName: item.group?.name || groups.find((g) => g.id === item.group_id)?.name || "",
-        batchCode: item.batch?.code || batches.find((b) => b.id === item.batch_id)?.code || "",
-      }))
-  }, [booking.items, groups, batches])
-
-  const [rows, setRows] = useState<BandAllocationLine[]>([])
-
-  useEffect(() => {
-    if (currentAllocations.length > 0 && currentAllocations.every((row) => row.batchId)) {
-      setRows(currentAllocations)
-      return
-    }
-    const suggestion = suggestBandAllocation(requiredMenge, bandBatchPools)
-    if (suggestion.length > 0) setRows(suggestion)
-  }, [currentAllocations, requiredMenge, bandBatchPools])
-
-  const assignedTotal = rows.reduce((sum, row) => sum + (Number(row.anzahl) || 0), 0)
-  const sumOk = assignedTotal === requiredMenge
-
-  const applySuggestion = () => {
-    setRows(suggestBandAllocation(requiredMenge, bandBatchPools))
-  }
-
-  const updateRow = (index: number, patch: Partial<BandAllocationLine>) => {
-    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)))
-  }
-
-  const addRow = () => {
-    const firstPool = bandBatchPools[0]
-    if (!firstPool) return
-    setRows((prev) => [
-      ...prev,
-      {
-        groupId: firstPool.groupId,
-        batchId: firstPool.batchId,
-        anzahl: Math.max(0, requiredMenge - assignedTotal),
-        groupName: firstPool.groupName,
-        batchCode: firstPool.batchCode,
-      },
-    ])
-  }
-
-  const removeRow = (index: number) => {
-    setRows((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const handleSave = () => {
-    startTransition(async () => {
-      const result = await saveQuoteBandAllocations(
-        quoteId,
-        rows.map((row) => ({
-          groupId: row.groupId,
-          batchId: row.batchId,
-          anzahl: Number(row.anzahl),
-        })),
-      )
-      if (result.success) {
-        toast({ title: "Gespeichert", description: "Chargen-Zuweisung wurde gespeichert." })
-        router.refresh()
-      } else {
-        toast({
-          title: "Fehler",
-          description: result.error || "Zuweisung konnte nicht gespeichert werden.",
-          variant: "destructive",
-        })
-      }
-    })
-  }
-
-  const poolLabel = (groupId: number, batchId: number) => {
-    const pool = bandBatchPools.find((p) => p.groupId === groupId && p.batchId === batchId)
-    return pool ? `${pool.groupName} · ${pool.batchCode}` : "–"
-  }
-
-  return (
-    <div className="space-y-4 border-t pt-4">
-      {isEditable && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-sm font-semibold">Chargen-Zuweisung</h4>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={applySuggestion} disabled={isPending}>
-                Vorschlag übernehmen
-              </Button>
-              <Button size="sm" variant="outline" onClick={addRow} disabled={isPending}>
-                Zeile hinzufügen
-              </Button>
-            </div>
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            Aufteilung frei wählbar (z. B. 100× G1 + 200× G2). Summe muss{" "}
-            <span className="font-mono">{requiredMenge}</span> ergeben.
-          </p>
-
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Gruppe · Charge</TableHead>
-                  <TableHead className="text-right w-[100px]">Verfügbar</TableHead>
-                  <TableHead className="text-right w-[100px]">Anzahl</TableHead>
-                  <TableHead className="w-[80px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-sm text-muted-foreground">
-                      Keine Zuweisungszeilen — Vorschlag übernehmen oder Zeile hinzufügen.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row, index) => {
-                    const verfuegbar = getPoolVerfuegbar(bandBatchPools, row.groupId, row.batchId)
-                    const anzahl = Number(row.anzahl) || 0
-                    const overAllocated = anzahl > verfuegbar
-
-                    return (
-                      <TableRow
-                        key={`alloc-${index}`}
-                        className={
-                          overAllocated
-                            ? "bg-amber-50/80 dark:bg-amber-950/20"
-                            : undefined
-                        }
-                      >
-                        <TableCell>
-                          <Select
-                            value={`${row.groupId}:${row.batchId}`}
-                            onValueChange={(value) => {
-                              const [g, b] = value.split(":").map(Number)
-                              const pool = bandBatchPools.find(
-                                (p) => p.groupId === g && p.batchId === b,
-                              )
-                              updateRow(index, {
-                                groupId: g,
-                                batchId: b,
-                                groupName: pool?.groupName || "",
-                                batchCode: pool?.batchCode || "",
-                              })
-                            }}
-                            disabled={isPending}
-                          >
-                            <SelectTrigger className="h-8 w-full min-w-[200px]">
-                              <SelectValue placeholder="Gruppe · Charge" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {bandBatchPools.map((pool) => (
-                                <SelectItem
-                                  key={`${pool.groupId}-${pool.batchId}`}
-                                  value={`${pool.groupId}:${pool.batchId}`}
-                                >
-                                  {poolLabel(pool.groupId, pool.batchId)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell
-                          className={`text-right font-mono ${overAllocated ? "text-amber-700 dark:text-amber-400" : ""}`}
-                        >
-                          {verfuegbar}
-                          {overAllocated && (
-                            <span className="block text-[10px] font-normal">Zu wenig Bestand</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            min={1}
-                            value={row.anzahl}
-                            onChange={(e) => updateRow(index, { anzahl: Number(e.target.value) })}
-                            disabled={isPending}
-                            className="h-8 w-20 ml-auto"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {rows.length > 1 && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => removeRow(index)}
-                              disabled={isPending}
-                              className="h-8 px-2 text-xs"
-                            >
-                              Entfernen
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span
-              className={`text-sm ${sumOk ? "text-muted-foreground" : "text-amber-700 dark:text-amber-400"}`}
-            >
-              Summe: <span className="font-mono">{assignedTotal}</span> / {requiredMenge}
-            </span>
-            <Button size="sm" onClick={handleSave} disabled={isPending || !sumOk || rows.length === 0}>
-              {isPending ? "Speichern…" : "Zuweisung speichern"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <AvailabilityOverviewDetails bandBatchPools={bandBatchPools} />
-    </div>
-  )
-}
-
 function PrimaryBookingSection({
   quoteId,
   quoteStatus,
   booking,
-  groups,
-  batches,
   requiredMenge,
   bandBatchPools,
+  stationInfo,
+  availableBases,
 }: {
   quoteId: number
   quoteStatus: QuoteStatus
   booking: BookingWithRelations
-  groups: GroupRow[]
-  batches: BatchRow[]
   requiredMenge: number
   bandBatchPools: BandBatchPool[]
+  stationInfo: QuoteStationInfo | null
+  availableBases: QuoteWarehouseBaseOption[]
 }) {
+  const [openPacking, setOpenPacking] = useState(false)
   const isEditable =
     quoteStatus === "paid" || (quoteStatus === "approved" && booking != null)
   const bandItems = booking.items.filter((item) => item.group_id != null)
@@ -513,15 +203,30 @@ function PrimaryBookingSection({
         </Table>
       </div>
 
-      <BandAllocationPlanner
-        quoteId={quoteId}
-        requiredMenge={requiredMenge}
-        booking={booking}
-        groups={groups}
-        batches={batches}
-        bandBatchPools={bandBatchPools}
-        isEditable={isEditable}
-      />
+      {isEditable && (
+        <div className="border-t pt-4 space-y-2">
+          <Button
+            onClick={() => setOpenPacking(true)}
+            className="gap-2 bg-gradient-to-r from-wristlink-cyan to-wristlink-purple hover:from-wristlink-cyan/90 hover:to-wristlink-purple/90 text-white font-semibold shadow-md"
+          >
+            <Package className="h-4 w-4" />
+            Packen & Material zuweisen
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Leuchtgruppen, Chargen und Basis-Station im bekannten Buchungs-Dialog zuweisen.
+          </p>
+          <QuoteWarehouseModal
+            open={openPacking}
+            onOpenChange={setOpenPacking}
+            quoteId={quoteId}
+            requiredMenge={requiredMenge}
+            booking={booking}
+            bandBatchPools={bandBatchPools}
+            stationInfo={stationInfo}
+            availableBases={availableBases}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -689,7 +394,7 @@ function PackingCompletionSection({
             </Button>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Zuerst Leuchtgruppe, Charge und ggf. Basis zuweisen.
+              Zuerst über „Packen & Material zuweisen“ Leuchtgruppe, Charge und ggf. Basis zuordnen.
             </p>
           )}
         </ChecklistItem>
@@ -698,112 +403,16 @@ function PackingCompletionSection({
   )
 }
 
-function BaseAllocationEditor({
-  quoteId,
-  stationInfo,
-  availableBases,
-}: {
-  quoteId: number
-  stationInfo: QuoteStationInfo
-  availableBases: QuoteWarehouseBaseOption[]
-}) {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [isPending, startTransition] = useTransition()
-  const defaultAnzahl =
-    stationInfo.station === "pro" ? Math.max(stationInfo.gruppen, 1) : 1
-  const [baseId, setBaseId] = useState(
-    availableBases.length > 0 ? String(availableBases[0].id) : "",
-  )
-  const [anzahl, setAnzahl] = useState(String(defaultAnzahl))
-
-  const handleAssign = () => {
-    const parsedBaseId = Number(baseId)
-    const parsedAnzahl = Number(anzahl)
-    if (!Number.isFinite(parsedBaseId) || !Number.isFinite(parsedAnzahl) || parsedAnzahl < 1) {
-      toast({
-        title: "Fehler",
-        description: "Bitte Basis und Anzahl auswählen.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    startTransition(async () => {
-      const result = await updateQuoteBookingBaseAllocation(quoteId, {
-        baseId: parsedBaseId,
-        anzahl: parsedAnzahl,
-      })
-      if (result.success) {
-        toast({ title: "Gespeichert", description: "Basis-Station wurde zugewiesen." })
-        router.refresh()
-      } else {
-        toast({
-          title: "Fehler",
-          description: result.error || "Basis konnte nicht zugewiesen werden.",
-          variant: "destructive",
-        })
-      }
-    })
-  }
-
-  if (availableBases.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Keine passenden Basis-Stationen im Bestand hinterlegt.
-      </p>
-    )
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Select value={baseId} onValueChange={setBaseId} disabled={isPending}>
-        <SelectTrigger className="h-8 w-[220px]">
-          <SelectValue placeholder="Basis-Station" />
-        </SelectTrigger>
-        <SelectContent>
-          {availableBases.map((base) => (
-            <SelectItem key={base.id} value={String(base.id)}>
-              {base.seriennummer ? `${base.seriennummer} · ` : ""}
-              {base.bezeichnung} · frei {base.verfuegbar}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Input
-        type="number"
-        min={1}
-        value={anzahl}
-        onChange={(e) => setAnzahl(e.target.value)}
-        disabled={isPending}
-        className="h-8 w-20"
-      />
-      <Button size="sm" variant="outline" onClick={handleAssign} disabled={isPending}>
-        Basis zuweisen
-      </Button>
-    </div>
-  )
-}
-
 function StationBasesSection({
-  quoteId,
-  quoteStatus,
   stationInfo,
   primaryBooking,
-  availableBases,
 }: {
-  quoteId: number
-  quoteStatus: QuoteStatus
   stationInfo: QuoteStationInfo | null
   primaryBooking: BookingWithRelations | null
-  availableBases: QuoteWarehouseBaseOption[]
 }) {
   const baseItems = primaryBooking?.items.filter((item) => item.base_id) ?? []
   const shouldShow = stationInfo != null || baseItems.length > 0
   if (!shouldShow) return null
-
-  const isEditable =
-    quoteStatus === "paid" || (quoteStatus === "approved" && primaryBooking != null)
 
   const stationLabel =
     stationInfo && isBaseStationTyp(stationInfo.station)
@@ -857,12 +466,10 @@ function StationBasesSection({
             </TableBody>
           </Table>
         </div>
-      ) : isEditable && stationInfo && primaryBooking ? (
-        <BaseAllocationEditor
-          quoteId={quoteId}
-          stationInfo={stationInfo}
-          availableBases={availableBases}
-        />
+      ) : stationInfo && primaryBooking ? (
+        <p className="text-sm text-muted-foreground">
+          Basis-Station über „Packen & Material zuweisen“ zuordnen.
+        </p>
       ) : stationInfo && !primaryBooking ? (
         <p className="text-sm text-amber-700 dark:text-amber-400">
           Zuerst Buchung anlegen (siehe oben), dann Basis-Station zuweisen.
@@ -971,13 +578,21 @@ function ReturnSection({
         </div>
       ) : canCaptureReturn && bookingModalProps ? (
         <div className="space-y-2">
-          <Button size="sm" onClick={() => setOpenReturn(true)}>
+          <Button
+            onClick={() => setOpenReturn(true)}
+            className="gap-2 bg-gradient-to-r from-wristlink-cyan to-wristlink-purple hover:from-wristlink-cyan/90 hover:to-wristlink-purple/90 text-white font-semibold shadow-md"
+          >
+            <RotateCcw className="h-4 w-4" />
             Rückgabe erfassen
           </Button>
+          <p className="text-xs text-muted-foreground">
+            Bänder und Basen mit Funktionierend/Defekt im bekannten Rückgabe-Dialog buchen.
+          </p>
           {openReturn && (
             <BookingModal
               {...bookingModalProps}
               prefilledBooking={primaryBooking}
+              dialogTitle={`Rückgabe erfassen – Auftrag #${quoteId}`}
               onBookingCreated={handleBookingCreated}
               onClose={() => setOpenReturn(false)}
             />
@@ -1128,7 +743,6 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
     fulfillmentStatus,
     warehouseData,
     groups,
-    batches,
     bookingModalProps,
   } = props
   const { primaryBooking, returnBooking, remainingByGroup, stationInfo, availableBases, bandBatchPools } =
@@ -1158,10 +772,10 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
               quoteId={quoteId}
               quoteStatus={quoteStatus}
               booking={primaryBooking}
-              groups={groups}
-              batches={batches}
               requiredMenge={requiredMenge}
               bandBatchPools={bandBatchPools}
+              stationInfo={stationInfo}
+              availableBases={availableBases}
             />
           </div>
         ) : quoteStatus === "paid" ||
@@ -1172,11 +786,8 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
         )}
 
         <StationBasesSection
-          quoteId={quoteId}
-          quoteStatus={quoteStatus}
           stationInfo={stationInfo}
           primaryBooking={primaryBooking}
-          availableBases={availableBases}
         />
 
         {quoteStatus === "paid" && primaryBooking && (

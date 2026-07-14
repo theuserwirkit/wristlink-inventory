@@ -17,6 +17,7 @@ interface BookingModalProps {
   openRentals: Array<Record<string, unknown>>
   prefilledBooking?: BookingWithRelations | null
   prefilledBookingType?: BookingType | null
+  dialogTitle?: string
   onBookingCreated?: (bookingId: number) => void
   onClose?: () => void
 }
@@ -30,6 +31,7 @@ export function BookingModal({
   openRentals,
   prefilledBooking,
   prefilledBookingType,
+  dialogTitle,
   onBookingCreated,
   onClose,
 }: BookingModalProps) {
@@ -56,6 +58,7 @@ export function BookingModal({
   }
 
   const getDialogTitle = () => {
+    if (dialogTitle) return dialogTitle
     if (prefilledBooking) return "Rückgabe erstellen"
     if (prefilledBookingType === "ZUGANG") return "Zugang buchen"
     if (prefilledBookingType === "MIETE_AUSGABE") return "Vermietung buchen"
