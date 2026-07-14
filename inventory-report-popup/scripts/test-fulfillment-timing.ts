@@ -18,8 +18,6 @@ function assert(name: string, condition: boolean) {
   }
 }
 
-const now = new Date("2026-07-09T10:00:00")
-
 function makeQuote(partial: Partial<QuoteRequest>): QuoteRequest {
   return {
     id: 1,
@@ -74,14 +72,72 @@ assert(
 
 const anlieferung = getAnlieferungDeadlineForPacking(makeQuote({}))
 assert(
-  "Pack-Anlieferung 2 Tage vor Event",
+  "Pack-Anlieferung 2 Werktage vor Event",
   anlieferung?.toISOString().slice(0, 10) === "2026-07-30",
 )
 
 const versand = getVersandDeadlineForPacking(makeQuote({}))
 assert(
-  "Pack-Versand 1 Tag vor Anlieferung",
-  versand?.toISOString().slice(0, 10) === "2026-07-29",
+  "Pack-Versand 3 Kalendertage vor Anlieferung",
+  versand?.toISOString().slice(0, 10) === "2026-07-27",
+)
+
+const flexAnlieferung = getAnlieferungDeadlineForPacking(
+  makeQuote({
+    config_json: {
+      ...makeQuote({}).config_json,
+      flexRueckgabe: true,
+      lieferart: "flex",
+    },
+  }),
+)
+assert(
+  "Pack-Flex-Anlieferung 5 Werktage vor Event",
+  flexAnlieferung?.toISOString().slice(0, 10) === "2026-07-27",
+)
+
+const flexVersand = getVersandDeadlineForPacking(
+  makeQuote({
+    config_json: {
+      ...makeQuote({}).config_json,
+      flexRueckgabe: true,
+      lieferart: "flex",
+    },
+  }),
+)
+assert(
+  "Pack-Flex-Versand mit Zusatzpuffer (5 Kalendertage)",
+  flexVersand?.toISOString().slice(0, 10) === "2026-07-22",
+)
+
+const kurierAnlieferung = getAnlieferungDeadlineForPacking(
+  makeQuote({
+    config_json: {
+      ...makeQuote({}).config_json,
+      lieferpaket: "eil",
+      lieferzeit: "hyperexpress",
+      lieferart: "overnight",
+    },
+  }),
+)
+assert(
+  "Pack-Kurier-Anlieferung 1 Werktag vor Event",
+  kurierAnlieferung?.toISOString().slice(0, 10) === "2026-07-31",
+)
+
+const kurierVersand = getVersandDeadlineForPacking(
+  makeQuote({
+    config_json: {
+      ...makeQuote({}).config_json,
+      lieferpaket: "eil",
+      lieferzeit: "hyperexpress",
+      lieferart: "overnight",
+    },
+  }),
+)
+assert(
+  "Pack-Kurier-Versand 1 Kalendertag vor Anlieferung",
+  kurierVersand?.toISOString().slice(0, 10) === "2026-07-30",
 )
 
 const overdue = getFulfillmentTiming(

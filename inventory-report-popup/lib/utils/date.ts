@@ -38,6 +38,11 @@ export function addDays(date: Date, days: number): Date {
   return d
 }
 
+export function subtractWorkdays(date: Date, workdays: number): Date {
+  if (workdays <= 0) return new Date(date)
+  return addWorkdays(date, -workdays)
+}
+
 export function rangesOverlap(a1: Date, a2: Date, b1: Date, b2: Date): boolean {
   return a1.getTime() <= b2.getTime() && a2.getTime() >= b1.getTime()
 }
