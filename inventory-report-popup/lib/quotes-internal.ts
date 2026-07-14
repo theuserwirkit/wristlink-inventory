@@ -1,6 +1,7 @@
 import "server-only"
 
 import { randomUUID } from "crypto"
+import { after } from "next/server"
 import { revalidatePath } from "next/cache"
 import { getDb } from "@/lib/db"
 import { checkProductAvailability } from "@/lib/actions/n8n-api"
@@ -333,6 +334,40 @@ export async function getQuoteByIdInternal(id: number): Promise<QuoteRequest | n
   return mapQuoteRow(rows[0])
 }
 
+function scheduleApprovalCustomerEmail(params: {
+  quoteId: number
+  email: string
+  quote: QuoteRequest
+  paymentUrl?: string
+}) {
+  after(async () => {
+    try {
+      const pdf = await getQuoteOfferPdfForEmail(params.quoteId)
+      const mailResult = await sendCustomerApprovedEmail({
+        email: params.email,
+        quote: params.quote,
+        paymentUrl: params.paymentUrl,
+        attachments: pdf ? [{ filename: pdf.filename, content: pdf.data }] : undefined,
+      })
+      if (!mailResult.success) {
+        console.error("Approval email failed:", mailResult.error)
+      }
+    } catch (e) {
+      console.error("Approval email failed:", e)
+    }
+  })
+}
+
+function scheduleN8nApprovedOfferEmail(params: { email: string; offerText: string }) {
+  after(async () => {
+    try {
+      await sendN8nApprovedOfferEmail(params)
+    } catch (e) {
+      console.error("n8n offer email failed:", e)
+    }
+  })
+}
+
 async function revalidateAvailability(quote: QuoteRequest): Promise<string | null> {
   const config = quote.config_json
   if (config.modus !== "miete") return null
@@ -355,108 +390,107 @@ export async function approveQuoteRequest(
   quoteId: number,
   options?: { skipStripe?: boolean },
 ): Promise<{ success: boolean; error?: string }> {
-  const quote = await getQuoteByIdInternal(quoteId)
-  if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
-  if (quote.status !== "submitted") {
-    return { success: false, error: `Status ${quote.status} kann nicht freigegeben werden` }
-  }
-
-  const availError = await revalidateAvailability(quote)
-  if (availError) return { success: false, error: availError }
-
-  const lead = await getLeadById(quote.lead_id)
-  if (!lead) return { success: false, error: "Lead nicht gefunden" }
-
-  const sql = getDb()
-
-  if (quote.source === "n8n_email") {
-    await sql`
-      UPDATE quote_requests SET
-        status = 'approved',
-        approved_at = NOW(),
-        updated_at = NOW()
-      WHERE id = ${quoteId}
-    `
-
-    if (lead && quote.notes) {
-      try {
-        await sendN8nApprovedOfferEmail({ email: lead.email, offerText: quote.notes })
-      } catch (e) {
-        console.error("n8n offer email failed:", e)
-      }
-    }
-
-    revalidatePath("/warenverwaltung/auftraege")
-    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
-    return { success: true }
-  }
-
-  const useStripe = !options?.skipStripe && isStripeConfigured()
-
-  if (!useStripe) {
-    await sql`
-      UPDATE quote_requests SET
-        status = 'approved',
-        approved_at = NOW(),
-        updated_at = NOW()
-      WHERE id = ${quoteId}
-    `
-
-    const updatedQuote = { ...quote, status: "approved" as const }
-    try {
-      const pdf = await getQuoteOfferPdfForEmail(quoteId)
-      const mailResult = await sendCustomerApprovedEmail({
-        email: lead.email,
-        quote: updatedQuote,
-        attachments: pdf ? [{ filename: pdf.filename, content: pdf.data }] : undefined,
-      })
-      if (!mailResult.success) {
-        console.error("Approval email failed:", mailResult.error)
-      }
-    } catch (e) {
-      console.error("Approval email failed:", e)
-    }
-
-    revalidatePath("/warenverwaltung/auftraege")
-    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
-    return { success: true }
-  }
-
-  const { sessionId, url } = await createCheckoutSessionForQuote(quote, lead.email, {
-    name: lead.name,
-    firma: lead.firma,
-  })
-  const expiresAt = new Date(Date.now() + PAYMENT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
-
-  await sql`
-    UPDATE quote_requests SET
-      status = 'payment_pending',
-      approved_at = NOW(),
-      expires_at = ${expiresAt.toISOString()},
-      stripe_checkout_session_id = ${sessionId},
-      stripe_payment_link_url = ${url},
-      updated_at = NOW()
-    WHERE id = ${quoteId}
-  `
-
   try {
-    const pdf = await getQuoteOfferPdfForEmail(quoteId)
-    const mailResult = await sendCustomerApprovedEmail({
+    const quote = await getQuoteByIdInternal(quoteId)
+    if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
+    if (quote.status !== "submitted") {
+      return { success: false, error: `Status ${quote.status} kann nicht freigegeben werden` }
+    }
+
+    const availError = await revalidateAvailability(quote)
+    if (availError) return { success: false, error: availError }
+
+    const lead = await getLeadById(quote.lead_id)
+    if (!lead) return { success: false, error: "Lead nicht gefunden" }
+
+    const sql = getDb()
+
+    if (quote.source === "n8n_email") {
+      await sql`
+        UPDATE quote_requests SET
+          status = 'approved',
+          approved_at = NOW(),
+          updated_at = NOW()
+        WHERE id = ${quoteId}
+      `
+
+      if (quote.notes) {
+        scheduleN8nApprovedOfferEmail({ email: lead.email, offerText: quote.notes })
+      }
+
+      revalidatePath("/warenverwaltung/auftraege")
+      revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
+      return { success: true }
+    }
+
+    const useStripe = !options?.skipStripe && isStripeConfigured()
+
+    if (!useStripe) {
+      await sql`
+        UPDATE quote_requests SET
+          status = 'approved',
+          approved_at = NOW(),
+          updated_at = NOW()
+        WHERE id = ${quoteId}
+      `
+
+      scheduleApprovalCustomerEmail({
+        quoteId,
+        email: lead.email,
+        quote: { ...quote, status: "approved" },
+      })
+
+      revalidatePath("/warenverwaltung/auftraege")
+      revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
+      return { success: true }
+    }
+
+    let sessionId: string
+    let url: string
+    try {
+      const checkout = await createCheckoutSessionForQuote(quote, lead.email, {
+        name: lead.name,
+        firma: lead.firma,
+      })
+      sessionId = checkout.sessionId
+      url = checkout.url
+    } catch (e) {
+      return {
+        success: false,
+        error: e instanceof Error ? e.message : "Stripe-Checkout konnte nicht erstellt werden",
+      }
+    }
+
+    const expiresAt = new Date(Date.now() + PAYMENT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+
+    await sql`
+      UPDATE quote_requests SET
+        status = 'payment_pending',
+        approved_at = NOW(),
+        expires_at = ${expiresAt.toISOString()},
+        stripe_checkout_session_id = ${sessionId},
+        stripe_payment_link_url = ${url},
+        updated_at = NOW()
+      WHERE id = ${quoteId}
+    `
+
+    scheduleApprovalCustomerEmail({
+      quoteId,
       email: lead.email,
       quote: { ...quote, status: "payment_pending" },
       paymentUrl: url,
-      attachments: pdf ? [{ filename: pdf.filename, content: pdf.data }] : undefined,
     })
-    if (!mailResult.success) {
-      console.error("Approval email failed:", mailResult.error)
-    }
-  } catch (e) {
-    console.error("Approval email failed:", e)
-  }
 
-  revalidatePath("/warenverwaltung/auftraege")
-  revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
-  return { success: true }
+    revalidatePath("/warenverwaltung/auftraege")
+    revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
+    return { success: true }
+  } catch (e) {
+    console.error("approveQuoteRequest failed:", e)
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Freigabe fehlgeschlagen",
+    }
+  }
 }
 
 async function finalizeRejectedQuote(quote: QuoteRequest, reasonMessage: string) {

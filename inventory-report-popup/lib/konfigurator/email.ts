@@ -1,5 +1,6 @@
 import { Resend } from "resend"
 import { EMAIL_KONFIGURATOR, EMAIL_TECH, RESEND_FROM_DEFAULT } from "@/lib/contact-emails"
+import { buildEmailBodies } from "@/lib/konfigurator/email-html"
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
 import { getEmailTemplateByKey } from "@/lib/konfigurator/email-template-store"
 import {
@@ -25,6 +26,10 @@ function getTeamEmail(): string {
   return process.env.TEAM_NOTIFICATION_EMAIL || EMAIL_KONFIGURATOR
 }
 
+function buildEmailContent(text: string) {
+  return buildEmailBodies(text)
+}
+
 export type EmailAttachment = {
   filename: string
   content: Buffer
@@ -42,7 +47,7 @@ export async function sendTemplatedEmail(params: {
       from: getFromEmail(),
       to: params.email,
       subject: params.subject,
-      text: params.text,
+      ...buildEmailContent(params.text),
       attachments: params.attachments?.map((a) => ({
         filename: a.filename,
         content: a.content,
@@ -102,12 +107,7 @@ export async function sendVerificationEmail(email: string, token: string) {
     throw new Error("RESEND_API_KEY nicht gesetzt")
   }
 
-  const resend = new Resend(apiKey)
-  const { error } = await resend.emails.send({
-    from: getFromEmail(),
-    to: email,
-    subject: "Bitte bestätige deine E-Mail – WIRKUNG Wristlink",
-    text: `Hallo,
+  const body = `Hallo,
 
 bitte bestätige deine E-Mail-Adresse, um den WIRKUNG Wristlink Konfigurator zu nutzen:
 
@@ -118,11 +118,15 @@ Der Link ist 24 Stunden gültig.
 Bitte nicht auf diese E-Mail antworten. Fragen bitte an ${EMAIL_TECH}
 
 Viele Grüße
-Dein WIRKUNG-Team`,
+Dein WIRKUNG-Team`
+  const result = await sendTemplatedEmail({
+    email,
+    subject: "Bitte bestätige deine E-Mail – WIRKUNG Wristlink",
+    text: body,
   })
 
-  if (error) {
-    throw new Error(error.message || "E-Mail-Versand fehlgeschlagen")
+  if (!result.success) {
+    throw new Error(result.error || "E-Mail-Versand fehlgeschlagen")
   }
 }
 
@@ -134,12 +138,7 @@ export async function sendTeamQuoteNotification(params: {
   totalBrutto: number
   adminUrl: string
 }) {
-  const resend = getResend()
-  await resend.emails.send({
-    from: getFromEmail(),
-    to: getTeamEmail(),
-    subject: `Neue Konfigurator-Anfrage #${params.quoteId}`,
-    text: `Neue Angebotsanfrage über den Konfigurator (B2B):
+  const body = `Neue Angebotsanfrage über den Konfigurator (B2B):
 
 Anfrage-ID: ${params.quoteId}
 Kunde: ${params.email}
@@ -150,7 +149,11 @@ Gesamt netto: ${params.totalNetto.toFixed(2)} EUR
 Zahlungsbetrag (inkl. 19 % MwSt.): ${params.totalBrutto.toFixed(2)} EUR
 
 Freigabe im Admin-Bereich:
-${params.adminUrl}`,
+${params.adminUrl}`
+  await sendTemplatedEmail({
+    email: getTeamEmail(),
+    subject: `Neue Konfigurator-Anfrage #${params.quoteId}`,
+    text: body,
   })
 }
 
@@ -210,10 +213,8 @@ export async function sendCustomerPaidEmail(params: {
 }
 
 export async function sendN8nApprovedOfferEmail(params: { email: string; offerText: string }) {
-  const resend = getResend()
-  await resend.emails.send({
-    from: getFromEmail(),
-    to: params.email,
+  return sendTemplatedEmail({
+    email: params.email,
     subject: "Ihr WIRKUNG Wristlink Angebot",
     text: params.offerText,
   })
@@ -224,12 +225,7 @@ export async function sendCustomerSubmittedEmail(params: {
   quoteId: number
   offerUrl: string
 }) {
-  const resend = getResend()
-  await resend.emails.send({
-    from: getFromEmail(),
-    to: params.email,
-    subject: "Anfrage eingegangen – WIRKUNG Wristlink",
-    text: `Hallo,
+  const body = `Hallo,
 
 vielen Dank für deine Anfrage #${params.quoteId}. Wir prüfen deine Konfiguration und melden uns in Kürze bei dir – bald wissen wir mehr über die Verfügbarkeit für dein Event.
 
@@ -239,7 +235,11 @@ ${params.offerUrl}
 Bitte nicht auf diese E-Mail antworten. Fragen bitte an ${EMAIL_TECH}
 
 Viele Grüße
-Dein WIRKUNG-Team`,
+Dein WIRKUNG-Team`
+  return sendTemplatedEmail({
+    email: params.email,
+    subject: "Anfrage eingegangen – WIRKUNG Wristlink",
+    text: body,
   })
 }
 

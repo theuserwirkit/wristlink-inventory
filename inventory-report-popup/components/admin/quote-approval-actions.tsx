@@ -86,42 +86,54 @@ export function QuoteApprovalActions({
   async function handleApprove() {
     setLoading("approve")
     setError(null)
-    const result = await adminApproveQuote(quoteId, {
-      skipStripe: source === "konfigurator" ? skipStripe : undefined,
-    })
-    if (!result.success) {
-      setError(result.error || "Fehler")
+    try {
+      const result = await adminApproveQuote(quoteId, {
+        skipStripe: source === "konfigurator" ? skipStripe : undefined,
+      })
+      if (!result.success) {
+        setError(result.error || "Fehler")
+        return
+      }
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Verbindungsfehler")
+    } finally {
       setLoading(null)
-      return
     }
-    router.refresh()
-    setLoading(null)
   }
 
   async function handleReject() {
     setLoading("reject")
     setError(null)
-    const result = await adminRejectQuote(quoteId, reasonId)
-    if (!result.success) {
-      setError(result.error || "Fehler")
+    try {
+      const result = await adminRejectQuote(quoteId, reasonId)
+      if (!result.success) {
+        setError(result.error || "Fehler")
+        return
+      }
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Verbindungsfehler")
+    } finally {
       setLoading(null)
-      return
     }
-    router.refresh()
-    setLoading(null)
   }
 
   async function handleCancel() {
     setLoading("cancel")
     setError(null)
-    const result = await adminCancelQuote(quoteId)
-    if (!result.success) {
-      setError(result.error || "Fehler")
+    try {
+      const result = await adminCancelQuote(quoteId)
+      if (!result.success) {
+        setError(result.error || "Fehler")
+        return
+      }
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Verbindungsfehler")
+    } finally {
       setLoading(null)
-      return
     }
-    router.refresh()
-    setLoading(null)
   }
 
   const approveLabel =

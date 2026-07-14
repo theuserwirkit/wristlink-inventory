@@ -98,6 +98,7 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 
 - [ ] Login testen: `/login` → `/warenverwaltung`
 - [ ] Konfigurator: vollständige Firmenadresse (Straße, PLZ, Ort) + PLZ-Hinweis als Status-Zugang
+- [x] Anfrage-Bestätigungs-Mail: Status-Link (`/angebot/[token]`) in HTML vollständig anklickbar (kein Zeilenumbruch mitten in der URL)
 - [ ] Kunden-Statusseite `/angebot/[token]`: PLZ-Gate, Fulfillment-Timeline, Zahlungslink
 - [ ] Admin-Anfragen: Freigabe mit/ohne Stripe, Mail-Vorschau
 - [ ] Admin-Anfragen: nächste 3 gebuchte Aufträge mit Fälligkeit (überfällig/heute/in X Tagen) und nächstem Schritt
@@ -195,6 +196,9 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 - [x] Versand-Dienstleister (UPS/DHL/TNT) im Fulfillment-Workflow – Migration 14
 - [x] PLZ-Hilfsfunktionen in `lib/konfigurator/plz.ts` ausgelagert (Server/Client-Split, Fix Build 500 auf Konfigurator/Legal-Pages)
 - [x] Smoke-Test lokal: `pnpm build` grün, Unit-Tests, alle Routen inkl. `/warenverwaltung/auftraege`, `/buchungen` (14.07.2026)
+- [x] E-Mail-Links: HTML-Version mit durchgängigen `<a>`-Tags für Status-/Zahlungs-URLs (`lib/konfigurator/email-html.ts`, Fix Zeilenumbruch in Plain-Text-Mails, 14.07.2026)
+- [x] E-Mail-URLs zentral geprüft: alle Templates mit `{{status_url}}` + Anfrage-Bestätigung (`scripts/test-email-links.ts`, kurze HTML-Linktexte, 14.07.2026)
+- [x] Migration 17: Freigabe-Mails mit Menge, Eventdatum, Lieferort (`17-email-templates-angebot.sql`)
 
 ## Nützliche Befehle
 

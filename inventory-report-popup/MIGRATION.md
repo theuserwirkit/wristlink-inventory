@@ -29,6 +29,8 @@ Zentrale Konstanten: `lib/contact-emails.ts`
 | `TEAM_NOTIFICATION_EMAIL` | `angebote@braceled-led-armband.com` – interne Anfrage-Benachrichtigungen |
 | `RESEND_API_KEY` | Resend API (Double-Opt-In, Freigabe, Fulfillment) |
 
+Transaktions-Mails werden als Plain-Text und HTML versendet (`lib/konfigurator/email-html.ts` → `lib/konfigurator/email.ts`), damit lange Status-URLs in E-Mail-Clients vollständig anklickbar bleiben.
+
 Allgemeine Firmenadressen (Impressum, Datenschutz): `@wirkung-digital.de` (`info@`, `legal@`, `datenschutz@`).
 
 > **Resend:** Domain `braceled-led-armband.com` muss in Resend verifiziert sein (SPF/DKIM).
@@ -154,11 +156,12 @@ psql "$DATABASE_URL" -f scripts/migration/01-schema.sql
 | `11-lead-consent-doi.sql` | `leads.b2b_confirmed`, `email_verification_tokens.marketing_consent_pending` |
 | `12-sevdesk-offer.sql` | `quote_requests.sevdesk_order_id`, `sevdesk_order_number` |
 | `13-email-templates-v2.sql` | Überarbeitete Kunden-Mail-Texte, Platzhalter `{{status_url}}`, `{{kunde_anrede}}` |
-| `15-email-templates-du.sql` | Du-Ansprache, professioneller Ton |
 | `14-versand-dienstleister.sql` | `versand_dienstleister` auf `quote_requests` und `quote_fulfillment_events` (E-Mail-Platzhalter `{{versand_dienstleister}}`) |
 | `15-email-templates-du.sql` | E-Mail-Vorlagen: professionelle Du-Ansprache (ersetzt holprige Texte aus Migration 13) |
+| `16-users-auth.sql` | `users`-Tabelle (optional, Multi-User-Login) |
+| `17-email-templates-angebot.sql` | Freigabe-Mails: Menge, Eventdatum, Lieferort, neuer Angebotstext |
 
-Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op). Migration `13` überschreibt die Standardtexte in `email_templates` (Admin-Anpassungen gehen verloren, falls nicht gesichert).
+Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op). Migrationen `13`, `15` und `17` überschreiben Standardtexte in `email_templates` (Admin-Anpassungen gehen verloren, falls nicht gesichert).
 
 ```bash
 pnpm db:migrate
@@ -167,7 +170,7 @@ pnpm db:migrate
 Alternativ per `psql`:
 
 ```bash
-for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2 14-versand-dienstleister 15-email-templates-du; do
+for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2 14-versand-dienstleister 15-email-templates-du 16-users-auth 17-email-templates-angebot; do
   psql "$DATABASE_URL" -f "scripts/migration/${f}.sql"
 done
 ```
@@ -248,6 +251,8 @@ Pro Schritt: Kommentar, optionale Kunden-Mail aus `email_templates` (`fulfillmen
 | `lib/actions/fulfillment.ts` | Schrittwechsel, Events, Tracking, Versand-Dienstleister |
 | `lib/actions/email-templates.ts` | CRUD für `email_templates` |
 | `lib/konfigurator/email-template-render.ts` | Platzhalter `{{…}}` inkl. `{{versand_dienstleister}}` |
+| `lib/konfigurator/email-html.ts` | Plain-Text → HTML mit klickbaren URLs |
+| `lib/konfigurator/email.ts` | Resend-Versand aller Transaktions-Mails (`text` + `html`) |
 | `lib/konfigurator/fulfillment-timing.ts` | Fälligkeitsberechnung, Dringlichkeit, Sortierung offener Aufträge |
 | `lib/konfigurator/versand-dienstleister.ts` | UPS/DHL/TNT-Optionen |
 | `lib/konfigurator/kontakt-adresse.ts` | Firmenadresse, PLZ für Status-Zugang |

@@ -13,7 +13,7 @@ import type { EmailTemplate } from "@/lib/konfigurator/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 const PLACEHOLDER_HINT =
-  "Platzhalter: {{kunde_anrede}}, {{anfrage_id}}, {{kunde_email}}, {{kunde_name}}, {{angebot_netto}}, {{angebot_brutto}}, {{zahlungslink}}, {{status_url}}, {{angebot_url}}, {{tracking_nr}}, {{versand_dienstleister}}, {{tracking_info}}, {{kommentar}}, {{ablehnungsgrund}}, {{zahlungsnotiz}}"
+  "Platzhalter: {{kunde_anrede}}, {{anfrage_id}}, {{kunde_email}}, {{kunde_name}}, {{menge}}, {{event_datum}}, {{lieferort}}, {{angebot_netto}}, {{angebot_brutto}}, {{zahlungslink}}, {{zahlungslink_block}}, {{status_url}}, {{angebot_url}}, {{tracking_nr}}, {{versand_dienstleister}}, {{tracking_info}}, {{kommentar}}, {{ablehnungsgrund}}, {{zahlungsnotiz}}"
 
 export function EmailTemplateEditor({ templates }: { templates: EmailTemplate[] }) {
   const router = useRouter()

@@ -387,7 +387,7 @@ submitted → approved (ohne Stripe) / payment_pending (mit Stripe)
 
 Vorlagen editierbar unter `/admin/einstellungen/e-mails`. Kundenfreundliche Standardtexte ab Migration `13-email-templates-v2.sql`.
 
-**Platzhalter:** `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{kunde_name}}`, `{{kunde_firma}}`, `{{angebot_netto}}`, `{{angebot_brutto}}`, `{{zahlungslink}}`, `{{status_url}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{versand_dienstleister}}`, `{{tracking_info}}`, `{{kommentar}}`, `{{ablehnungsgrund}}`, `{{zahlungsnotiz}}`
+**Platzhalter:** `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{kunde_name}}`, `{{kunde_firma}}`, `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{angebot_netto}}`, `{{angebot_brutto}}`, `{{zahlungslink}}`, `{{zahlungslink_block}}`, `{{status_url}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{versand_dienstleister}}`, `{{tracking_info}}`, `{{kommentar}}`, `{{ablehnungsgrund}}`, `{{zahlungsnotiz}}`
 
 ### Fulfillment-Fälligkeit (`lib/konfigurator/fulfillment-timing.ts`)
 
@@ -406,6 +406,8 @@ Admin-Übersicht `/admin/anfragen`: Karte **„Nächste Aufträge in Bearbeitung
 Test: `npx tsx scripts/test-fulfillment-timing.ts`
 
 `{{status_url}}` und `{{angebot_url}}` zeigen auf dieselbe Route (`/angebot/[public_token]`). In Mails wird auf den Zugang mit der **Postleitzahl der Firmenadresse** hingewiesen.
+
+**Versandformat:** Alle Transaktions-Mails werden als Plain-Text **und** HTML versendet (`lib/konfigurator/email-html.ts`). URLs werden vor dem Versand normalisiert (Zeilenumbrüche mitten in Links werden zusammengeführt), im Plain-Text in spitze Klammern gesetzt (`<https://…>`) und in HTML als `<a>`-Link mit kurzem Linktext gerendert (z. B. „Angebot und Status öffnen“ statt der langen UUID-URL). Test: `npx tsx scripts/test-email-links.ts`
 
 ### Admin-UI-Komponenten
 
@@ -499,6 +501,8 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `lib/konfigurator/fulfillment-timing.ts` | Fälligkeitsberechnung, Dringlichkeit, Sortierung |
 | `lib/konfigurator/versand-dienstleister.ts` | UPS/DHL/TNT-Optionen und Labels |
 | `lib/konfigurator/email-template-render.ts` | E-Mail-Platzhalter |
+| `lib/konfigurator/email-html.ts` | Plain-Text → HTML (klickbare URLs) |
+| `lib/konfigurator/email.ts` | Resend-Versand (`text` + `html`) |
 | `lib/konfigurator/kontakt-adresse.ts` | Firmenadresse formatieren, PLZ für Status-Zugang |
 | `lib/konfigurator/plz.ts` | PLZ-Hilfsfunktionen (client-sicher) |
 | `lib/konfigurator/angebot-access.ts` | Server: Cookie-Zugang für Statusseite |
