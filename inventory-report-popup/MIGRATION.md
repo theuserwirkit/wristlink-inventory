@@ -87,7 +87,7 @@ Empfohlenes Namensschema: `G{n}_{40|80}ch` (siehe `docs/konfigurator.md`)
 Zusätzliche Spalten (Migration `09`): `fulfillment_status`, `tracking_number`, `payment_method`, `payment_note`, `return_booking_id`.
 Migration `14`: `versand_dienstleister` (UPS/DHL/TNT).
 
-**quote_fulfillment_events:** `from_status`, `to_status`, `comment`, `tracking_number`, `versand_dienstleister` (Migration `14`), `mail_sent`, `mail_subject`, `created_by`, `created_at`.
+**quote_fulfillment_events:** `from_status`, `to_status`, `comment` (Kundenkommentar), `internal_note` (Migration `18`), `tracking_number`, `versand_dienstleister` (Migration `14`), `mail_sent`, `mail_subject`, `created_by`, `created_at`.
 
 **email_templates:** `template_key` (unique), `label`, `category` (`quote` \| `fulfillment`), `subject`, `body`, `send_by_default`.
 
@@ -160,8 +160,9 @@ psql "$DATABASE_URL" -f scripts/migration/01-schema.sql
 | `15-email-templates-du.sql` | E-Mail-Vorlagen: professionelle Du-Ansprache (ersetzt holprige Texte aus Migration 13) |
 | `16-users-auth.sql` | `users`-Tabelle (optional, Multi-User-Login) |
 | `17-email-templates-angebot.sql` | Freigabe-Mails: Menge, Eventdatum, Lieferort, neuer Angebotstext |
+| `18-fulfillment-comments.sql` | `internal_note` auf `quote_fulfillment_events`; `{{kommentar}}` aus Fulfillment-Templates entfernt |
 
-Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op). Migrationen `13`, `15` und `17` überschreiben Standardtexte in `email_templates` (Admin-Anpassungen gehen verloren, falls nicht gesichert).
+Auf **bestehenden** Installationen mit aktuellem `01-schema.sql` sind `07` und `08` optional (no-op). Migrationen `13`, `15` und `17` überschreiben Standardtexte in `email_templates` (Admin-Anpassungen gehen verloren, falls nicht gesichert). Migration `18` entfernt `{{kommentar}}` aus Fulfillment-Templates – Kundenkommentare werden beim Versand automatisch vor der Signatur eingefügt (`appendCustomerCommentToEmail`).
 
 ```bash
 pnpm db:migrate
@@ -170,7 +171,7 @@ pnpm db:migrate
 Alternativ per `psql`:
 
 ```bash
-for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2 14-versand-dienstleister 15-email-templates-du 16-users-auth 17-email-templates-angebot; do
+for f in 02-konfigurator 03-n8n-api 04-quote-lifecycle 05-lead-contact 06-konfigurator-logos 07-base-station-typ 08-groups-kanalanzahl 09-fulfillment-email-templates 10-offer-pdf 11-lead-consent-doi 12-sevdesk-offer 13-email-templates-v2 14-versand-dienstleister 15-email-templates-du 16-users-auth 17-email-templates-angebot 18-fulfillment-comments; do
   psql "$DATABASE_URL" -f "scripts/migration/${f}.sql"
 done
 ```
@@ -191,6 +192,16 @@ psql "$DATABASE_URL" -f dump.sql
 ### Schritt 5 – App deployen
 
 `DATABASE_URL` und `WRISTLINK_PASSWORD` im Vercel-Projekt setzen und deployen.
+
+**Deploy-Workflow (Monorepo, Root Directory = `inventory-report-popup`):**
+
+```bash
+git push origin main          # Auto-Deploy auf Production (braceled-led-armband.com)
+# Manuell vom Repo-Root (NICHT aus inventory-report-popup/):
+vercel --prod
+```
+
+**Wichtig:** `NEXT_PUBLIC_APP_URL` ohne Zeilenumbruch setzen – sonst lehnt Stripe Checkout-URLs mit „Not a valid URL“ ab. `getAppBaseUrl()` trimmt Whitespace zusätzlich (`lib/konfigurator/lead-auth.ts`).
 
 ---
 
@@ -241,7 +252,7 @@ Schritte in Reihenfolge (`lib/konfigurator/fulfillment-status.ts`):
 7. `ruecksendung_angekommen`
 8. `zurueckgepackt` – optional Rückgabe-Buchung (`return_booking_id`) über Booking-Modal
 
-Pro Schritt: Kommentar, optionale Kunden-Mail aus `email_templates` (`fulfillment_*`), Historie in `quote_fulfillment_events`.
+Pro Schritt: **Kundenkommentar** (optional, erscheint automatisch in der Mail vor der Signatur), **interne Notiz** (nur Backend/Historie), optionale Kunden-Mail aus `email_templates` (`fulfillment_*`), Historie in `quote_fulfillment_events`.
 
 ### Relevante Dateien
 
@@ -250,7 +261,7 @@ Pro Schritt: Kommentar, optionale Kunden-Mail aus `email_templates` (`fulfillmen
 | `lib/actions/quotes.ts` | Freigabe, Ablehnung, `adminMarkQuotePaid`, Mail-Vorschau |
 | `lib/actions/fulfillment.ts` | Schrittwechsel, Events, Tracking, Versand-Dienstleister |
 | `lib/actions/email-templates.ts` | CRUD für `email_templates` |
-| `lib/konfigurator/email-template-render.ts` | Platzhalter `{{…}}` inkl. `{{versand_dienstleister}}` |
+| `lib/konfigurator/email-template-render.ts` | Platzhalter `{{…}}`, automatisches Einfügen von Kundenkommentaren (`appendCustomerCommentToEmail`) |
 | `lib/konfigurator/email-html.ts` | Plain-Text → HTML mit klickbaren URLs |
 | `lib/konfigurator/email.ts` | Resend-Versand aller Transaktions-Mails (`text` + `html`) |
 | `lib/konfigurator/fulfillment-timing.ts` | Fälligkeitsberechnung, Dringlichkeit, Sortierung offener Aufträge |
@@ -263,7 +274,7 @@ Pro Schritt: Kommentar, optionale Kunden-Mail aus `email_templates` (`fulfillmen
 | `app/api/angebot/[token]/unlock/route.ts` | PLZ-Unlock-API |
 | `components/admin/quote-approval-actions.tsx` | Freigabe-UI |
 | `components/admin/quote-payment-actions.tsx` | Manueller Zahlungseingang |
-| `components/admin/quote-fulfillment-workflow.tsx` | Stepper + Historie + Versand-Dienstleister |
+| `components/admin/quote-fulfillment-workflow.tsx` | Stepper + Kundenkommentar + interne Notiz + Historie + Versand-Dienstleister |
 | `components/admin/upcoming-fulfillment-orders.tsx` | Prioritäts-Karte (3 dringendste Aufträge) auf `/admin/anfragen` |
 | `components/admin/quote-offer-pdf-upload.tsx` | sevDesk-Angebot + PDF-Upload |
 | `components/admin/email-template-editor.tsx` | Template-Editor |

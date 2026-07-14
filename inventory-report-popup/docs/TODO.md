@@ -1,6 +1,6 @@
 # TODO – Sicherheit, Betrieb & Restarbeiten
 
-Stand: 14. Juli 2026 (Operations-Refactoring, Migrationen 14–16, Smoke-Test, AGB-Review)
+Stand: 14. Juli 2026 (Freigabe-Fix, Fulfillment-Kommentare, Migration 18)
 
 ## Kritisch (vor Go-Live)
 
@@ -16,7 +16,7 @@ Stand: 14. Juli 2026 (Operations-Refactoring, Migrationen 14–16, Smoke-Test, A
   - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`
   - Vercel OIDC Token (falls genutzt)
 - [x] **Vercel Production-Env** (Stand: gesetzt via CLI)
-  - [x] `NEXT_PUBLIC_APP_URL=https://braceled-led-armband.com`
+  - [x] `NEXT_PUBLIC_APP_URL=https://braceled-led-armband.com` (ohne Zeilenumbruch am Ende – sonst Stripe „Not a valid URL“)
   - [x] `WRISTLINK_API_URL=https://braceled-led-armband.com`
   - [x] `WRISTLINK_PASSWORD`
   - [x] `WRISTLINK_SESSION_SECRET` (getrennt vom Login-Passwort)
@@ -31,9 +31,12 @@ Stand: 14. Juli 2026 (Operations-Refactoring, Migrationen 14–16, Smoke-Test, A
   - [x] `14-versand-dienstleister.sql` – Spalte `versand_dienstleister` auf `quote_requests` + `quote_fulfillment_events`
   - [x] `15-email-templates-du.sql` – E-Mail-Vorlagen Du-Ansprache (überschreibt Admin-Texte aus Migration 13!)
   - [x] `16-users-auth.sql` – Tabelle `users` für Multi-User-Login (1 Admin-User angelegt)
+- [x] **DB-Migrationen 17–18** auf Production (14.07.2026)
+  - [x] `17-email-templates-angebot.sql` – Freigabe-Mails: Menge, Eventdatum, Lieferort
+  - [x] `18-fulfillment-comments.sql` – `internal_note` auf `quote_fulfillment_events`, `{{kommentar}}` aus Templates entfernt
 - [ ] **Resend:** Domain `braceled-led-armband.com` verifizieren (SPF/DKIM), DOI-Testmail senden
 - [ ] **Telegram-Webhook registrieren/aktualisieren:** `pnpm telegram:webhook`
-- [ ] **Redeploy** auf Vercel (Env-Änderungen erst nach Deploy aktiv)
+- [x] **Redeploy** auf Vercel – Auto-Deploy via `git push origin main` (14.07.2026 verifiziert)
 
 ## Recht / DSGVO (Juli 2026)
 
@@ -100,10 +103,10 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 - [ ] Konfigurator: vollständige Firmenadresse (Straße, PLZ, Ort) + PLZ-Hinweis als Status-Zugang
 - [x] Anfrage-Bestätigungs-Mail: Status-Link (`/angebot/[token]`) in HTML vollständig anklickbar (kein Zeilenumbruch mitten in der URL)
 - [ ] Kunden-Statusseite `/angebot/[token]`: PLZ-Gate, Fulfillment-Timeline, Zahlungslink
-- [ ] Admin-Anfragen: Freigabe mit/ohne Stripe, Mail-Vorschau
+- [x] Admin-Anfragen: Freigabe mit/ohne Stripe, Mail-Vorschau (14.07.2026 – inkl. Stripe-Checkout-Fix)
 - [ ] Admin-Anfragen: nächste 3 gebuchte Aufträge mit Fälligkeit (überfällig/heute/in X Tagen) und nächstem Schritt
 - [ ] Manueller Zahlungseingang → Fulfillment startet (`angenommen`)
-- [ ] Fulfillment-Schritte + Kunden-Mails (inkl. Versand-Dienstleister, Migration 14)
+- [x] Fulfillment-Schritte + Kunden-Mails (inkl. Versand-Dienstleister, Migration 14; Kundenkommentar auto, interne Notiz, Migration 18)
 - [ ] E-Mail-Templates unter `/admin/einstellungen/e-mails` (Migration 13: kundenfreundliche Texte + `{{status_url}}`)
 - [ ] Rückgabe-Buchung bei `zurueckgepackt`
 - [ ] Landing testen: `/` (Impressum, Datenschutz, AGB im Footer)
@@ -114,7 +117,7 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 
 ### DB-Migration Production
 
-`pnpm db:migrate` führt **alle** Skripte 01–16 idempotent aus (`scripts/run-migrations.mjs`).
+`pnpm db:migrate` führt **alle** Skripte 01–18 idempotent aus (`scripts/run-migrations.mjs`).
 
 **Vor dem Lauf:**
 
@@ -142,7 +145,7 @@ psql "$DATABASE_URL" -c "\d users"
 ```
 
 - [x] Backup Neon vor Migration (bereits migriert vor erneutem Lauf)
-- [x] Migration 14–16 auf Production – idempotent bestätigt
+- [x] Migration 17–18 auf Production – idempotent bestätigt
 - [x] `pnpm db:indexes` auf Production
 
 ### AGB-Review
@@ -199,6 +202,10 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 - [x] E-Mail-Links: HTML-Version mit durchgängigen `<a>`-Tags für Status-/Zahlungs-URLs (`lib/konfigurator/email-html.ts`, Fix Zeilenumbruch in Plain-Text-Mails, 14.07.2026)
 - [x] E-Mail-URLs zentral geprüft: alle Templates mit `{{status_url}}` + Anfrage-Bestätigung (`scripts/test-email-links.ts`, kurze HTML-Linktexte, 14.07.2026)
 - [x] Migration 17: Freigabe-Mails mit Menge, Eventdatum, Lieferort (`17-email-templates-angebot.sql`)
+- [x] Freigabe-Button: E-Mail-Versand asynchron (`after()`), Fehlerbehandlung im UI, kein hängender Ladekreis (14.07.2026)
+- [x] Stripe-Freigabe: `NEXT_PUBLIC_APP_URL` trimmen + Vercel-Env ohne Zeilenumbruch (Fix „Not a valid URL“, 14.07.2026)
+- [x] Fulfillment: Kundenkommentar automatisch vor Signatur; `{{kommentar}}` aus Templates; Feld „Interne Notiz“ pro Schritt (Migration 18, 14.07.2026)
+- [x] Vercel-Deploy-Doku: `git push origin main` für Auto-Deploy; `vercel --prod` nur vom Repo-Root
 
 ## Nützliche Befehle
 
@@ -206,7 +213,7 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 cd inventory-report-popup
 pnpm dev                  # lokal http://localhost:3000
 pnpm build                # Production-Build (Dev-Server vorher stoppen – .next-Konflikt)
-pnpm db:migrate           # alle Migrationen 01–16
+pnpm db:migrate           # alle Migrationen 01–18
 pnpm db:indexes           # Performance-Indizes
 npx tsx scripts/test-fulfillment-timing.ts  # Fälligkeitslogik
 npx tsx scripts/test-lieferzeit.ts          # Lieferpaket/Legacy-Lieferzeit

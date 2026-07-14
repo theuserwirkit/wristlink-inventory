@@ -350,6 +350,8 @@ Bearbeiten: `EditableBaseRow` – Bezeichnung und `station_typ` änderbar.
 | `09-fulfillment-email-templates.sql` | Fulfillment, E-Mail-Templates, Zahlungsfelder |
 | `13-email-templates-v2.sql` | Überarbeitete Kunden-Mail-Texte + `{{status_url}}`-Hinweise |
 | `14-versand-dienstleister.sql` | `versand_dienstleister` auf `quote_requests` und `quote_fulfillment_events` |
+| `17-email-templates-angebot.sql` | Freigabe-Mails: Menge, Eventdatum, Lieferort |
+| `18-fulfillment-comments.sql` | `internal_note` auf Events; `{{kommentar}}` aus Fulfillment-Templates entfernt |
 | `11-lead-consent-doi.sql` | B2B-Bestätigung, Marketing nach DOI |
 
 ---
@@ -367,7 +369,8 @@ submitted → approved (ohne Stripe) / payment_pending (mit Stripe)
 ```
 
 - **Freigabe ohne Stripe:** für Überweisungen / Rechnung vorab – Kunde erhält Angebotslink, Admin markiert Zahlung manuell.
-- **Freigabe mit Stripe:** Checkout-Link per E-Mail; Webhook setzt `paid`.
+- **Freigabe mit Stripe:** Checkout-Link per E-Mail; Webhook setzt `paid`. `NEXT_PUBLIC_APP_URL` muss gültige HTTPS-URL sein (ohne Zeilenumbruch).
+- **Freigabe-Performance:** Kunden-Mail wird asynchron versendet (`after()`), UI antwortet sofort nach DB-Update.
 - **Angebots-PDF:** vor Freigabe manuell anlegen (sevDesk-Button oder Upload); Anhang bei Freigabe- und Zahlungs-Mail – siehe **`docs/sevdesk-angebote.md`**.
 - **Fulfillment** startet erst nach `paid` (nicht bei Freigabe).
 - **Bestandsbuchung** (Miete): Hold bei Submit; `BESTAETIGT` erst bei Zahlung.
@@ -385,9 +388,15 @@ submitted → approved (ohne Stripe) / payment_pending (mit Stripe)
 | `ruecksendung_angekommen` | `fulfillment_ruecksendung_angekommen` | |
 | `zurueckgepackt` | `fulfillment_zurueckgepackt` | Rückgabe-Buchung möglich |
 
+Pro Fulfillment-Schritt im Admin:
+- **Kundenkommentar** (optional) – wird automatisch vor der Signatur in die Mail eingefügt, wenn ausgefüllt
+- **Interne Notiz** (optional) – nur in der Backend-Historie, nicht in der Kunden-Mail
+
 Vorlagen editierbar unter `/admin/einstellungen/e-mails`. Kundenfreundliche Standardtexte ab Migration `13-email-templates-v2.sql`.
 
-**Platzhalter:** `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{kunde_name}}`, `{{kunde_firma}}`, `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{angebot_netto}}`, `{{angebot_brutto}}`, `{{zahlungslink}}`, `{{zahlungslink_block}}`, `{{status_url}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{versand_dienstleister}}`, `{{tracking_info}}`, `{{kommentar}}`, `{{ablehnungsgrund}}`, `{{zahlungsnotiz}}`
+**Platzhalter:** `{{kunde_anrede}}`, `{{anfrage_id}}`, `{{kunde_name}}`, `{{kunde_firma}}`, `{{menge}}`, `{{event_datum}}`, `{{lieferort}}`, `{{angebot_netto}}`, `{{angebot_brutto}}`, `{{zahlungslink}}`, `{{zahlungslink_block}}`, `{{status_url}}`, `{{angebot_url}}`, `{{tracking_nr}}`, `{{versand_dienstleister}}`, `{{tracking_info}}`, `{{ablehnungsgrund}}`, `{{zahlungsnotiz}}`
+
+Kundenkommentare bei Fulfillment-Schritten brauchen **keinen** Platzhalter mehr – sie werden beim Versand automatisch eingefügt (`appendCustomerCommentToEmail` in `lib/konfigurator/email-template-render.ts`).
 
 ### Fulfillment-Fälligkeit (`lib/konfigurator/fulfillment-timing.ts`)
 
@@ -419,7 +428,7 @@ Test: `npx tsx scripts/test-fulfillment-timing.ts`
 | `quote-approval-actions` | Annehmen/Ablehnen, Stripe-Toggle, Mail-Vorschau |
 | `quote-payment-actions` | „Zahlung eingegangen“ (Überweisung) |
 | `quote-offer-pdf-upload` | sevDesk-Angebot erstellen / PDF hochladen |
-| `quote-fulfillment-workflow` | Stepper, Kommentare, Tracking, Historie |
+| `quote-fulfillment-workflow` | Stepper, Kundenkommentar, interne Notiz, Tracking, Historie |
 | `quote-return-section` | Rückgabe bei `zurueckgepackt` |
 
 Details: `MIGRATION.md` Abschnitt 5 · sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
