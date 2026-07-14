@@ -1,6 +1,6 @@
 # TODO – Sicherheit, Betrieb & Restarbeiten
 
-Stand: Juli 2026 (Fulfillment-Fälligkeit, Versand-Dienstleister, PLZ-Split)
+Stand: 14. Juli 2026 (Operations-Refactoring, Migrationen 14–16, Smoke-Test, AGB-Review)
 
 ## Kritisch (vor Go-Live)
 
@@ -27,7 +27,10 @@ Stand: Juli 2026 (Fulfillment-Fälligkeit, Versand-Dienstleister, PLZ-Split)
   - [x] `SEVDESK_API_TOKEN`, `SEVDESK_CONTACT_PERSON_ID`, `SEVDESK_DEFAULT_PART_ID`
   - [x] `DATABASE_URL` (+ Neon/Postgres-Varianten via Vercel Integration)
 - [x] **DB-Migrationen 01–13** auf Production: `pnpm db:migrate` (inkl. `13-email-templates-v2.sql`)
-- [ ] **DB-Migration 14** auf Production: `14-versand-dienstleister.sql` (`versand_dienstleister` in Fulfillment)
+- [x] **DB-Migrationen 14–16** auf Production (verifiziert 14.07.2026 – Subagent [DB-Migration](002fc1ed-495c-46ad-9026-69e116ae7fc2))
+  - [x] `14-versand-dienstleister.sql` – Spalte `versand_dienstleister` auf `quote_requests` + `quote_fulfillment_events`
+  - [x] `15-email-templates-du.sql` – E-Mail-Vorlagen Du-Ansprache (überschreibt Admin-Texte aus Migration 13!)
+  - [x] `16-users-auth.sql` – Tabelle `users` für Multi-User-Login (1 Admin-User angelegt)
 - [ ] **Resend:** Domain `braceled-led-armband.com` verifizieren (SPF/DKIM), DOI-Testmail senden
 - [ ] **Telegram-Webhook registrieren/aktualisieren:** `pnpm telegram:webhook`
 - [ ] **Redeploy** auf Vercel (Env-Änderungen erst nach Deploy aktiv)
@@ -41,7 +44,8 @@ Stand: Juli 2026 (Fulfillment-Fälligkeit, Versand-Dienstleister, PLZ-Split)
 - [x] E-Mail-Domains vereinheitlicht (`lib/contact-emails.ts`)
 - [x] Testimonials bereinigt (Anwendungsbeispiele, keine Fake-Sterne)
 - [x] Testmode-Button nur in Development sichtbar
-- [ ] **AGB juristisch prüfen lassen** (Standardvorlage, kein Ersatz für Anwalt)
+- [ ] **AGB juristisch prüfen lassen** (Entwurf, kein Ersatz für Anwalt) – siehe Abschnitt „AGB-Review“ unten
+- [x] **AGB-Inhalt** an Geschäftsmodell anpassen – Subagent Juli 2026: `app/agb/page.tsx` (17 Abschnitte) + `docs/agb-review.md` (Gap-Analyse, 15-Punkte-Checkliste)
 - [ ] **AV-Verträge** mit Vercel, Resend, Neon, Upstash dokumentiert/finalisiert
 - [ ] Cookie-Hinweis bei künftigem Analytics-Tracking (derzeit kein Tracking aktiv)
 
@@ -65,6 +69,33 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 
 ## Betrieb / Verifikation
 
+### Smoke-Test (automatisiert + manuell)
+
+**Automatisiert** (lokal, vor jedem Deploy):
+
+```bash
+cd inventory-report-popup
+pnpm build
+pnpm test:preis-engine
+npx tsx scripts/test-fulfillment-timing.ts
+npx tsx scripts/test-lieferzeit.ts
+# Dev-Server stoppen, dann:
+pnpm start &
+sleep 3
+for route in / /login /konfigurator /impressum /datenschutz /agb \
+  /warenverwaltung /warenverwaltung/buchungen /warenverwaltung/auftraege /kalender; do
+  code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000$route")
+  echo "$route → $code"
+done
+```
+
+Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` oder `307` (Auth-Redirect bei `/warenverwaltung*`).
+
+- [x] Smoke-Test lokal (Build + Unit-Tests + Routen) – Subagent [Smoke-Test](94596ae0-7eb4-4c63-9832-53f1c0776fcd), 14.07.2026 grün
+- [x] Smoke-Test nach Operations-Refactoring (neue Tabs Aufträge/Buchungen) – `/warenverwaltung/*` → 307
+
+**Manuell** (E2E mit Login/Stripe/Telegram):
+
 - [ ] Login testen: `/login` → `/warenverwaltung`
 - [ ] Konfigurator: vollständige Firmenadresse (Straße, PLZ, Ort) + PLZ-Hinweis als Status-Zugang
 - [ ] Kunden-Statusseite `/angebot/[token]`: PLZ-Gate, Fulfillment-Timeline, Zahlungslink
@@ -79,6 +110,62 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 - [ ] Stripe-Webhook in Production testen
 - [ ] sevDesk „In sevDesk erstellen“ testen
 - [ ] DB-Indizes verifizieren: `pnpm db:indexes`
+
+### DB-Migration Production
+
+`pnpm db:migrate` führt **alle** Skripte 01–16 idempotent aus (`scripts/run-migrations.mjs`).
+
+**Vor dem Lauf:**
+
+1. Backup/Snapshot in Neon erstellen (Console → Branches oder Point-in-Time)
+2. Prüfen welche Migrationen schon gelaufen sind (Spalten/Tabellen existieren?)
+3. **Migration 15** überschreibt `email_templates` – ggf. Admin-Anpassungen vorher exportieren/notieren
+4. **Migration 16** legt `users`-Tabelle an – nur aktivieren wenn Multi-User-Login gewünscht
+
+**Production ausführen** (Credentials aus `.env.production.local`, nicht committen):
+
+```bash
+cd inventory-report-popup
+set -a && source .env.production.local && set +a
+pnpm db:migrate
+pnpm db:indexes
+```
+
+**Nach dem Lauf verifizieren:**
+
+```bash
+# Spalte versand_dienstleister vorhanden?
+psql "$DATABASE_URL" -c "\d quote_requests" | grep versand_dienstleister
+# users-Tabelle (falls Migration 16)
+psql "$DATABASE_URL" -c "\d users"
+```
+
+- [x] Backup Neon vor Migration (bereits migriert vor erneutem Lauf)
+- [x] Migration 14–16 auf Production – idempotent bestätigt
+- [x] `pnpm db:indexes` auf Production
+
+### AGB-Review
+
+Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `docs/agb-review.md` · Referenz: `app/impressum/page.tsx`, `app/datenschutz/page.tsx`
+
+**Subagent-Ergebnis (Juli 2026):** Gap-Analyse, 15-Punkte-Anwalts-Checkliste und Risiko-Matrix in `docs/agb-review.md`. AGB-Entwurf erweitert um Miete/Kauf, Verfügbarkeit/Hold, Lieferpakete, Fulfillment, Rückgabe, Schäden/Verspätung/Batterie, Stripe, Eigentumsvorbehalt, Gewährleistung B2B, Widerruf/Storno, Streitbeilegung. Disclaimer-Banner: kein Ersatz für anwaltliche Prüfung.
+
+**Offene Punkte für Anwalt** (Details in `docs/agb-review.md`):
+
+- Konkrete Verzugspauschalen und Ersatzwerte bei Schaden/Verlust
+- Zulässigkeit 12-Monats-Verjährung und § 377 HGB Rügepflicht
+- Haftungsobergrenze und Event-Ausfall / technisches Versagen
+- Storno kurz vor Event (Anzahlung, Produktionskosten)
+- Batterietausch – Kostenverteilung und Fristen
+- Gerichtsstand / Rechtswahl bei Kunden außerhalb Deutschlands
+- Aufrechnungs-/Zurückbehaltungsverbot – Formulierung
+- Bedruckung – Freistellung Marken-/Urheberrecht
+- Abgleich mit Stripe-AGB und AV-Verträgen (Vercel, Resend, Neon)
+- Techniker-Leistungen – Werk- vs. Dienstvertrag
+
+- [x] AGB-Entwurf + Checkliste – `docs/agb-review.md` (Gap-Analyse, 15 Anwalts-Punkte, Risiko-Matrix)
+- [x] `app/agb/page.tsx` auf 17-Abschnitte-Entwurf umgesetzt
+- [ ] AGB durch Fachanwalt prüfen lassen
 
 ## Geplant / später
 
@@ -107,7 +194,7 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 - [x] Admin-Anfragen: Prioritäts-Karte „Nächste Aufträge in Bearbeitung“ (3 dringendste `paid`-Aufträge, Fälligkeit + nächster Fulfillment-Schritt) – `lib/konfigurator/fulfillment-timing.ts`, `components/admin/upcoming-fulfillment-orders.tsx`
 - [x] Versand-Dienstleister (UPS/DHL/TNT) im Fulfillment-Workflow – Migration 14
 - [x] PLZ-Hilfsfunktionen in `lib/konfigurator/plz.ts` ausgelagert (Server/Client-Split, Fix Build 500 auf Konfigurator/Legal-Pages)
-- [x] Smoke-Test lokal: `pnpm build` grün, Unit-Tests (Fulfillment-Timing, Lieferzeit, Preis-Engine), Routen `/`, `/login`, `/konfigurator`, `/impressum`, `/datenschutz`, `/agb` → 200
+- [x] Smoke-Test lokal: `pnpm build` grün, Unit-Tests, alle Routen inkl. `/warenverwaltung/auftraege`, `/buchungen` (14.07.2026)
 
 ## Nützliche Befehle
 
@@ -115,7 +202,7 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 cd inventory-report-popup
 pnpm dev                  # lokal http://localhost:3000
 pnpm build                # Production-Build (Dev-Server vorher stoppen – .next-Konflikt)
-pnpm db:migrate           # alle Migrationen 01–14
+pnpm db:migrate           # alle Migrationen 01–16
 pnpm db:indexes           # Performance-Indizes
 npx tsx scripts/test-fulfillment-timing.ts  # Fälligkeitslogik
 npx tsx scripts/test-lieferzeit.ts          # Lieferpaket/Legacy-Lieferzeit
