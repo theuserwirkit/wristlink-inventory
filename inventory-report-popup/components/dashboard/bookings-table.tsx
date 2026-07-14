@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import type { BookingWithRelations } from "@/lib/types"
 import { formatDateTime } from "@/lib/utils/date"
 import { getBookingTypeLabel, getBookingTypeColor } from "@/lib/utils/booking"
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileText, ChevronDown } from "lucide-react"
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileText, ChevronDown, Package, ClipboardList } from "lucide-react"
 import Link from "next/link"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { updateBookingStatus } from "@/lib/actions/bookings"
@@ -26,6 +26,22 @@ interface BookingsTableProps {
 type SortField = "date" | "type" | "group" | "batch" | "customer" | "amount" | "notes"
 type SortDirection = "asc" | "desc"
 type FilterMode = "all" | "aktuell_vermietet"
+type TypeFilter = "all" | "miete" | "verkauf" | "zugang" | "rueckgabe"
+
+const TYPE_FILTER_MAP: Record<Exclude<TypeFilter, "all">, BookingWithRelations["booking_type"]> = {
+  miete: "MIETE_AUSGABE",
+  verkauf: "VERKAUF",
+  zugang: "ZUGANG",
+  rueckgabe: "MIETE_RUECKGABE",
+}
+
+const TYPE_FILTER_LABELS: Record<TypeFilter, string> = {
+  all: "Alle",
+  miete: "Miete",
+  verkauf: "Verkauf",
+  zugang: "Zugang",
+  rueckgabe: "Rückgabe",
+}
 
 export function BookingsTable(props: BookingsTableProps) {
   return (
@@ -63,6 +79,7 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
   const [sortField, setSortField] = useState<SortField>("date")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [filterMode, setFilterMode] = useState<FilterMode>("all")
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [isPending, startTransition] = useTransition()
 
   const STATUS_META: Record<BookingStatus, { label: string; className: string }> = {
@@ -110,13 +127,25 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
       )
     }
 
-    // Filter by search term (customer and notes)
+    // Filter by booking type
+    if (typeFilter !== "all") {
+      const targetType = TYPE_FILTER_MAP[typeFilter]
+      filtered = filtered.filter((row: any) => row.booking_type === targetType)
+    }
+
+    // Filter by search term (customer, notes, quote_id)
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
+      const quoteTerm = term.replace(/^#/, "")
       filtered = filtered.filter((row: any) => {
         const customerName = row.customer?.name?.toLowerCase() || ""
         const notes = row.bemerkung?.toLowerCase() || ""
-        return customerName.includes(term) || notes.includes(term)
+        const quoteId = row.quote_id != null ? String(row.quote_id) : ""
+        return (
+          customerName.includes(term) ||
+          notes.includes(term) ||
+          quoteId.includes(quoteTerm)
+        )
       })
     }
 
@@ -135,8 +164,8 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
           bValue = getBookingTypeLabel(b.booking_type)
           break
         case "group":
-          aValue = a.item?.group?.name || ""
-          bValue = b.item?.group?.name || ""
+          aValue = a.item?.group?.name || a.item?.base?.bezeichnung || ""
+          bValue = b.item?.group?.name || b.item?.base?.bezeichnung || ""
           break
         case "batch":
           aValue = a.item?.batch?.code || ""
@@ -164,7 +193,7 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
     })
 
     return filtered
-  }, [flattenedBookings, searchTerm, sortField, sortDirection, filterMode, returnedRentalIds])
+  }, [flattenedBookings, searchTerm, sortField, sortDirection, filterMode, typeFilter, returnedRentalIds])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -209,7 +238,7 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={filterMode === "aktuell_vermietet" ? "default" : "outline"}
               size="sm"
@@ -227,10 +256,20 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                 </span>
               )}
             </Button>
+            {(Object.keys(TYPE_FILTER_LABELS) as TypeFilter[]).filter((t) => t !== "all").map((t) => (
+              <Button
+                key={t}
+                variant={typeFilter === t ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTypeFilter(typeFilter === t ? "all" : t)}
+              >
+                {TYPE_FILTER_LABELS[t]}
+              </Button>
+            ))}
             <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Suche nach Kunde oder Bemerkung..."
+                placeholder="Suche Kunde, Auftrag (#123) oder Bemerkung..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 border-2 hover:border-wristlink-cyan/50 transition-colors"
@@ -273,7 +312,7 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                     onClick={() => handleSort("group")}
                     className="h-8 px-2 hover:bg-wristlink-cyan/10"
                   >
-                    Leuchtgruppe
+                    Position
                     <SortIcon field="group" />
                   </Button>
                 </TableHead>
@@ -288,6 +327,7 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                     <SortIcon field="batch" />
                   </Button>
                 </TableHead>
+                <TableHead>SN</TableHead>
                 <TableHead>
                   <Button
                     variant="ghost"
@@ -313,13 +353,13 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                 <TableHead>Bemerkung</TableHead>
                 <TableHead>Auftrag</TableHead>
                 <TableHead className="w-[140px]">Status</TableHead>
-                <TableHead className="w-[60px]">PDF</TableHead>
+                <TableHead className="w-[180px]">Aktionen</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredAndSortedBookings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                     Keine Ergebnisse gefunden
                   </TableCell>
                 </TableRow>
@@ -331,6 +371,9 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                   const isActiveRental = isRental && !returnedRentalIds.has(booking.id)
                   const isHighlighted = highlightId != null && booking.id === highlightId
                   const handleClick = isRental && onReturnClick ? () => onReturnClick(booking) : undefined
+                  const showWarehouseDocs =
+                    booking.quote_id &&
+                    (booking.booking_type === "MIETE_AUSGABE" || booking.booking_type === "VERKAUF")
 
                   return (
                     <TableRow
@@ -355,15 +398,21 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                         <div className="flex flex-col gap-1">
                           {item?.group ? (
                             <>
-                              <span className="font-medium">{item.group.name}</span>
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-xs px-1.5 py-0 shrink-0">Band</Badge>
+                                <span className="font-medium">{item.group.name}</span>
+                              </div>
                               {item?.batch?.funktionsumfang && (
-                                <span className="text-xs text-muted-foreground">{item.batch.funktionsumfang}</span>
+                                <span className="text-xs text-muted-foreground pl-0">{item.batch.funktionsumfang}</span>
                               )}
                             </>
                           ) : item?.base ? (
                             <>
-                              <span className="font-medium">{item.base.bezeichnung}</span>
-                              <span className="text-xs text-muted-foreground">Basis - {item.base.hersteller}</span>
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-xs px-1.5 py-0 shrink-0">Basis</Badge>
+                                <span className="font-medium">{item.base.bezeichnung}</span>
+                              </div>
+                              <span className="text-xs text-muted-foreground">{item.base.hersteller}</span>
                             </>
                           ) : (
                             <span className="font-medium text-muted-foreground">-</span>
@@ -372,6 +421,13 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                       </TableCell>
                       <TableCell>
                         {item?.batch?.code ? <span className="font-mono text-xs">{item.batch.code}</span> : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {item?.base?.seriennummer ? (
+                          <span className="font-mono text-xs">{item.base.seriennummer}</span>
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                       <TableCell>{booking.customer?.name || "-"}</TableCell>
                       <TableCell className="text-right">
@@ -418,19 +474,53 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                           <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        {isRental && (
-                          <Link
-                            href={`/protocol/${booking.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            title="Lieferschein öffnen"
-                            className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-wristlink-cyan/10 text-muted-foreground hover:text-wristlink-cyan transition-colors"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </Link>
-                        )}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          {booking.quote_id && (
+                            <Link
+                              href={`/warenverwaltung/auftraege/${booking.quote_id}`}
+                              title="Auftrag öffnen"
+                              className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-wristlink-cyan/10 text-muted-foreground hover:text-wristlink-cyan transition-colors"
+                            >
+                              <Package className="h-4 w-4" />
+                            </Link>
+                          )}
+                          {showWarehouseDocs && (
+                            <Link
+                              href={`/warenverwaltung/auftraege/${booking.quote_id}/druck/checkliste`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Lagerunterlagen"
+                              className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-wristlink-cyan/10 text-muted-foreground hover:text-wristlink-cyan transition-colors"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Link>
+                          )}
+                          {isRental && (
+                            <Link
+                              href={`/protocol/${booking.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Lieferschein"
+                              className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-wristlink-cyan/10 text-muted-foreground hover:text-wristlink-cyan transition-colors"
+                            >
+                              <ClipboardList className="h-4 w-4" />
+                            </Link>
+                          )}
+                          {isActiveRental && onReturnClick && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onReturnClick(booking)
+                              }}
+                            >
+                              Rückgabe
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

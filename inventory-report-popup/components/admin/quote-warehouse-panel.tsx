@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -87,6 +87,7 @@ export interface QuoteWarehousePanelProps {
   modus: string
   requiredMenge: number
   hasDruck?: boolean
+  canPrint?: boolean
   fulfillmentStatus: FulfillmentStatus | null
   bookingId?: number | null
   eventVon?: string | null
@@ -117,6 +118,57 @@ function shouldShowPanel(props: QuoteWarehousePanelProps): boolean {
   if (modus === "kauf" && quoteStatus === "paid" && !primaryBooking) return true
 
   return false
+}
+
+function getPoolVerfuegbar(bandBatchPools: BandBatchPool[], groupId: number, batchId: number) {
+  const pool = bandBatchPools.find((p) => p.groupId === groupId && p.batchId === batchId)
+  return pool?.verfuegbar ?? 0
+}
+
+function AvailabilityOverviewDetails({ bandBatchPools }: { bandBatchPools: BandBatchPool[] }) {
+  return (
+    <details className="group rounded-md border">
+      <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+        Bestandsübersicht je Charge anzeigen
+      </summary>
+      <div className="border-t px-3 pb-3 pt-2">
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Leuchtgruppe</TableHead>
+                <TableHead>Charge</TableHead>
+                <TableHead className="text-right">Verfügbar</TableHead>
+                <TableHead className="text-right">In Vermietung</TableHead>
+                <TableHead className="text-right">Gesamt</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bandBatchPools.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-sm text-muted-foreground">
+                    Keine Chargen mit Bestand gefunden.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                bandBatchPools.map((pool) => (
+                  <TableRow key={`${pool.groupId}-${pool.batchId}`}>
+                    <TableCell className="font-medium">{pool.groupName}</TableCell>
+                    <TableCell className="font-mono text-xs">{pool.batchCode}</TableCell>
+                    <TableCell className="text-right font-mono">{pool.verfuegbar}</TableCell>
+                    <TableCell className="text-right font-mono text-muted-foreground">
+                      {pool.inVermietung}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">{pool.gesamtsumme}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </details>
+  )
 }
 
 function BandAllocationPlanner({
@@ -218,49 +270,11 @@ function BandAllocationPlanner({
 
   const poolLabel = (groupId: number, batchId: number) => {
     const pool = bandBatchPools.find((p) => p.groupId === groupId && p.batchId === batchId)
-    return pool ? `${pool.groupName} · ${pool.batchCode} (frei ${pool.verfuegbar})` : "–"
+    return pool ? `${pool.groupName} · ${pool.batchCode}` : "–"
   }
 
   return (
     <div className="space-y-4 border-t pt-4">
-      <div>
-        <h4 className="text-sm font-semibold mb-2">Verfügbarkeit je Charge</h4>
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Leuchtgruppe</TableHead>
-                <TableHead>Charge</TableHead>
-                <TableHead className="text-right">Verfügbar</TableHead>
-                <TableHead className="text-right">In Vermietung</TableHead>
-                <TableHead className="text-right">Gesamt</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bandBatchPools.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-sm text-muted-foreground">
-                    Keine Chargen mit Bestand gefunden.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                bandBatchPools.map((pool) => (
-                  <TableRow key={`${pool.groupId}-${pool.batchId}`}>
-                    <TableCell className="font-medium">{pool.groupName}</TableCell>
-                    <TableCell className="font-mono text-xs">{pool.batchCode}</TableCell>
-                    <TableCell className="text-right font-mono">{pool.verfuegbar}</TableCell>
-                    <TableCell className="text-right font-mono text-muted-foreground">
-                      {pool.inVermietung}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">{pool.gesamtsumme}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
       {isEditable && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -280,57 +294,107 @@ function BandAllocationPlanner({
             <span className="font-mono">{requiredMenge}</span> ergeben.
           </p>
 
-          <div className="space-y-2">
-            {rows.map((row, index) => (
-              <div key={`alloc-${index}`} className="flex flex-wrap items-center gap-2">
-                <Select
-                  value={`${row.groupId}:${row.batchId}`}
-                  onValueChange={(value) => {
-                    const [g, b] = value.split(":").map(Number)
-                    const pool = bandBatchPools.find((p) => p.groupId === g && p.batchId === b)
-                    updateRow(index, {
-                      groupId: g,
-                      batchId: b,
-                      groupName: pool?.groupName || "",
-                      batchCode: pool?.batchCode || "",
-                    })
-                  }}
-                  disabled={isPending}
-                >
-                  <SelectTrigger className="h-8 w-[280px]">
-                    <SelectValue placeholder="Gruppe · Charge" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {bandBatchPools.map((pool) => (
-                      <SelectItem
-                        key={`${pool.groupId}-${pool.batchId}`}
-                        value={`${pool.groupId}:${pool.batchId}`}
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Gruppe · Charge</TableHead>
+                  <TableHead className="text-right w-[100px]">Verfügbar</TableHead>
+                  <TableHead className="text-right w-[100px]">Anzahl</TableHead>
+                  <TableHead className="w-[80px]" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-sm text-muted-foreground">
+                      Keine Zuweisungszeilen — Vorschlag übernehmen oder Zeile hinzufügen.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rows.map((row, index) => {
+                    const verfuegbar = getPoolVerfuegbar(bandBatchPools, row.groupId, row.batchId)
+                    const anzahl = Number(row.anzahl) || 0
+                    const overAllocated = anzahl > verfuegbar
+
+                    return (
+                      <TableRow
+                        key={`alloc-${index}`}
+                        className={
+                          overAllocated
+                            ? "bg-amber-50/80 dark:bg-amber-950/20"
+                            : undefined
+                        }
                       >
-                        {poolLabel(pool.groupId, pool.batchId)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  min={1}
-                  value={row.anzahl}
-                  onChange={(e) => updateRow(index, { anzahl: Number(e.target.value) })}
-                  disabled={isPending}
-                  className="h-8 w-24"
-                />
-                {rows.length > 1 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => removeRow(index)}
-                    disabled={isPending}
-                  >
-                    Entfernen
-                  </Button>
+                        <TableCell>
+                          <Select
+                            value={`${row.groupId}:${row.batchId}`}
+                            onValueChange={(value) => {
+                              const [g, b] = value.split(":").map(Number)
+                              const pool = bandBatchPools.find(
+                                (p) => p.groupId === g && p.batchId === b,
+                              )
+                              updateRow(index, {
+                                groupId: g,
+                                batchId: b,
+                                groupName: pool?.groupName || "",
+                                batchCode: pool?.batchCode || "",
+                              })
+                            }}
+                            disabled={isPending}
+                          >
+                            <SelectTrigger className="h-8 w-full min-w-[200px]">
+                              <SelectValue placeholder="Gruppe · Charge" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {bandBatchPools.map((pool) => (
+                                <SelectItem
+                                  key={`${pool.groupId}-${pool.batchId}`}
+                                  value={`${pool.groupId}:${pool.batchId}`}
+                                >
+                                  {poolLabel(pool.groupId, pool.batchId)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-mono ${overAllocated ? "text-amber-700 dark:text-amber-400" : ""}`}
+                        >
+                          {verfuegbar}
+                          {overAllocated && (
+                            <span className="block text-[10px] font-normal">Zu wenig Bestand</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={row.anzahl}
+                            onChange={(e) => updateRow(index, { anzahl: Number(e.target.value) })}
+                            disabled={isPending}
+                            className="h-8 w-20 ml-auto"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {rows.length > 1 && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => removeRow(index)}
+                              disabled={isPending}
+                              className="h-8 px-2 text-xs"
+                            >
+                              Entfernen
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 )}
-              </div>
-            ))}
+              </TableBody>
+            </Table>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -345,6 +409,8 @@ function BandAllocationPlanner({
           </div>
         </div>
       )}
+
+      <AvailabilityOverviewDetails bandBatchPools={bandBatchPools} />
     </div>
   )
 }
@@ -460,6 +526,44 @@ function PrimaryBookingSection({
   )
 }
 
+function getAllocationReadiness(
+  primaryBooking: BookingWithRelations | null,
+  stationInfo: QuoteStationInfo | null,
+  requiredMenge: number,
+) {
+  const bandItems = primaryBooking?.items.filter((item) => item.group_id != null) ?? []
+  const bandAllocationComplete =
+    bandItems.length > 0 &&
+    bandItems.every((item) => item.group_id != null && item.batch_id != null) &&
+    bandItems.reduce((sum, item) => sum + (item.anzahl || 0), 0) === requiredMenge
+  const baseItems = primaryBooking?.items.filter((item) => item.base_id) ?? []
+  const baseAllocationComplete =
+    baseItems.length > 0 &&
+    baseItems.some((item) => (item.anzahl_basen ?? item.anzahl ?? 0) >= 1)
+  const needsBase = stationInfo != null
+  const allocationComplete = bandAllocationComplete && (!needsBase || baseAllocationComplete)
+
+  return {
+    bandAllocationComplete,
+    baseAllocationComplete,
+    needsBase,
+    allocationComplete,
+  }
+}
+
+const PACKED_OR_LATER_STATUSES: FulfillmentStatus[] = [
+  "verpackt",
+  "bedruckt",
+  "versand_beauftragt",
+  "versandt",
+  "ruecksendung_angekommen",
+  "zurueckgepackt",
+]
+
+function isPackedOrLater(fulfillmentStatus: FulfillmentStatus | null): boolean {
+  return fulfillmentStatus != null && PACKED_OR_LATER_STATUSES.includes(fulfillmentStatus)
+}
+
 function FulfillmentReadinessHint({
   quoteStatus,
   fulfillmentStatus,
@@ -483,16 +587,11 @@ function FulfillmentReadinessHint({
   if (!fulfillmentActive) return null
 
   const hasBooking = primaryBooking != null
-  const bandItems = primaryBooking?.items.filter((item) => item.group_id != null) ?? []
-  const bandAllocationComplete =
-    bandItems.length > 0 &&
-    bandItems.every((item) => item.group_id != null && item.batch_id != null) &&
-    bandItems.reduce((sum, item) => sum + (item.anzahl || 0), 0) === requiredMenge
-  const baseItems = primaryBooking?.items.filter((item) => item.base_id) ?? []
-  const baseAllocationComplete =
-    baseItems.length > 0 &&
-    baseItems.some((item) => (item.anzahl_basen ?? item.anzahl ?? 0) >= 1)
-  const needsBase = stationInfo != null
+  const { bandAllocationComplete, baseAllocationComplete, needsBase } = getAllocationReadiness(
+    primaryBooking,
+    stationInfo,
+    requiredMenge,
+  )
 
   function CheckItem({ ok, label }: { ok: boolean; label: string }) {
     return (
@@ -507,6 +606,94 @@ function FulfillmentReadinessHint({
       <CheckItem ok={hasBooking} label="Buchung verknüpft" />
       <CheckItem ok={bandAllocationComplete} label="Leuchtgruppe + Charge" />
       {needsBase && <CheckItem ok={baseAllocationComplete} label="Basis" />}
+    </div>
+  )
+}
+
+function PackingCompletionSection({
+  quoteId,
+  canPrint = false,
+  fulfillmentStatus,
+  primaryBooking,
+  stationInfo,
+  requiredMenge,
+}: {
+  quoteId: number
+  canPrint?: boolean
+  fulfillmentStatus: FulfillmentStatus | null
+  primaryBooking: BookingWithRelations
+  stationInfo: QuoteStationInfo | null
+  requiredMenge: number
+}) {
+  const { allocationComplete } = getAllocationReadiness(
+    primaryBooking,
+    stationInfo,
+    requiredMenge,
+  )
+  const packed = isPackedOrLater(fulfillmentStatus)
+  const printHref = `/warenverwaltung/auftraege/${quoteId}/druck/checkliste`
+
+  function ChecklistItem({
+    ok,
+    label,
+    children,
+  }: {
+    ok?: boolean
+    label: string
+    children?: ReactNode
+  }) {
+    return (
+      <li className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm">
+        {ok != null && (
+          <span
+            className={
+              ok ? "text-muted-foreground shrink-0" : "text-amber-700 dark:text-amber-400 shrink-0"
+            }
+          >
+            {ok ? "✓" : "✗"}
+          </span>
+        )}
+        <div className="min-w-0 space-y-1">
+          <span className={ok === false ? "text-amber-700 dark:text-amber-400" : ""}>{label}</span>
+          {children}
+        </div>
+      </li>
+    )
+  }
+
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <h4 className="text-sm font-semibold">Packen & Abschluss</h4>
+      <ol className="space-y-3">
+        <ChecklistItem ok={allocationComplete} label="Zuweisung vollständig (Bänder + Basis falls nötig)" />
+
+        <ChecklistItem label="Lagerunterlagen drucken">
+          {canPrint ? (
+            <Button asChild variant="outline" size="sm" className="h-8 text-xs">
+              <Link href={printHref}>Pack-Checkliste öffnen</Link>
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" className="h-8 text-xs" disabled>
+              Pack-Checkliste öffnen
+            </Button>
+          )}
+        </ChecklistItem>
+
+        <ChecklistItem
+          ok={packed ? true : allocationComplete ? undefined : false}
+          label="Als zusammengepackt markieren"
+        >
+          {packed ? null : allocationComplete ? (
+            <Button asChild variant="outline" size="sm" className="h-8 text-xs">
+              <Link href="#fulfillment-workflow">Zum Fulfillment-Schritt →</Link>
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Zuerst Leuchtgruppe, Charge und ggf. Basis zuweisen.
+            </p>
+          )}
+        </ChecklistItem>
+      </ol>
     </div>
   )
 }
@@ -937,6 +1124,7 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
     modus,
     requiredMenge,
     hasDruck = false,
+    canPrint = false,
     fulfillmentStatus,
     warehouseData,
     groups,
@@ -990,6 +1178,17 @@ export function QuoteWarehousePanel(props: QuoteWarehousePanelProps) {
           primaryBooking={primaryBooking}
           availableBases={availableBases}
         />
+
+        {quoteStatus === "paid" && primaryBooking && (
+          <PackingCompletionSection
+            quoteId={quoteId}
+            canPrint={canPrint}
+            fulfillmentStatus={fulfillmentStatus}
+            primaryBooking={primaryBooking}
+            stationInfo={stationInfo}
+            requiredMenge={requiredMenge}
+          />
+        )}
 
         {modus === "miete" && (
           <ReturnSection

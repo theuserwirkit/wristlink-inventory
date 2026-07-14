@@ -156,6 +156,7 @@ export default async function AuftragDetailPage({
           modus={config.modus as "miete" | "kauf"}
           requiredMenge={config.menge}
           hasDruck={Boolean(config.druck)}
+          canPrint={canPrintWarehouseLabels}
           fulfillmentStatus={quote.fulfillment_status}
           warehouseData={{
             primaryBooking: warehouseData.primaryBooking,

@@ -597,7 +597,7 @@ export function QuoteFulfillmentWorkflow({
 
   if (embedded) {
     return (
-      <div className="space-y-6">
+      <div id="fulfillment-workflow" className="space-y-6">
         {!hasDruck && (
           <p className="text-xs text-muted-foreground">
             Ohne Druck: Schritt „Bedruckt" entfällt.
@@ -610,7 +610,7 @@ export function QuoteFulfillmentWorkflow({
   }
 
   return (
-    <Card>
+    <Card id="fulfillment-workflow">
       <CardHeader className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <CardTitle>Auftragsabwicklung</CardTitle>

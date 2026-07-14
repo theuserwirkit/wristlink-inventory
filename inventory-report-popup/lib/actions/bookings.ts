@@ -1010,37 +1010,73 @@ export async function getCalendarData() {
     ORDER BY bs.bezeichnung ASC
   `
 
-  const rentalEvents = rentals.map((rental: any) => {
-    const items = itemsByRental.get(rental.id) || []
-    const returnInfo = returnsByRental.get(rental.id)
-    const isReturned = !!returnInfo
+  const orphanQuotes = await sql`
+    SELECT qr.id, qr.status, qr.booking_id, qr.config_json,
+      l.email as lead_email,
+      COALESCE(l.firma, l.name, l.email) as customer_name
+    FROM quote_requests qr
+    JOIN leads l ON l.id = qr.lead_id
+    WHERE qr.config_json->>'modus' = 'miete'
+      AND qr.config_json->>'von' IS NOT NULL
+      AND qr.status IN ('submitted', 'payment_pending', 'approved', 'paid')
+      AND qr.booking_id IS NULL
+  `
 
-    const bands = items.filter((i: any) => i.group_id).map((i: any) => ({
-      groupId: i.group_id,
-      groupName: i.group_name,
-      anzahl: i.anzahl || 0,
-    }))
+  const rentalEvents = [
+    ...rentals.map((rental: any) => {
+      const items = itemsByRental.get(rental.id) || []
+      const returnInfo = returnsByRental.get(rental.id)
+      const isReturned = !!returnInfo
 
-    const bases = items.filter((i: any) => i.base_id).map((i: any) => ({
-      baseId: i.base_id,
-      baseBezeichnung: i.base_bezeichnung,
-      anzahl: i.anzahl_basen || 0,
-    }))
+      const bands = items.filter((i: any) => i.group_id).map((i: any) => ({
+        groupId: i.group_id,
+        groupName: i.group_name,
+        anzahl: i.anzahl || 0,
+      }))
 
-    return {
-      id: rental.id,
-      customerName: rental.customer_name || "Unbekannt",
-      bemerkung: rental.bemerkung,
-      status: rental.status || "BESTAETIGT",
-      datumAusgabe: rental.datum_ausgabe,
-      datumRueckgabePlan: rental.datum_rueckgabe_geplant,
-      datumRueckgabeIst: returnInfo?.returnedAt || null,
-      isReturned,
-      bands,
-      bases,
-      quoteId: rental.quote_id != null ? Number(rental.quote_id) : undefined,
-    }
-  })
+      const bases = items.filter((i: any) => i.base_id).map((i: any) => ({
+        baseId: i.base_id,
+        baseBezeichnung: i.base_bezeichnung,
+        anzahl: i.anzahl_basen || 0,
+      }))
+
+      return {
+        id: rental.id,
+        customerName: rental.customer_name || "Unbekannt",
+        bemerkung: rental.bemerkung,
+        status: rental.status || "BESTAETIGT",
+        datumAusgabe: rental.datum_ausgabe,
+        datumRueckgabePlan: rental.datum_rueckgabe_geplant,
+        datumRueckgabeIst: returnInfo?.returnedAt || null,
+        isReturned,
+        bands,
+        bases,
+        quoteId: rental.quote_id != null ? Number(rental.quote_id) : undefined,
+      }
+    }),
+    ...orphanQuotes.map((qr: any) => {
+      const config = typeof qr.config_json === "string" ? JSON.parse(qr.config_json) : qr.config_json
+      const quoteId = Number(qr.id)
+      return {
+        id: -quoteId,
+        customerName: qr.customer_name || "Unbekannt",
+        bemerkung: `Konfigurator #${quoteId}`,
+        status: qr.status === "paid" ? "BESTAETIGT" : "ANFRAGE",
+        datumAusgabe: config?.von ?? null,
+        datumRueckgabePlan: config?.bis || config?.von || null,
+        datumRueckgabeIst: null,
+        isReturned: false,
+        bands: [{
+          groupId: 0,
+          groupName: config?.produkt || "Unbekannt",
+          anzahl: Number(config?.menge) || 0,
+        }],
+        bases: [] as Array<{ baseId: number; baseBezeichnung: string; anzahl: number }>,
+        quoteId,
+        isQuoteOnly: true as const,
+      }
+    }),
+  ]
 
   const saleEvents = sales.map((sale: any) => {
     const items = itemsBySale.get(sale.id) || []

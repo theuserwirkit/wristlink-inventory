@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +23,7 @@ interface RentalEvent {
   bands: Array<{ groupId: number; groupName: string; anzahl: number }>
   bases: Array<{ baseId: number; baseBezeichnung: string; anzahl: number }>
   quoteId?: number
+  isQuoteOnly?: boolean
 }
 
 interface SaleEvent {
@@ -461,16 +463,23 @@ export function CalendarView({
                       <div key={ev.id} className={cn("p-3 rounded-lg border-l-4", borderColor, bgColor)}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-semibold text-sm">{ev.customerName}</span>
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[10px]",
-                              ev.isReturned ? "border-slate-300 text-slate-500" :
-                              isTentative ? "border-amber-300 text-amber-600 bg-amber-50" :
-                              "border-green-300 text-green-700 bg-green-50"
+                          <div className="flex items-center gap-1">
+                            {ev.isQuoteOnly && (
+                              <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-600 bg-amber-50">
+                                Konfigurator (ohne Buchung)
+                              </Badge>
                             )}
-                          >
-                            {statusLabel}
-                          </Badge>
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[10px]",
+                                ev.isReturned ? "border-slate-300 text-slate-500" :
+                                isTentative ? "border-amber-300 text-amber-600 bg-amber-50" :
+                                "border-green-300 text-green-700 bg-green-50"
+                              )}
+                            >
+                              {statusLabel}
+                            </Badge>
+                          </div>
                         </div>
                         {ev.bemerkung && <p className="text-xs text-muted-foreground mb-2">{ev.bemerkung}</p>}
                         <div className="text-xs text-muted-foreground space-y-0.5">
@@ -497,6 +506,14 @@ export function CalendarView({
                               </span>
                             ))}
                           </div>
+                        )}
+                        {ev.quoteId && (
+                          <Link
+                            href={`/warenverwaltung/auftraege/${ev.quoteId}`}
+                            className="mt-2 inline-block text-xs text-wristlink-cyan hover:underline"
+                          >
+                            Auftrag #{ev.quoteId} öffnen
+                          </Link>
                         )}
                       </div>
                       )
@@ -594,7 +611,7 @@ export function CalendarView({
                   </div>
                   <div className="text-sm">
                     <span className="text-muted-foreground">Anfragen / Angebote: </span>
-                    <span className="font-semibold text-amber-600">{rentalEvents.filter(e => !e.isReturned && (e.status === "ANFRAGE" || e.status === "ANGEBOT")).length}</span>
+                    <span className="font-semibold text-amber-600">{rentalEvents.filter(e => !e.isReturned && (e.status === "ANFRAGE" || e.status === "ANGEBOT" || e.isQuoteOnly)).length}</span>
                   </div>
                   <div className="text-sm">
                     <span className="text-muted-foreground">Abgeschlossen: </span>
