@@ -103,6 +103,119 @@ export function getLieferartLabel(lieferart: Lieferart): string {
   return LIEFERART_OPTIONS.find((o) => o.value === lieferart)?.label ?? lieferart
 }
 
+export const STATION_IMAGES = {
+  eco: "/images/konfigurator/stations/eco-handcontroller.webp",
+  pro: "/images/konfigurator/stations/pro-basis-station.png",
+  proBack: "/images/konfigurator/stations/pro-basis-station-back.png",
+} as const
+
+export const STATION_TECH_DOC_URL = "https://www.led-leuchtarmbaender.com/techdoku"
+
+export type StationDetail = {
+  title: string
+  subtitle: string
+  imageSrc: string
+  secondaryImage?: { src: string; label: string }
+  features: ReadonlyArray<{ title: string; description: string }>
+  limitations?: ReadonlyArray<string>
+  idealFor: string
+}
+
+export const STATION_DETAIL: Record<"eco" | "pro", StationDetail> = {
+  eco: {
+    title: "ECO Handcontroller (BQ-S)",
+    subtitle: "Kompakte Handfernbedienung für zentrale Steuerung aller Armbänder gleichzeitig.",
+    imageSrc: STATION_IMAGES.eco,
+    features: [
+      {
+        title: "Farbwahl",
+        description:
+          "Feste Farben per Tastendruck: Rot, Grün, Blau, Violett, Gelb, Cyan, Weiß und sanfte Farbüberblendungen (Crossfade).",
+      },
+      {
+        title: "Zwei-Farben-Modus",
+        description:
+          "Zwei Farbtasten gleichzeitig gedrückt halten – die Bänder wechseln automatisch zwischen beiden Farben.",
+      },
+      {
+        title: "Effekt-Modi",
+        description:
+          "Constant (Dauerlicht), Flash, Strobe, Pulse und Crossfade für unterschiedliche Show-Effekte.",
+      },
+      {
+        title: "Global Ein/Aus",
+        description: "Alle Armbänder zentral ein- oder ausschalten – ideal für klare Show-Momente.",
+      },
+      {
+        title: "Funkreichweite",
+        description: "433/434 MHz, ca. 200 m bei freier Sicht – alle Bänder reagieren synchron.",
+      },
+    ],
+    limitations: [
+      "Keine Gruppenprogrammierung – alle Bänder werden gleich angesteuert.",
+      "Kein DMX-Anschluss an Lichtkonsolen.",
+      "Keine App-Steuerung.",
+    ],
+    idealFor: "Mittlere Events, einfache Shows und Merch-Einsätze ohne separate Gästegruppen.",
+  },
+  pro: {
+    title: "PRO Basis-Station",
+    subtitle:
+      "Professionelle Steuereinheit mit DMX- und Bluetooth-Anbindung – das Herzstück für Live-Shows.",
+    imageSrc: STATION_IMAGES.pro,
+    secondaryImage: {
+      src: STATION_IMAGES.proBack,
+      label: "Anschlüsse (Rückseite)",
+    },
+    features: [
+      {
+        title: "DMX-Ansteuerung",
+        description:
+          "Wandelt DMX-Signale in Funk um. Pro Gruppe 4 Kanäle (On/Strobe, Rot, Grün, Blau). Steuerung über gängige Lichtkonsolen (GrandMA, Hog etc.).",
+      },
+      {
+        title: "Bis zu 20 Gruppen",
+        description:
+          "Gäste in bis zu 20 Gruppen einteilen – jede Gruppe mit eigenem Lichtprogramm (z. B. VIP, Tribüne A, Backstage).",
+      },
+      {
+        title: "App-Steuerung (Bluetooth)",
+        description:
+          "Alternative Steuerung über die „RF Fun“ App per Smartphone. Hinweis: App von Drittanbieter – für professionelle Shows empfehlen wir DMX.",
+      },
+      {
+        title: "Sleep-Modus & PowerOff per DMX",
+        description:
+          "Armbänder in den Ruhemodus schicken (bis zu 50 % längere Laufzeit) oder per DMX komplett abschalten.",
+      },
+      {
+        title: "Abstimmungs-Modus",
+        description:
+          "Teilnehmer wählen per Knopf am Armband zwischen Farben – ideal für Umfragen und interaktive Shows.",
+      },
+      {
+        title: "Lieferumfang",
+        description:
+          "Basisstation, RF- und Bluetooth-Antenne, Hand-Fernbedienung, Netzteil und Kabel – einsatzbereit im Transportkoffer.",
+      },
+    ],
+    limitations: [
+      "Nur zur Miete verfügbar (kein Kauf).",
+      "Gruppenprogrammierung: 65 EUR netto pro Gruppe.",
+    ],
+    idealFor: "Große Shows, Konzerte, Corporate Events mit synchronen Lichteffekten und Gruppeneinteilung.",
+  },
+}
+
+export const STATION_COMPARISON = [
+  { label: "Steuerung", eco: "Handfernbedienung", pro: "DMX, App (Bluetooth) + Hand-FB" },
+  { label: "Gruppen", eco: "Alle Bänder gleich", pro: "Bis zu 20 Gruppen" },
+  { label: "DMX-Anschluss", eco: "Nein", pro: "Ja (Lichtkonsole)" },
+  { label: "App-Steuerung", eco: "Nein", pro: "Ja (RF Fun, Drittanbieter)" },
+  { label: "Kauf / Miete", eco: "Kauf oder Miete", pro: "Nur Miete" },
+  { label: "Preis ab", eco: "250 / 399 EUR netto", pro: "649 EUR netto" },
+] as const
+
 export const STATION_OPTIONS = [
   {
     value: "keine",
@@ -110,6 +223,7 @@ export const STATION_OPTIONS = [
     description:
       "Steuerung nur per Knopf am Armband. Feste Farbprogramme, keine Fernsteuerung.",
     mieteOnly: false,
+    imageSrc: undefined,
   },
   {
     value: "eco",
@@ -117,6 +231,7 @@ export const STATION_OPTIONS = [
     description:
       "Handfernbedienung für zentrale Steuerung. Unterstützt keine Gruppenprogrammierung (laut Preisübersicht).",
     mieteOnly: false,
+    imageSrc: STATION_IMAGES.eco,
   },
   {
     value: "pro",
@@ -124,6 +239,7 @@ export const STATION_OPTIONS = [
     description:
       "DMX/Bluetooth-Steuerung für Live-Shows. Bis zu 20 Gruppen programmierbar. Nur zur Miete verfügbar.",
     mieteOnly: true,
+    imageSrc: STATION_IMAGES.pro,
   },
 ] as const
 

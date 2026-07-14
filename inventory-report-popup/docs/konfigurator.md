@@ -402,17 +402,45 @@ Kundenkommentare bei Fulfillment-Schritten brauchen **keinen** Platzhalter mehr 
 
 Berechnet Zieltermine und Dringlichkeit für offene Aufträge (`paid`, Fulfillment nicht abgeschlossen):
 
-| Paket / Phase | Fälligkeit |
-|---------------|------------|
+| Paket / Phase | Fälligkeit (Admin-Priorität) |
+|---------------|----------------------------|
 | Regulär / Express | Anlieferung bis **2 Kalendertage vor Event** (`config_json.von`) |
 | Eilauftrag (`eil`) | **2 Kalendertage nach Zahlung** (`paid_at`) |
 | Nach Versand (`versandt` / `ruecksendung_angekommen`) | Rücksendung **3 Werktage nach Eventende** |
 
+**Lager-Packlisten** (Versand am / Anlieferung beim Kunden) – eigene Berechnung, **Werktage** für Anlieferung, **Kalendertage** für Versandlaufzeit:
+
+| Modus | Anlieferung beim Kunden | Versand aus Lager |
+|-------|-------------------------|-------------------|
+| Standard | **2 Werktage** vor Event | **3 Kalendertage** vor Anlieferung |
+| Flex (`flexRueckgabe` / `lieferart: flex`) | **5 Werktage** vor Event | **5 Kalendertage** vor Anlieferung (3 + 2 Puffer) |
+| Kurierfahrt (`eil` / `overnight`) | **1 Werktag** vor Event | **1 Kalendertag** vor Anlieferung |
+
+Bereits versendet: tatsächliches Versanddatum aus Fulfillment-Event (`versand_beauftragt` / `versandt`), Anlieferung weiterhin Plantermin.
+
 Dringlichkeit: `overdue` · `due_today` · `due_soon` (≤3 Tage) · `ok` · `unknown`
 
-Admin-Übersicht `/admin/anfragen`: Karte **„Nächste Aufträge in Bearbeitung“** – die drei dringendsten offenen Aufträge mit Fälligkeitslabel und nächstem Schritt (`components/admin/upcoming-fulfillment-orders.tsx`).
+Admin-Übersicht `/warenverwaltung/auftraege`: Karte **„Nächste Aufträge in Bearbeitung“** – die drei dringendsten offenen Aufträge mit Fälligkeitslabel und nächstem Schritt (`components/admin/upcoming-fulfillment-orders.tsx`).
 
 Test: `npx tsx scripts/test-fulfillment-timing.ts`
+
+### Lagerunterlagen drucken (A6 Thermodruck)
+
+Button **„Lagerunterlagen“** auf der Auftragsdetailseite (`/warenverwaltung/auftraege/[id]`), sichtbar bei `status === paid`.
+
+| Tab | Inhalt |
+|-----|--------|
+| Tüten-Labels | 1 A6-Seite pro programmierter Gruppe (`gruppenGroessen[]`); groß `1/7`; Bandanzahl; physische Gruppe + Charge; Logo bei Bedruckung; Versand-/Anliefertermine |
+| Checkliste | Abhak-Liste Gruppen + Zubehör; Bedruckungs-Hinweise; Versand-/Anliefertermine |
+| Übersicht | Kompakte Lager-Gesamtübersicht inkl. Buchungszuordnung |
+
+Druckrouten (auth, ohne App-Chrome):  
+`/warenverwaltung/auftraege/[id]/druck/labels` · `…/checkliste` · `…/uebersicht`  
+Optional `?autoprint=1` für direkten Browser-Druck.
+
+Daten: `lib/konfigurator/packing-sheet.ts` (`buildPackingSheetData`) – Gruppen-Zuordnung über `allocateGroupProgramming()` aus Lagerbuchung; Loader `lib/konfigurator/packing-sheet-loader.ts`.
+
+Format: A6 (105 × 148 mm), s/w, ein Thermodrucker.
 
 `{{status_url}}` und `{{angebot_url}}` zeigen auf dieselbe Route (`/angebot/[public_token]`). In Mails wird auf den Zugang mit der **Postleitzahl der Firmenadresse** hingewiesen.
 
@@ -527,7 +555,15 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `lib/actions/quotes.ts` | Freigabe, Zahlung, Mail-Vorschau |
 | `lib/actions/fulfillment.ts` | Fulfillment-Schritte, Tracking, Versand-Dienstleister |
 | `lib/konfigurator/fulfillment-status.ts` | Schritt-Labels und Reihenfolge |
-| `lib/konfigurator/fulfillment-timing.ts` | Fälligkeitsberechnung, Dringlichkeit, Sortierung |
+| `lib/konfigurator/fulfillment-timing.ts` | Fälligkeitsberechnung, Dringlichkeit, Packlisten-Termine (Versand/Anlieferung) |
+| `lib/konfigurator/packing-sheet.ts` | Lager-Packlisten-Daten (`buildPackingSheetData`) |
+| `lib/konfigurator/packing-sheet-loader.ts` | Quote + Warehouse + Events für Druckseiten |
+| `components/admin/quote-packing-print-modal.tsx` | Modal „Lagerunterlagen“ auf Auftragsdetail |
+| `components/print/quote-bag-labels.tsx` | A6 Tüten-Labels |
+| `components/print/quote-packing-checklist.tsx` | A6 Pack-Checkliste |
+| `components/print/quote-warehouse-overview.tsx` | A6 Lagerübersicht |
+| `components/print/packing-shipping-dates.tsx` | Versand-/Anliefertermine auf Drucklayouts |
+| `app/warenverwaltung/auftraege/[id]/druck/*/page.tsx` | Druckrouten labels / checkliste / uebersicht |
 | `lib/konfigurator/versand-dienstleister.ts` | UPS/DHL/TNT-Optionen und Labels |
 | `lib/konfigurator/email-template-render.ts` | E-Mail-Platzhalter |
 | `lib/konfigurator/email-html.ts` | URL-Normalisierung, Plain-Text-Klammern, HTML-Linktexte |
@@ -560,7 +596,7 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | Befehl | Prüft |
 |--------|--------|
 | `pnpm build` | Production-Build (Dev-Server vorher stoppen) |
-| `npx tsx scripts/test-fulfillment-timing.ts` | Fälligkeitslogik, Dringlichkeit, Sortierung |
+| `npx tsx scripts/test-fulfillment-timing.ts` | Fälligkeitslogik, Packlisten-Termine (Standard/Flex/Kurier) |
 | `npx tsx scripts/test-lieferzeit.ts` | Lieferpaket-Vorlauf (Legacy-Shims in `lieferzeit.ts`) |
 | `pnpm test:preis-engine` | Preisberechnung |
 
@@ -589,3 +625,4 @@ HTTP-Smoke (nach `pnpm dev`): `/`, `/login`, `/konfigurator`, `/impressum`, `/da
 | PLZ-Hilfsfunktionen client-sicher (`plz.ts`), Cookie nur serverseitig (`angebot-access.ts`) | ✓ |
 | Fulfillment-Fälligkeit + Prioritäts-Karte im Admin | ✓ |
 | Versand-Dienstleister bei `versand_beauftragt` (Migration 14) | ✓ |
+| Lager-Packlisten A6 (Labels, Checkliste, Übersicht) bei bezahltem Auftrag | ✓ |

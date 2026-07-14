@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function OptionCard({
@@ -15,6 +15,9 @@ export function OptionCard({
   disabled,
   imageSrc,
   imageAlt,
+  onInfoClick,
+  infoLabel = "Details anzeigen",
+  className,
 }: {
   selected: boolean
   onClick: () => void
@@ -26,6 +29,9 @@ export function OptionCard({
   disabled?: boolean
   imageSrc?: string
   imageAlt?: string
+  onInfoClick?: () => void
+  infoLabel?: string
+  className?: string
 }) {
   return (
     <button
@@ -33,7 +39,7 @@ export function OptionCard({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "w-full text-left rounded-lg border p-4 transition-all",
+        "relative w-full text-left rounded-lg border p-4 transition-all",
         disabled
           ? "opacity-50 cursor-not-allowed border-border bg-muted/30"
           : "hover:border-primary/50",
@@ -42,6 +48,7 @@ export function OptionCard({
           : !disabled
             ? "border-border bg-card"
             : "",
+        className,
       )}
     >
       {imageSrc && (
@@ -65,11 +72,34 @@ export function OptionCard({
             />
           )}
         </span>
-        {badge && (
-          <span className="text-xs shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
-            {badge}
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onInfoClick && (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label={infoLabel}
+              onClick={(event) => {
+                event.stopPropagation()
+                onInfoClick()
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onInfoClick()
+                }
+              }}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Info className="h-4 w-4" />
+            </span>
+          )}
+          {badge && (
+            <span className="text-xs rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+              {badge}
+            </span>
+          )}
+        </div>
       </div>
       <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{description}</p>
       {warning && (

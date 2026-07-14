@@ -108,6 +108,7 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 - [ ] Admin-Anfragen: nächste 3 gebuchte Aufträge mit Fälligkeit (überfällig/heute/in X Tagen) und nächstem Schritt
 - [ ] Manueller Zahlungseingang → Fulfillment startet (`angenommen`)
 - [x] Fulfillment-Schritte + Kunden-Mails (inkl. Versand-Dienstleister, Migration 14; Kundenkommentar auto, interne Notiz, Migration 18)
+- [ ] **Lagerunterlagen drucken** (bezahlter Auftrag): Modal mit Tüten-Labels / Checkliste / Übersicht, A6-Thermodruck, Versand- + Anliefertermine
 - [ ] E-Mail-Templates unter `/admin/einstellungen/e-mails` (Migration 17: Freigabe-Texte mit Menge/Event/Lieferort; URL-Fix in Code)
 - [ ] Rückgabe-Buchung bei `zurueckgepackt`
 - [ ] Landing testen: `/` (Impressum, Datenschutz, AGB im Footer)
@@ -207,6 +208,7 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 - [x] Stripe-Freigabe: `NEXT_PUBLIC_APP_URL` trimmen + Vercel-Env ohne Zeilenumbruch (Fix „Not a valid URL“, 14.07.2026)
 - [x] Fulfillment: Kundenkommentar automatisch vor Signatur; `{{kommentar}}` aus Templates; Feld „Interne Notiz“ pro Schritt (Migration 18, 14.07.2026)
 - [x] Vercel-Deploy-Doku: `git push origin main` für Auto-Deploy; `vercel --prod` nur vom Repo-Root
+- [x] **Lagerunterlagen drucken** (14.07.2026): Button „Lagerunterlagen“ auf `/warenverwaltung/auftraege/[id]` (nur `paid`); Modal mit A6-Vorschau; Druckrouten `/druck/labels`, `/druck/checkliste`, `/druck/uebersicht`; Tüten-Label mit `1/7`, Logo bei Bedruckung, physische Gruppe + Charge; Versand-/Anliefertermine aus `fulfillment-timing.ts` (3 KT Transit Standard, 2 WT Anlieferung; Flex +5 WT / +2 KT Puffer; Kurier/Eil 1 WT / 1 KT)
 
 ## Nützliche Befehle
 

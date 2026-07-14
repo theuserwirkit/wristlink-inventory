@@ -60,6 +60,7 @@ import { StickyPriceBox } from "@/components/konfigurator/sticky-price-box"
 import { LogoPreview } from "@/components/konfigurator/logo-preview"
 import { AvailabilityIndicator } from "@/components/konfigurator/availability-indicator"
 import { StationAvailabilityIndicator } from "@/components/konfigurator/station-availability-indicator"
+import { StationComparisonModal, StationInfoModal } from "@/components/konfigurator/station-info-modal"
 import type { AvailabilityResponse } from "@/lib/actions/n8n-api"
 import { formatAvailabilityStandDatum, daysUntilEvent, SHORT_DELIVERY_WARNING_DAYS } from "@/lib/konfigurator/availability-stress"
 import type { StationAvailability } from "@/lib/konfigurator/station-availability"
@@ -154,6 +155,8 @@ export function ConfiguratorWizard({
   const [distanceLoading, setDistanceLoading] = useState(false)
   const [distanceError, setDistanceError] = useState<string | null>(null)
   const [resolvedKanalanzahl, setResolvedKanalanzahl] = useState<number | null>(null)
+  const [stationInfoModal, setStationInfoModal] = useState<"eco" | "pro" | null>(null)
+  const [stationComparisonOpen, setStationComparisonOpen] = useState(false)
   const requestAbortRef = useRef<AbortController | null>(null)
   const distanceDebounceRef = useRef<number | null>(null)
 
@@ -1171,11 +1174,23 @@ export function ConfiguratorWizard({
             {step === 3 && (
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <Label>Basis-Station / Fernsteuerung</Label>
-                  <div className="grid gap-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label>Basis-Station / Fernsteuerung</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 shrink-0 text-xs"
+                      onClick={() => setStationComparisonOpen(true)}
+                    >
+                      ECO vs. PRO vergleichen
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
                     {STATION_OPTIONS.map((s) => (
                       <OptionCard
                         key={s.value}
+                        className={s.value === "keine" ? "sm:col-span-2" : undefined}
                         selected={config.station === s.value}
                         onClick={() =>
                           updateConfig({
@@ -1186,6 +1201,13 @@ export function ConfiguratorWizard({
                         }
                         title={s.label}
                         description={s.description}
+                        imageSrc={s.imageSrc}
+                        imageAlt={s.label}
+                        onInfoClick={
+                          s.value === "eco" || s.value === "pro"
+                            ? () => setStationInfoModal(s.value)
+                            : undefined
+                        }
                         priceHint={
                           s.value !== "keine"
                             ? `ab ${s.value === "pro" ? "649" : stationModus === "kauf" ? "399" : "250"} EUR netto`
@@ -1752,6 +1774,18 @@ export function ConfiguratorWizard({
           eventDatum={config.von || null}
         />
       </div>
+
+      <StationInfoModal
+        station={stationInfoModal}
+        open={stationInfoModal !== null}
+        onOpenChange={(open) => {
+          if (!open) setStationInfoModal(null)
+        }}
+      />
+      <StationComparisonModal
+        open={stationComparisonOpen}
+        onOpenChange={setStationComparisonOpen}
+      />
     </div>
   )
 }
