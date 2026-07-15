@@ -125,6 +125,13 @@ export async function verifyEmailToken(
 
   const row = rows[0]
   if (row.used_at) {
+    const leadRows = await sql`
+      SELECT verified_at FROM leads WHERE id = ${row.lead_id} LIMIT 1
+    `
+    if (leadRows[0]?.verified_at) {
+      await setLeadSession(row.lead_id, row.email)
+      return { success: true }
+    }
     return { success: false, error: "Link wurde bereits verwendet" }
   }
   if (new Date(row.expires_at) < new Date()) {
