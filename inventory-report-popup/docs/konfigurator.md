@@ -437,9 +437,24 @@ Admin-Übersicht `/warenverwaltung/auftraege`: Karte **„Nächste Aufträge in 
 
 Test: `npx tsx scripts/test-fulfillment-timing.ts`
 
-### Lager & Bestand (Auftragsdetail)
+### Auftragsdetail: Abwicklung, Lager, Info
 
-Karte **„Lager & Bestand“** auf `/warenverwaltung/auftraege/[id]` (`components/admin/quote-warehouse-panel.tsx`):
+Route `/warenverwaltung/auftraege/[id]` – drei Tabs (`components/admin/auftrag-detail-view.tsx`):
+
+| Tab | Inhalt |
+|-----|--------|
+| **Abwicklung** | Stepper + aktueller Schritt + Footer (← letzter Schritt / Schritt abschließen) |
+| **Lager** | Nachschlagewerk: Buchung, Chargen, Basis, Rückgabe |
+| **Info** | Status, Konfiguration, Preis, Stripe, Kunden-Link, Notizen |
+
+Spec: **`docs/auftrag-detail-ux-redesign.md`**
+
+### Lager & Bestand
+
+**Im Tab Abwicklung** (Schritt „Material zuweisen“): eingebettetes Lager-Panel (`QuoteWarehousePanel` mit `embedded`).  
+**Im Tab Lager:** dieselben Daten als Referenz (`variant="reference"`, dezentes „Zuweisung ändern“).
+
+Implementierung: `components/admin/quote-warehouse-panel.tsx`
 
 | Bereich | Verhalten |
 |---------|-----------|
@@ -452,21 +467,30 @@ Karte **„Lager & Bestand“** auf `/warenverwaltung/auftraege/[id]` (`componen
 
 ### Lagerunterlagen drucken (A6 Thermodruck)
 
-Button **„Lagerunterlagen“** auf der Auftragsdetailseite (`/warenverwaltung/auftraege/[id]`), sichtbar bei `status === paid`. **Gesperrt**, bis Zuweisung vollständig ist (`isQuoteWarehouseReadyForPrint` – Gruppen + Chargen + Basis).
+Im Schritt **„Lagerunterlagen drucken“** (Tab Abwicklung): Footer-Button **„Lagerunterlagen öffnen“** → Popup (`QuotePackingPrintModal`). **Gesperrt**, bis Zuweisung vollständig (`isQuoteWarehouseReadyForPrint`).
 
-| Tab | Inhalt |
+Schritt abschließen: **„Druck erledigt – Schritt abschließen“** → setzt `packing_docs_printed_at` (Migration 21, `confirmPackingDocsPrinted()`).
+
+| Tab im Popup | Inhalt |
 |-----|--------|
 | Tüten-Labels | 1 A6-Seite pro programmierter Gruppe (`gruppenGroessen[]`); groß `1/7`; Bandanzahl; physische Gruppe + Charge; Logo bei Bedruckung; Versand-/Anliefertermine |
 | Checkliste | Abhak-Liste Gruppen + Zubehör; Bedruckungs-Hinweise; Versand-/Anliefertermine |
 | Übersicht | Kompakte Lager-Gesamtübersicht inkl. Buchungszuordnung |
 
-Druckrouten (auth, ohne App-Chrome):  
-`/warenverwaltung/auftraege/[id]/druck/labels` · `…/checkliste` · `…/uebersicht`  
-Optional `?autoprint=1` für direkten Browser-Druck.
+Vorschau und Druck **im Popup** (iframe, `contentWindow.print()`). Druckrouten (auth, ohne App-Chrome):  
+`/warenverwaltung/auftraege/[id]/druck/labels` · `…/checkliste` · `…/uebersicht`
 
-Daten: `lib/konfigurator/packing-sheet.ts` (`buildPackingSheetData`) – Gruppen-Zuordnung über `allocateGroupProgramming()` aus Lagerbuchung; Loader `lib/konfigurator/packing-sheet-loader.ts`.
+Daten: `lib/konfigurator/packing-sheet.ts` (`buildPackingSheetData`); Loader `lib/konfigurator/packing-sheet-loader.ts`.
 
 Format: A6 (105 × 148 mm), s/w, ein Thermodrucker.
+
+### Pipeline Lager-Schritte
+
+Zwischen Fulfillment `vorbereitet` und `verpackt` (UI-only, `lib/konfigurator/order-pipeline.ts`):
+
+1. **Material zuweisen** – abgeleitet aus vollständiger Zuweisung  
+2. **Lagerunterlagen drucken** – abgeleitet aus `packing_docs_printed_at`  
+3. **Zusammengepackt** – Fulfillment-Schritt `verpackt` inkl. Pack-Checkliste im Schritt-Inhalt
 
 `{{status_url}}` und `{{angebot_url}}` zeigen auf dieselbe Route (`/angebot/[public_token]`). In Mails wird auf den Zugang mit der **Postleitzahl der Firmenadresse** hingewiesen.
 
@@ -505,8 +529,14 @@ Format: A6 (105 × 148 mm), s/w, ein Thermodrucker.
 | `quote-approval-actions` | Annehmen/Ablehnen, Stripe-Toggle, Mail-Vorschau |
 | `quote-payment-actions` | „Zahlung eingegangen“ (Überweisung) |
 | `quote-offer-pdf-upload` | sevDesk-Angebot erstellen / PDF hochladen |
-| `quote-fulfillment-workflow` | Stepper, Kundenkommentar, interne Notiz, Tracking, Historie |
-| `quote-warehouse-panel` | Lager & Bestand: Chargen-Split, Vorschlag, Basis-Zuweisung |
+| `/warenverwaltung/auftraege/[id]` | Auftragsdetail: Tabs Abwicklung / Lager / Info |
+| `auftrag-detail-view` | Tab-Container |
+| `quote-order-workflow` | Stepper, Schritt-Inhalt, Footer-Navigation |
+| `order-pipeline-stepper` | Kreis-Stepper (Pipeline inkl. Material + Druck) |
+| `order-packing-checklist-ui` | Pack-Checkliste im Schritt „Gepackt“ |
+| `quote-packing-print-modal` | Lagerunterlagen-Popup (A6) |
+| `quote-fulfillment-workflow` | Fulfillment-Formular; Advance-Button für Footer |
+| `quote-warehouse-panel` | Lager (Tab + embedded in Schritt Material) |
 | `quote-return-section` | Rückgabe bei `zurueckgepackt` |
 
 Details: `MIGRATION.md` Abschnitt 5 · sevDesk-Ablauf: **`docs/sevdesk-angebote.md`**
@@ -614,7 +644,12 @@ Jede Session-Aktion bei Armband löst zuerst `resolveKanalanzahlForConfig()` auf
 | `components/admin/admin-actions.tsx` | Admin-Formulare Gruppe/Basis |
 | `components/admin/upcoming-fulfillment-orders.tsx` | Prioritäts-Karte „Nächste Aufträge in Bearbeitung“ |
 | `components/admin/editable-base-row.tsx` | Stationstyp + Seriennummer bearbeiten |
-| `components/admin/quote-warehouse-panel.tsx` | Lager & Bestand auf Auftragsdetail |
+| `components/admin/quote-warehouse-panel.tsx` | Lager (Tab + Schritt Material) |
+| `components/admin/auftrag-detail-view.tsx` | Tabs Abwicklung / Lager / Info |
+| `components/admin/quote-order-workflow.tsx` | Auftragsabwicklung: Stepper, Schritt, Footer |
+| `components/admin/order-pipeline-stepper.tsx` | Kreis-Stepper inkl. Material + Druck |
+| `components/admin/quote-packing-print-modal.tsx` | Lagerunterlagen-Popup |
+| `lib/konfigurator/order-pipeline.ts` | Pipeline-Phasen inkl. Lager-Schritte |
 | `app/api/konfigurator/session/route.ts` | Session-API mit allen Actions |
 
 ---

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, ArrowRight, Check, Loader2, Package, Printer } from "lucide-react"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { OrderPipelineStepper } from "@/components/admin/order-pipeline-stepper"
 import { OrderPackingChecklistUi } from "@/components/admin/order-packing-checklist-ui"
@@ -43,7 +43,7 @@ const STEP_INTRO: Partial<Record<OrderPipelineStepKey, string>> = {
   unterlagen_drucken:
     "Pack-Checkliste, Tüten-Labels und Übersicht im Popup öffnen, drucken und danach den Schritt abschließen.",
   verpackt:
-    "Alles laut Checkliste in die Tüten packen, dann unten als gepackt markieren.",
+    "Alles laut Checkliste in die Tüten packen, dann als gepackt markieren.",
 }
 
 export function QuoteOrderWorkflow({
@@ -309,6 +309,70 @@ export function QuoteOrderWorkflow({
             currentIndex={currentIndex}
             viewIndex={viewIndex}
           />
+
+          {showFooter && (
+            <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                disabled={viewIndex <= 0}
+                onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Zum letzten Schritt
+              </Button>
+
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                {!isViewingCurrent && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={() => setViewIndex(currentIndex)}
+                  >
+                    Zum aktuellen Schritt
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                )}
+
+                {isViewingCurrent && phase === "unterlagen_drucken" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    disabled={!warehousePanelProps.canPrint}
+                    onClick={() => setOpenPrint(true)}
+                  >
+                    <Printer className="h-4 w-4" />
+                    Lagerunterlagen öffnen
+                  </Button>
+                )}
+
+                {isViewingCurrent && showPrimary && (
+                  <Button
+                    type="button"
+                    className="w-full gap-2 sm:w-auto"
+                    disabled={
+                      actionPending ||
+                      (phase === "material_zuweisen" && !primaryBooking) ||
+                      (phase === "unterlagen_drucken" && !warehousePanelProps.canPrint)
+                    }
+                    onClick={handlePrimaryAction}
+                  >
+                    {actionPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : phase === "material_zuweisen" && !warehouseContext.allocationComplete ? (
+                      <Package className="h-4 w-4" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    {primaryLabel()}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </CardHeader>
 
         <CardContent className="space-y-4 border-t pt-6">
@@ -324,70 +388,6 @@ export function QuoteOrderWorkflow({
           )}
           {renderStepContent()}
         </CardContent>
-
-        {showFooter && (
-          <CardFooter className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full sm:w-auto"
-              disabled={viewIndex <= 0}
-              onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Zum letzten Schritt
-            </Button>
-
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-              {!isViewingCurrent && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="w-full sm:w-auto"
-                  onClick={() => setViewIndex(currentIndex)}
-                >
-                  Zum aktuellen Schritt
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              )}
-
-              {isViewingCurrent && phase === "unterlagen_drucken" && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  disabled={!warehousePanelProps.canPrint}
-                  onClick={() => setOpenPrint(true)}
-                >
-                  <Printer className="h-4 w-4" />
-                  Lagerunterlagen öffnen
-                </Button>
-              )}
-
-              {isViewingCurrent && showPrimary && (
-                <Button
-                  type="button"
-                  className="w-full gap-2 sm:w-auto"
-                  disabled={
-                    actionPending ||
-                    (phase === "material_zuweisen" && !primaryBooking) ||
-                    (phase === "unterlagen_drucken" && !warehousePanelProps.canPrint)
-                  }
-                  onClick={handlePrimaryAction}
-                >
-                  {actionPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : phase === "material_zuweisen" && !warehouseContext.allocationComplete ? (
-                    <Package className="h-4 w-4" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                  {primaryLabel()}
-                </Button>
-              )}
-            </div>
-          </CardFooter>
-        )}
       </Card>
     </>
   )

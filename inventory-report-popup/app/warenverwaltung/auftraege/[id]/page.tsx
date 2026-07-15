@@ -27,6 +27,7 @@ import { AuftragInfoTab } from "@/components/admin/auftrag-info-tab"
 import { STATUS_LABELS, SOURCE_LABELS, statusBadgeVariant } from "@/lib/konfigurator/quote-status"
 import { loadPackingSheetForQuote } from "@/lib/konfigurator/packing-sheet-loader"
 import { FULFILLMENT_STATUS_LABELS } from "@/lib/konfigurator/fulfillment-status"
+import { formatAuftragHeading } from "@/lib/konfigurator/auftrag-heading"
 
 export const dynamic = "force-dynamic"
 
@@ -154,8 +155,7 @@ export default async function AuftragDetailPage({
               </Link>
             </Button>
             <div>
-              <h2 className="text-2xl font-bold">Auftrag #{quote.id}</h2>
-              <p className="text-sm text-muted-foreground">{quote.lead_email}</p>
+              <h2 className="text-2xl font-bold">{formatAuftragHeading(quote)}</h2>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">

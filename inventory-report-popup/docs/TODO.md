@@ -1,6 +1,6 @@
 # TODO – Sicherheit, Betrieb & Restarbeiten
 
-Stand: 14. Juli 2026 (globale CC-E-Mail, Migrationen 21–22)
+Stand: 15. Juli 2026 (Auftragsdetail UX-Redesign, Migration 21)
 
 ## Kritisch (vor Go-Live)
 
@@ -113,9 +113,11 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 - [ ] Admin-Anfragen: nächste 3 gebuchte Aufträge mit Fälligkeit (überfällig/heute/in X Tagen) und nächstem Schritt
 - [ ] Manueller Zahlungseingang → Fulfillment startet (`angenommen`)
 - [x] Fulfillment-Schritte + Kunden-Mails (inkl. Versand-Dienstleister, Migration 14; Kundenkommentar auto, interne Notiz, Migration 18)
-- [ ] **Lagerunterlagen drucken** (bezahlter Auftrag): erst nach vollständiger Zuweisung (Gruppen + Chargen + Basis); Modal mit Tüten-Labels / Checkliste / Übersicht, A6-Thermodruck
-- [ ] **Lager-Panel** (`/warenverwaltung/auftraege/[id]`): Chargen-Split (z. B. 100× G1 + 200× G2), Vorschlag übernehmen, Basis mit Seriennummer
-- [ ] Fulfillment-Reihenfolge mit Druck: **Zusammengepackt** vor **Bedruckt** (physischer Ablauf im Lager)
+- [ ] **Auftrag anpassen** (Header): Menge/Techniker ändern, Preis neu, Angebot an Kunden – *noch offen*
+- [x] **Auftragsdetail UX** (15.07.2026): Tabs Abwicklung/Lager/Info; Pipeline mit Material zuweisen + Lagerunterlagen drucken; Footer-Navigation; Druck-Popup – siehe `docs/auftrag-detail-ux-redesign.md`
+- [x] **Lagerunterlagen drucken** (15.07.2026): Schritt in Abwicklung; Popup mit Vorschau/Druck; `packing_docs_printed_at` (Migration 21)
+- [x] **Lager-Panel** (15.07.2026): Tab Lager + embedded im Schritt Material; Chargen-Split, Vorschlag, Basis-Seriennummer
+- [x] Fulfillment-Reihenfolge mit Druck: **Zusammengepackt** vor **Bedruckt** (physischer Ablauf im Lager)
 - [ ] E-Mail-Einstellungen unter `/admin/einstellungen/e-mails` (Templates + globale CC-Adresse testen)
 - [ ] Rückgabe-Buchung bei `zurueckgepackt`
 - [ ] Landing testen: `/` (Impressum, Datenschutz, AGB im Footer)
@@ -218,9 +220,9 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 - [x] Stripe-Freigabe: `NEXT_PUBLIC_APP_URL` trimmen + Vercel-Env ohne Zeilenumbruch (Fix „Not a valid URL“, 14.07.2026)
 - [x] Fulfillment: Kundenkommentar automatisch vor Signatur; `{{kommentar}}` aus Templates; Feld „Interne Notiz“ pro Schritt (Migration 18, 14.07.2026)
 - [x] Vercel-Deploy-Doku: `git push origin main` für Auto-Deploy; `vercel --prod` nur vom Repo-Root
-- [x] **Lagerunterlagen drucken** (14.07.2026): Button „Lagerunterlagen“ auf `/warenverwaltung/auftraege/[id]` (nur `paid`); **gesperrt bis Zuweisung** (Gruppen + Chargen + Basis); Modal mit A6-Vorschau; Druckrouten `/druck/labels`, `/druck/checkliste`, `/druck/uebersicht`
-- [x] **Lager-Panel** (14.07.2026): Karte „Lager & Bestand“ auf Auftragsdetail; Verfügbarkeit je Charge; Chargen-Split mit Vorschlag (`lib/konfigurator/band-allocation.ts`); `saveQuoteBandAllocations`; Retry „Buchung anlegen“ bei fehlender Verkaufsbuchung (`ensureQuoteBooking`)
-- [x] **Fulfillment-Reihenfolge** (14.07.2026): Mit Druck: `vorbereitet` → `verpackt` (Label „Zusammengepackt“) → `bedruckt` → Versand; Bedrucken erst nach Zusammenpacken
+- [x] **Lagerunterlagen drucken** (15.07.2026): Schritt in Tab Abwicklung; Popup A6; Migration 21 `packing_docs_printed_at`
+- [x] **Lager-Panel** (15.07.2026): Tab Lager + Schritt „Material zuweisen“; Chargen-Split, Vorschlag, Basis-Seriennummer
+- [x] **Auftragsdetail UX-Redesign** (15.07.2026): `docs/auftrag-detail-ux-redesign.md` – Stepper, Footer, keine doppelten Fortschritts-Anzeigen
 - [x] **Basis-Seriennummer** (14.07.2026): `bases.seriennummer` (Migration 20); Pflicht bei Zuweisung; Admin bearbeitbar; auf Lagerübersicht-Druck
 - [x] Migration 19: `booking_items.group_id` nullable – Basis-Stationen als eigene Position ohne Leuchtgruppe
 - [x] **Globale CC-E-Mail** (14.07.2026): Admin unter `/admin/einstellungen/e-mails` → Versandeinstellungen; Key `global_cc_email` in `system_settings`; CC in `sendTemplatedEmail()` für alle ausgehenden Mails (Migration 22)
