@@ -8,7 +8,7 @@ import {
 } from "@/lib/konfigurator/lieferpaket"
 import { normalizeLieferart } from "@/lib/konfigurator/product-info"
 import type { QuoteConfig, QuoteRequest } from "@/lib/konfigurator/types"
-import { addDays, subtractWorkdays } from "@/lib/utils/date"
+import { addDays, addWorkdays, subtractWorkdays } from "@/lib/utils/date"
 
 /** @deprecated Nur noch für ältere Fulfillment-Fälligkeit – Packlisten nutzen Werktage */
 export const ANLIEFERUNG_TAGE_VOR_EVENT = 2
@@ -47,11 +47,8 @@ function addCalendarDays(date: Date, days: number): Date {
   return addDays(date, days)
 }
 
-/**
- * @deprecated Liefert weiterhin die alte Kalendertage-Näherung für Fälligkeitsanker ohne
- * Eventdatum. Task 3 stellt dies auf `minWerktageForPaket` + echte Werktage um.
- */
-function minTageForConfig(config: QuoteConfig): number {
+/** Mindest-Werktage ab Zahlung/Anfrage, wenn kein Eventdatum gesetzt ist. */
+function minWerktageForConfig(config: QuoteConfig): number {
   const paket = normalizeLieferpaket(config)
   const flexRueckgabe = normalizeFlexRueckgabe(config)
   return minWerktageForPaket(paket, flexRueckgabe)
@@ -113,7 +110,7 @@ export function getFulfillmentDueDate(quote: TimingQuote): Date | null {
     return addCalendarDays(anchor, 2)
   }
 
-  return addCalendarDays(anchor, minTageForConfig(config))
+  return addWorkdays(anchor, minWerktageForConfig(config))
 }
 
 export function getFulfillmentTiming(quote: TimingQuote, from = new Date()): FulfillmentTiming {
@@ -203,7 +200,7 @@ export function getAnlieferungDeadlineForPacking(quote: TimingQuote): Date | nul
     return addCalendarDays(anchor, 2)
   }
 
-  return addCalendarDays(anchor, minTageForConfig(config))
+  return addWorkdays(anchor, minWerktageForConfig(config))
 }
 
 /** Spätestes Versanddatum aus dem Lager (Werktage Transit vor Anlieferung). */
