@@ -657,6 +657,10 @@ export function ConfiguratorWizard({
       setError("Preis konnte nicht berechnet werden")
       return
     }
+    if (editMode && !editToken) {
+      setError("Bearbeitungs-Token fehlt. Bitte laden Sie die Seite erneut.")
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -904,6 +908,7 @@ export function ConfiguratorWizard({
                     <OptionCard
                       key={s.value}
                       selected={config.szenario === s.value}
+                      disabled={editMode}
                       onClick={() => updateConfig({ szenario: s.value })}
                       title={s.label}
                       description={s.hint}
@@ -1004,7 +1009,7 @@ export function ConfiguratorWizard({
                     <OptionCard
                       key={p.value}
                       selected={config.produkt === p.value}
-                      disabled={!p.available}
+                      disabled={editMode || !p.available}
                       onClick={() => updateConfig({ produkt: p.value })}
                       title={p.label}
                       description={p.description}
@@ -1017,6 +1022,7 @@ export function ConfiguratorWizard({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <OptionCard
                     selected={config.modus === "miete"}
+                    disabled={editMode}
                     onClick={() => updateConfig({ modus: "miete" })}
                     title="Miete"
                     description="Für Events mit festem Zeitraum. Rückgabe nach dem Event."
@@ -1024,6 +1030,7 @@ export function ConfiguratorWizard({
                   />
                   <OptionCard
                     selected={config.modus === "kauf"}
+                    disabled={editMode}
                     onClick={() => updateConfig({ modus: "kauf" })}
                     title="Kauf"
                     description="Eigentum, individueller Logodruck möglich."
@@ -1227,6 +1234,7 @@ export function ConfiguratorWizard({
                         key={s.value}
                         className={s.value === "keine" ? "sm:col-span-2" : undefined}
                         selected={config.station === s.value}
+                        disabled={editMode}
                         onClick={() =>
                           updateConfig({
                             station: s.value,
@@ -1270,7 +1278,7 @@ export function ConfiguratorWizard({
                             : "Unabhängig vom Produktmodus"
                         }
                         priceHint={config.station === "eco" ? "399 EUR netto" : undefined}
-                        disabled={config.station === "pro"}
+                        disabled={editMode || config.station === "pro"}
                       />
                       <OptionCard
                         selected={stationModus === "miete"}
@@ -1280,6 +1288,7 @@ export function ConfiguratorWizard({
                         priceHint={
                           config.station === "pro" ? "649 EUR netto" : "250 EUR netto"
                         }
+                        disabled={editMode}
                       />
                     </div>
                   </div>
@@ -1318,6 +1327,7 @@ export function ConfiguratorWizard({
                         step={1}
                         value={[Math.min(config.gruppen, maxGruppen)]}
                         onValueChange={([v]) => updateConfig({ gruppen: v })}
+                        disabled={editMode}
                       />
                       <p className="text-xs text-muted-foreground">
                         Je Gruppe {GRUPPEN_INFO.preisProGruppeNetto} EUR netto · max.{" "}
@@ -1344,7 +1354,7 @@ export function ConfiguratorWizard({
                                 step={GRUPPEN_SLIDER_STEP}
                                 value={[groesse]}
                                 onValueChange={([v]) => updateGruppeGroesse(index, v)}
-                                disabled={max < min}
+                                disabled={editMode || max < min}
                               />
                             </div>
                           )
