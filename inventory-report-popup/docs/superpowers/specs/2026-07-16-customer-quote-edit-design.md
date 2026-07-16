@@ -29,8 +29,9 @@ Kunden können bis zur Zahlung über denselben Link erlaubte Felder ändern. Jed
 | Edit-Fenster | Bis zur Zahlung: `submitted`, `approved`, `payment_pending` |
 | Nach Speichern | Status → `submitted` (erneute Prüfung), alter Stripe-Zahlungslink ungültig |
 | Bei „nicht verfügbar“ | Absenden trotzdem erlaubt (Wunsch geht in Prüfung); gilt auch für Erst-Submit — siehe Soft-Submit-Spec |
-| Editierbare Felder | Menge, Logo/Branding, Techniker, Druck, Flex-Option, Lieferoptionen |
-| Gesperrt | Eventdatum (serverseitig erzwungen) |
+| Editierbare Felder | Menge, Logo/Branding, Techniker, Druck, Flex-Option, Lieferoptionen, Gruppenanzahl/-aufteilung (nur bei PRO; Station bleibt gesperrt) |
+| Gesperrt | Eventdatum (serverseitig erzwungen); Station/ECO↔PRO; Kontakt (außer Techniker-Bezug) |
+| Angebots-PDF | Kundenanzeige + Versionshistorie: siehe `2026-07-16-customer-edit-gruppen-pdf-design.md` |
 | UI | Konfigurator-Wizard vorbefüllt im Edit-Modus (Variante B) |
 | Versionierung | Tabelle `quote_request_versions` (append-only Snapshots) |
 | Verfügbarkeit UX | Ampel wie im Konfigurator (Stress-Balken); **ohne** Untertitel wie „entspannt · Absenden ok“; ohne Stückzahlen |
@@ -119,7 +120,8 @@ Version 1 wird beim Erst-Submit angelegt (oder lazy beim ersten Edit, wenn Altbe
 
 - Banner: Änderung an bestehender Anfrage → danach erneute Prüfung  
 - Eventdatum read-only  
-- Editierbar: Menge, Logo/Branding, Techniker, Druck, Flex, Lieferoptionen  
+- Editierbar: Menge, Logo/Branding, Techniker, Druck, Flex, Lieferoptionen, Gruppen (PRO)  
+
 - Ampel: bestehende Stress-Balken-Komponente; **keine** zusätzlichen Untertitel-Zeilen („entspannt · Absenden ok“ o. ä.); **keine** Restmengen und **keine** Anzeige „X offene Anfragen“ gegenüber dem Kunden  
 - Bei Rot: Absenden erlaubt; rote Hinweisbox erklärt Soft-Submit (LED-/Basis-Texte in Soft-Submit-Spec)  
 - Kontakt-/Eventadresse (außer technikerbezogenen Feldern) bleiben unverändert / nicht editierbar  
