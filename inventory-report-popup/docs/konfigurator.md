@@ -2,6 +2,8 @@
 
 Diese Datei beschreibt Logik, Berechnungen und interne Regeln des B2B-Konfigurators (`/konfigurator`). Kunden sehen technische Details wie Kanalanzahl (40/80 CH) **nicht** – sie werden serverseitig ermittelt und in Anfragen gespeichert.
 
+> **Mitarbeiter-Anleitung:** Bei Änderungen an Ablauf, Status, Freigabe, Lager/Fulfillment oder Support-Gotchas auch `docs/mitarbeiter-anleitung.html` (+ PDF) aktualisieren – siehe Hinweis in `docs/TODO.md`.
+
 ---
 
 ## Ablauf (6 Schritte)
@@ -62,6 +64,42 @@ Implementierung:
 | `lib/konfigurator/angebot-access.ts` | Server: Cookie setzen/prüfen nach erfolgreicher PLZ |
 | `components/angebot/plz-gate.tsx` | PLZ-Eingabe |
 | `components/angebot/angebot-status-view.tsx` | Status-UI inkl. Fulfillment-Timeline |
+
+### Kundenänderung per Angebots-Link (`?edit=[token]`)
+
+Bis zur Zahlung (`submitted`, `approved`, `payment_pending`) kann der Kunde auf `/angebot/[token]` über den Button **„Anfrage ändern“** seine Anfrage direkt im Konfigurator anpassen — ohne neuen Link oder Support-Kontakt.
+
+**Ablauf:**
+
+1. `/angebot/[token]` → Button „Anfrage ändern“ (nur in editierbaren Status; sonst kein Button)
+2. Öffnet `/konfigurator?edit=[token]` — Wizard vorbefüllt aus dem aktuellen Stand der Anfrage
+3. `POST /api/konfigurator/update/[token]` speichert die Änderung
+
+**Editierbar:** Menge, Logo/Branding, Druck, Techniker, Flex-Rückgabe, Lieferoptionen.
+**Gesperrt:** Eventdatum/Zeitraum — server- und clientseitig erzwungen (Server verwirft abweichende Werte).
+
+**Bei jeder Änderung:**
+
+- Neue Zeile in `quote_request_versions` (append-only Snapshot aus `config_json` + `price_snapshot_json` + Ampel-Stand)
+- Status der Anfrage zurück auf `submitted` (erneute Prüfung nötig)
+- Alter Stripe-Zahlungslink wird ungültig (`NULL`)
+- Hold-Reservierung wird erneuert (alte ANFRAGE-Buchung lösen, neue für aktuelle Menge/Datum)
+- Admin/Telegram-Hinweis auf die Kundenänderung
+
+**Ampel im Edit-Modus:** Dieselbe `AvailabilityIndicator`-Komponente wie im normalen Konfigurator, aber **ohne** Stückzahlen und **ohne** zusätzliche Untertitel-Zeilen (z. B. „entspannt · Absenden ok“). Absenden ist auch bei roter Ampel möglich — die Anfrage geht dann in die erneute Prüfung.
+
+**Implementierung:**
+
+| Modul | Zweck |
+|-------|--------|
+| `scripts/migration/24-quote-request-versions.sql` | Tabelle `quote_request_versions` |
+| `lib/konfigurator/quote-versions.ts` | Version schreiben/lesen, `ensureInitialQuoteVersion` für Altbestand |
+| `app/api/konfigurator/edit-session/[token]/route.ts` | Lädt Config + Edit-Flags für `?edit=[token]` |
+| `app/api/konfigurator/update/[token]/route.ts` | Update-Pfad (Auth: Token + PLZ-Cookie, Eventdatum-Lock, Preis neu, Version schreiben, Hold erneuern, Stripe-Link nullen) |
+| `components/konfigurator/configurator-wizard.tsx` | Edit-Modus: Vorbefüllung, Banner, Datum read-only |
+| `components/angebot/angebot-status-view.tsx` | „Anfrage ändern“-Button + Versions-Chronologie |
+
+Design-Spec (Entscheidungen, Datenmodell, Fehlerfälle): **`docs/superpowers/specs/2026-07-16-customer-quote-edit-design.md`**
 
 ---
 
