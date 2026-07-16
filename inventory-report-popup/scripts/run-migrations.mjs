@@ -58,6 +58,7 @@ async function main() {
     await runFile(pool, join(migrationDir, "22-global-cc-email.sql"))
     await runFile(pool, join(migrationDir, "23-sku-lot-unique.sql"))
     await runFile(pool, join(migrationDir, "24-quote-request-versions.sql"))
+    await runFile(pool, join(migrationDir, "25-quote-version-offer-pdf.sql"))
     console.log("Migration abgeschlossen.")
   } finally {
     await pool.end()
