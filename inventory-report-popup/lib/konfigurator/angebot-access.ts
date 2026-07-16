@@ -48,7 +48,7 @@ export async function setAngebotAccess(publicToken: string) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: ANGEBOT_ACCESS_MAX_AGE,
-    path: "/angebot",
+    path: "/", // nötig für Konfigurator-Edit und Update-API
   })
 }
 
