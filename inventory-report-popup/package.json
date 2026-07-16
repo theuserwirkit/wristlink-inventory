@@ -9,6 +9,7 @@
     "start": "next start",
     "test:n8n-api": "node scripts/test-n8n-api.mjs",
     "test:preis-engine": "tsx scripts/test-preis-engine.ts",
+    "test:quote-versions": "tsx scripts/test-quote-versions.ts",
     "db:migrate": "node scripts/run-migrations.mjs",
     "db:indexes": "node scripts/run-performance-indexes.mjs",
     "db:seed": "node scripts/seed-starter.mjs",
