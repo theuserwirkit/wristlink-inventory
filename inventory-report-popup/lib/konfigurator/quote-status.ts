@@ -38,3 +38,14 @@ export function statusBadgeVariant(
 }
 
 export const ACTIVE_STATUSES: QuoteStatus[] = ["submitted", "payment_pending", "approved"]
+
+/** Status, in denen Kunden die Anfrage noch ändern dürfen (bis Zahlung). */
+export const CUSTOMER_EDITABLE_STATUSES: QuoteStatus[] = [
+  "submitted",
+  "approved",
+  "payment_pending",
+]
+
+export function canCustomerEditQuoteStatus(status: QuoteStatus): boolean {
+  return CUSTOMER_EDITABLE_STATUSES.includes(status)
+}
