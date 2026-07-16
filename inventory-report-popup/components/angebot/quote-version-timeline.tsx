@@ -23,9 +23,11 @@ function formatVersionDate(iso: string): string {
 export function QuoteVersionTimeline({
   versions,
   showActor = false,
+  publicToken,
 }: {
   versions: QuoteVersionRow[]
   showActor?: boolean
+  publicToken?: string
 }) {
   if (versions.length === 0) return null
 
@@ -56,6 +58,18 @@ export function QuoteVersionTimeline({
               </p>
               {version.change_summary && (
                 <p className="text-sm mt-0.5">{version.change_summary}</p>
+              )}
+              {publicToken && Boolean(version.has_offer_pdf) && (
+                <p className="text-sm mt-1">
+                  <a
+                    href={`/api/angebot/${publicToken}/versions/${version.version_number}/offer-pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    PDF
+                  </a>
+                </p>
               )}
             </div>
           </li>

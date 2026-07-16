@@ -36,6 +36,7 @@ export default async function AngebotPage({
   const fulfillmentEvents = await getPublicFulfillmentEvents(quote.id)
   const versions = await listQuoteVersions(quote.id)
   const canEdit = canCustomerEditQuoteStatus(quote.status)
+  const hasOfferPdf = Boolean(quote.offer_pdf_filename)
 
   return (
     <AngebotStatusView
@@ -43,6 +44,7 @@ export default async function AngebotPage({
       fulfillmentEvents={fulfillmentEvents}
       versions={versions}
       canEdit={canEdit}
+      hasOfferPdf={hasOfferPdf}
       paid={paid}
       cancelled={cancelled}
     />

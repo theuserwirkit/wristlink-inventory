@@ -48,6 +48,7 @@ export function AngebotStatusView({
   fulfillmentEvents,
   versions,
   canEdit,
+  hasOfferPdf,
   paid,
   cancelled,
 }: {
@@ -55,6 +56,7 @@ export function AngebotStatusView({
   fulfillmentEvents: FulfillmentEvent[]
   versions: QuoteVersionRow[]
   canEdit: boolean
+  hasOfferPdf: boolean
   paid?: string
   cancelled?: string
 }) {
@@ -146,6 +148,18 @@ export function AngebotStatusView({
                 <CheckCircle2 className="h-5 w-5" />
                 Zahlung eingegangen – wir starten mit der Vorbereitung.
               </div>
+            )}
+
+            {hasOfferPdf && (
+              <Button asChild variant="outline" className="w-full">
+                <a
+                  href={`/api/angebot/${quote.public_token}/offer-pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Angebot als PDF
+                </a>
+              </Button>
             )}
 
             {canEdit && (
@@ -314,7 +328,7 @@ export function AngebotStatusView({
               <CardTitle>Änderungsverlauf</CardTitle>
             </CardHeader>
             <CardContent>
-              <QuoteVersionTimeline versions={versions} />
+              <QuoteVersionTimeline versions={versions} publicToken={quote.public_token} />
             </CardContent>
           </Card>
         )}
