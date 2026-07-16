@@ -12,6 +12,7 @@ import {
   werktageToCalendarDays,
 } from "../lib/konfigurator/lieferpaket"
 import { rechnePreis } from "../lib/pricing/preis-engine"
+import { workdaysUntil } from "../lib/utils/date"
 
 let failed = 0
 
@@ -23,6 +24,19 @@ function assert(name: string, condition: boolean) {
     console.log(`OK: ${name}`)
   }
 }
+
+assert(
+  "16.→30.07.2026 = 10 Werktage",
+  workdaysUntil(new Date("2026-07-16T12:00:00"), new Date("2026-07-30T12:00:00")) === 10,
+)
+assert(
+  "gleicher Tag = 0",
+  workdaysUntil(new Date("2026-07-16T12:00:00"), new Date("2026-07-16T12:00:00")) === 0,
+)
+assert(
+  "Fr→Mo = 1 Werktag",
+  workdaysUntil(new Date("2026-07-17T12:00:00"), new Date("2026-07-20T12:00:00")) === 1,
+)
 
 assert("20 Werktage → 28 Kalendertage", werktageToCalendarDays(20) === 28)
 
