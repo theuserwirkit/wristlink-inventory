@@ -1,7 +1,7 @@
 import { daysUntilEvent } from "@/lib/konfigurator/availability-stress"
 import { isFulfillmentComplete } from "@/lib/konfigurator/fulfillment-status"
 import {
-  LIEFERPAKET_OPTIONS,
+  minWerktageForPaket,
   normalizeFlexRueckgabe,
   normalizeLieferpaket,
   werktageToCalendarDays,
@@ -49,10 +49,14 @@ function addCalendarDays(date: Date, days: number): Date {
   return addDays(date, days)
 }
 
+/**
+ * @deprecated Liefert weiterhin die alte Kalendertage-Näherung für Fälligkeitsanker ohne
+ * Eventdatum. Task 3 stellt dies auf `minWerktageForPaket` + echte Werktage um.
+ */
 function minTageForConfig(config: QuoteConfig): number {
   const paket = normalizeLieferpaket(config)
-  const opt = LIEFERPAKET_OPTIONS.find((o) => o.value === paket)
-  return opt?.minTage ?? werktageToCalendarDays(20)
+  const flexRueckgabe = normalizeFlexRueckgabe(config)
+  return minWerktageForPaket(paket, flexRueckgabe)
 }
 
 export function isKurierfahrt(config: QuoteConfig): boolean {

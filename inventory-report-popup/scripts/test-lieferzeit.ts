@@ -34,8 +34,12 @@ assert("1 Tag: Hyperexpress nicht erlaubt", !isLieferzeitOptionAllowed("hyperexp
 assert("1 Tag: keine Lieferzeit möglich", !hasAllowedLieferzeit(1))
 
 assert(
-  "2 Tage: nur Hyperexpress erlaubt",
-  isLieferzeitOptionAllowed("hyperexpress", 2) && !isLieferzeitOptionAllowed("express", 2),
+  "3 Werktage: nur Hyperexpress erlaubt",
+  isLieferzeitOptionAllowed("hyperexpress", 3) && !isLieferzeitOptionAllowed("express", 3),
+)
+assert(
+  "2 Werktage: auch Hyperexpress noch gesperrt",
+  !isLieferzeitOptionAllowed("hyperexpress", 2),
 )
 assert(
   "14 Tage: Express erlaubt, Standard nicht",

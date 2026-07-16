@@ -8,8 +8,10 @@ import {
   isFlexRueckgabeAllowed,
   isLieferpaketAllowed,
   isTechnikerAllowed,
+  minWerktageForPaket,
   normalizeLieferpaket,
   werktageToCalendarDays,
+  workdaysUntilEvent,
 } from "../lib/konfigurator/lieferpaket"
 import { rechnePreis } from "../lib/pricing/preis-engine"
 import { workdaysUntil } from "../lib/utils/date"
@@ -43,28 +45,34 @@ assert("20 Werktage → 28 Kalendertage", werktageToCalendarDays(20) === 28)
 assert("Regulär = 100 EUR", LIEFERPAKET_PREIS.regulaer === 100)
 assert("Eilauftrag = 919 EUR", LIEFERPAKET_PREIS.eil === 919)
 
-assert("1 Tag: kein Paket möglich", !hasAllowedLieferpaket(1))
-assert("2 Tage: nur Eilauftrag", firstAllowedLieferpaket(2) === "eil")
-assert("14 Tage: Express", firstAllowedLieferpaket(14) === "express")
-assert("28 Tage: Regulär", firstAllowedLieferpaket(28) === "regulaer")
+assert("Regulär min = 24", minWerktageForPaket("regulaer", false) === 24)
+assert("Express min = 14", minWerktageForPaket("express", false) === 14)
+assert("Eil min = 3", minWerktageForPaket("eil", false) === 3)
+assert("Express+Flex min = 17", minWerktageForPaket("express", true) === 17)
+assert("Regulär+Flex min = 27", minWerktageForPaket("regulaer", true) === 27)
 
 assert(
-  "Eilauftrag mit Bedruckung bei 14 Tagen wählbar",
+  "workdaysUntilEvent Wrapper",
+  workdaysUntilEvent("2026-07-30", new Date("2026-07-16T12:00:00")) === 10,
+)
+
+assert("10 WT: nur Eil", firstAllowedLieferpaket(10) === "eil")
+assert("10 WT: Express gesperrt", !isLieferpaketAllowed("express", 10))
+assert("10 WT: Regulär gesperrt", !isLieferpaketAllowed("regulaer", 10))
+assert(
+  "14 WT: Express ja, Regulär nein",
+  isLieferpaketAllowed("express", 14) && !isLieferpaketAllowed("regulaer", 14),
+)
+assert("24 WT: Regulär ja", isLieferpaketAllowed("regulaer", 24))
+assert("2 WT: kein Paket", !hasAllowedLieferpaket(2))
+assert("3 WT: nur Eil", firstAllowedLieferpaket(3) === "eil")
+
+assert(
+  "Eilauftrag mit Bedruckung bei 14 WT wählbar",
   isLieferpaketAllowed("eil", 14, { hasDruck: true }),
 )
 assert(
-  "14 Tage: Express + Eil ja, Regulär nein",
-  isLieferpaketAllowed("express", 14) &&
-    isLieferpaketAllowed("eil", 14) &&
-    !isLieferpaketAllowed("regulaer", 14),
-)
-assert(
-  "Warnung bei 14 Tagen nennt nur Regulär",
-  getLieferpaketWarning(14) ===
-    "Bei nur noch 14 Tagen bis zum Event ist Regulär nicht verfügbar.",
-)
-assert(
-  "Eil bei 14 Tagen hat keinen Sperrgrund",
+  "Eil bei 14 WT hat keinen Sperrgrund",
   getLieferpaketBlockReason("eil", 14, { hasDruck: true }) === null,
 )
 
@@ -81,8 +89,21 @@ assert(
   preisEilDruck.gueltig,
 )
 
-assert("Flex-Rückgabe ab 7 Tagen", isFlexRueckgabeAllowed(7, "regulaer"))
-assert("Flex-Rückgabe nicht bei Eil", !isFlexRueckgabeAllowed(10, "eil"))
+assert("14 WT: Express+Flex nicht", !isFlexRueckgabeAllowed(14, "express"))
+assert("17 WT: Express+Flex ja", isFlexRueckgabeAllowed(17, "express"))
+assert("Flex nie bei Eil", !isFlexRueckgabeAllowed(30, "eil"))
+
+assert(
+  "Warnung bei 10 WT nennt Regulär und Express",
+  getLieferpaketWarning(10) ===
+    "Bei nur noch 10 Werktagen bis zum Event sind Regulär, Express nicht verfügbar.",
+)
+
+assert(
+  "Eil mit Druck bei 10 WT wählbar",
+  isLieferpaketAllowed("eil", 10, { hasDruck: true }) &&
+    getLieferpaketBlockReason("eil", 10, { hasDruck: true }) === null,
+)
 
 assert(
   "applyLieferpaket eil",
