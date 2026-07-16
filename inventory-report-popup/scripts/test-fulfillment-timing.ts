@@ -78,8 +78,8 @@ assert(
 
 const versand = getVersandDeadlineForPacking(makeQuote({}))
 assert(
-  "Pack-Versand 3 Kalendertage vor Anlieferung",
-  versand?.toISOString().slice(0, 10) === "2026-07-27",
+  "Pack-Versand 2 Werktage vor Anlieferung",
+  versand?.toISOString().slice(0, 10) === "2026-07-28",
 )
 
 const flexAnlieferung = getAnlieferungDeadlineForPacking(
@@ -106,8 +106,8 @@ const flexVersand = getVersandDeadlineForPacking(
   }),
 )
 assert(
-  "Pack-Flex-Versand mit Zusatzpuffer (5 Kalendertage)",
-  flexVersand?.toISOString().slice(0, 10) === "2026-07-22",
+  "Pack-Flex-Versand 2 Werktage vor Flex-Anlieferung",
+  flexVersand?.toISOString().slice(0, 10) === "2026-07-23",
 )
 
 const kurierAnlieferung = getAnlieferungDeadlineForPacking(
@@ -136,7 +136,7 @@ const kurierVersand = getVersandDeadlineForPacking(
   }),
 )
 assert(
-  "Pack-Kurier-Versand 1 Kalendertag vor Anlieferung",
+  "Pack-Kurier-Versand 1 Werktag vor Anlieferung",
   kurierVersand?.toISOString().slice(0, 10) === "2026-07-30",
 )
 

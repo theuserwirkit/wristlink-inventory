@@ -20,12 +20,10 @@ export const PACKING_ANLIEFERUNG_WERKTAGE_FLEX = 5
 /** Kurierfahrt (Eil/Overnight): knapper Anlieferungstermin */
 export const PACKING_ANLIEFERUNG_WERKTAGE_KURIER = 1
 
-/** UPS/TNT-Standard: Kalendertage Versandlaufzeit vor Anlieferung */
-export const PACKING_VERSAND_TRANSIT_KALENDERTAGE = 3
-/** Flex: zusätzlicher Puffer auf der Versandseite */
-export const PACKING_VERSAND_TRANSIT_FLEX_EXTRA = 2
+/** UPS/TNT-Standard: Werktage Versandlaufzeit vor Anlieferung */
+export const PACKING_VERSAND_TRANSIT_WERKTAGE = 2
 /** Kurierfahrt: kurze Laufzeit */
-export const PACKING_VERSAND_TRANSIT_KURIER = 1
+export const PACKING_VERSAND_TRANSIT_KURIER_WERKTAGE = 1
 
 export type PackingDeliveryMode = "standard" | "flex" | "kurier"
 
@@ -82,14 +80,13 @@ function anlieferungWerktageForMode(mode: PackingDeliveryMode): number {
   }
 }
 
-function versandTransitKalendertageForMode(mode: PackingDeliveryMode): number {
+function versandTransitWerktageForMode(mode: PackingDeliveryMode): number {
   switch (mode) {
     case "kurier":
-      return PACKING_VERSAND_TRANSIT_KURIER
+      return PACKING_VERSAND_TRANSIT_KURIER_WERKTAGE
     case "flex":
-      return PACKING_VERSAND_TRANSIT_KALENDERTAGE + PACKING_VERSAND_TRANSIT_FLEX_EXTRA
     default:
-      return PACKING_VERSAND_TRANSIT_KALENDERTAGE
+      return PACKING_VERSAND_TRANSIT_WERKTAGE
   }
 }
 
@@ -209,13 +206,13 @@ export function getAnlieferungDeadlineForPacking(quote: TimingQuote): Date | nul
   return addCalendarDays(anchor, minTageForConfig(config))
 }
 
-/** Spätestes Versanddatum aus dem Lager (Kalendertage Transit vor Anlieferung). */
+/** Spätestes Versanddatum aus dem Lager (Werktage Transit vor Anlieferung). */
 export function getVersandDeadlineForPacking(quote: TimingQuote): Date | null {
   const anlieferung = getAnlieferungDeadlineForPacking(quote)
   if (!anlieferung) return null
 
   const mode = resolvePackingDeliveryMode(quote.config_json)
-  return addCalendarDays(anlieferung, -versandTransitKalendertageForMode(mode))
+  return subtractWorkdays(anlieferung, versandTransitWerktageForMode(mode))
 }
 
 export function formatPackingDeadline(date: Date | null): string | null {
