@@ -9,8 +9,9 @@ import {
   createQuoteHoldBooking,
   finalizeQuoteBookingOnPayment,
   releaseQuoteBooking,
-} from "@/lib/actions/quote-booking"
-import { getLeadById, getOrCreateVerifiedLeadForEmail } from "@/lib/actions/leads"
+} from "@/lib/actions/quote-booking-internal"
+import { getOrCreateVerifiedLeadForEmail } from "@/lib/actions/leads"
+import { getLeadById } from "@/lib/actions/leads-internal"
 import { rechnePreis } from "@/lib/pricing/preis-engine"
 import {
   sendCustomerApprovedEmail,
@@ -23,7 +24,7 @@ import {
 import { sendQuoteTelegramNotification, isTelegramConfigured } from "@/lib/konfigurator/telegram"
 import { createCheckoutSessionForQuote, isStripeConfigured } from "@/lib/konfigurator/stripe"
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
-import { canCustomerEditQuoteStatus } from "@/lib/konfigurator/quote-status"
+import { canCustomerEditQuoteStatus, CUSTOMER_EDITABLE_STATUSES } from "@/lib/konfigurator/quote-status"
 import { mergeCustomerEditConfig, buildChangeSummary } from "@/lib/konfigurator/quote-customer-edit"
 import {
   ensureInitialQuoteVersion,
@@ -38,7 +39,8 @@ import { normalizeGruppenGroessen } from "@/lib/konfigurator/gruppen-config"
 import { formatKontaktAdresse } from "@/lib/konfigurator/kontakt-adresse"
 import { getRejectionMessage, type RejectionReasonId } from "@/lib/konfigurator/rejection-reasons"
 import { priceSnapshotSchema, quoteConfigSchema, formatZodError } from "@/lib/api-schemas"
-import { getQuoteOfferPdfForEmail } from "@/lib/actions/quote-offer-pdf"
+import { getQuoteOfferPdfForEmail } from "@/lib/actions/quote-offer-pdf-internal"
+import { toSafeErrorMessage } from "@/lib/safe-error"
 
 const PAYMENT_EXPIRY_DAYS = 7
 
@@ -356,95 +358,113 @@ export async function updateQuoteByPublicToken(input: {
   availabilityLevel: AvailabilityStressLevel
   availabilityLabel?: string | null
 }): Promise<{ success: boolean; error?: string; quoteId?: number }> {
-  const sql = getDb()
-  const rows = await sql`
-    SELECT qr.*, l.email AS lead_email
-    FROM quote_requests qr
-    JOIN leads l ON l.id = qr.lead_id
-    WHERE qr.public_token = ${input.publicToken}
-    LIMIT 1
-  `
-  if (!rows.length) return { success: false, error: "Anfrage nicht gefunden" }
-  const quote = mapQuoteRow(rows[0])
+  try {
+    const sql = getDb()
+    const rows = await sql`
+      SELECT qr.*, l.email AS lead_email
+      FROM quote_requests qr
+      JOIN leads l ON l.id = qr.lead_id
+      WHERE qr.public_token = ${input.publicToken}
+      LIMIT 1
+    `
+    if (!rows.length) return { success: false, error: "Anfrage nicht gefunden" }
+    const quote = mapQuoteRow(rows[0])
 
-  if (!canCustomerEditQuoteStatus(quote.status)) {
-    return { success: false, error: "Änderung in diesem Status nicht möglich" }
+    if (!canCustomerEditQuoteStatus(quote.status)) {
+      return { success: false, error: "Änderung in diesem Status nicht möglich" }
+    }
+
+    const previous = quote.config_json
+    const merged = mergeCustomerEditConfig(previous, input.incomingConfig)
+    const price = rechnePreis(merged)
+    if (!price.gueltig) {
+      return { success: false, error: price.fehler.join("; ") }
+    }
+
+    await ensureInitialQuoteVersion({
+      quoteRequestId: quote.id,
+      config: previous,
+      price: quote.price_snapshot_json,
+      changedBy: "system",
+    })
+
+    const versionNumber = await getNextVersionNumber(quote.id)
+    const changeSummary = buildChangeSummary(previous, merged)
+
+    await insertQuoteVersion({
+      quoteRequestId: quote.id,
+      versionNumber,
+      config: merged,
+      price: price as unknown as Record<string, unknown>,
+      availabilityLevel: input.availabilityLevel,
+      availabilityLabel: input.availabilityLabel ?? null,
+      changedBy: "customer",
+      changeSummary,
+    })
+
+    await releaseQuoteBooking(quote.booking_id)
+    const hold = await createQuoteHoldBooking(quote.id, merged, quote.lead_email)
+
+    // Hold-Fehler blockiert die Kundenänderung nicht (Spec): die Anfrage wird trotzdem
+    // gespeichert, Status geht zurück auf Prüfung, Team wird per Notiz gewarnt.
+    let holdWarning: string | null = null
+    let newBookingId: number | null = null
+    if (!hold.success) {
+      holdWarning = hold.error || "Hold fehlgeschlagen"
+    } else {
+      newBookingId = hold.bookingId ?? null
+    }
+
+    // TOCTOU-Schutz: Zwischen dem initialen Status-Check oben und diesem UPDATE kann der
+    // Status parallel gewechselt haben (z. B. Admin lehnt ab oder Kunde bezahlt). Das UPDATE
+    // greift daher nur, wenn der Status weiterhin kundeneditierbar ist; sonst wird die frisch
+    // angelegte Hold-Buchung wieder freigegeben, um keine verwaiste Reservierung zu hinterlassen.
+    const updated = await sql`
+      UPDATE quote_requests SET
+        config_json = ${JSON.stringify(merged)},
+        price_snapshot_json = ${JSON.stringify(price)},
+        status = 'submitted',
+        approved_at = NULL,
+        expires_at = NULL,
+        stripe_checkout_session_id = NULL,
+        stripe_payment_link_url = NULL,
+        booking_id = ${newBookingId},
+        notes = CASE
+          WHEN ${holdWarning}::text IS NOT NULL
+          THEN COALESCE(notes || E'\n', '') || ${`[System] Hold nach Kundenänderung: ${holdWarning}`}
+          ELSE notes
+        END,
+        updated_at = NOW()
+      WHERE id = ${quote.id}
+        AND status = ANY(${CUSTOMER_EDITABLE_STATUSES}::text[])
+      RETURNING id
+    `
+
+    if (updated.length === 0) {
+      await releaseQuoteBooking(newBookingId)
+      return { success: false, error: "Änderung in diesem Status nicht möglich" }
+    }
+
+    if (quote.lead_email && isTelegramConfigured()) {
+      void sendQuoteTelegramNotification({
+        quoteId: quote.id,
+        email: quote.lead_email,
+        summary: `Kundenänderung: ${changeSummary}`,
+        totalNetto: Number(price.gesamt_netto) || 0,
+        totalBrutto: Number(price.gesamt_brutto) || 0,
+        source: quote.source,
+      }).catch((err) => console.error("Telegram customer-edit notify failed", err))
+    }
+
+    revalidatePath("/warenverwaltung/auftraege")
+    revalidatePath(`/angebot/${input.publicToken}`)
+    return { success: true, quoteId: quote.id }
+  } catch (e) {
+    return {
+      success: false,
+      error: toSafeErrorMessage(e, "updateQuoteByPublicToken"),
+    }
   }
-
-  const previous = quote.config_json
-  const merged = mergeCustomerEditConfig(previous, input.incomingConfig)
-  const price = rechnePreis(merged)
-  if (!price.gueltig) {
-    return { success: false, error: price.fehler.join("; ") }
-  }
-
-  await ensureInitialQuoteVersion({
-    quoteRequestId: quote.id,
-    config: previous,
-    price: quote.price_snapshot_json,
-    changedBy: "system",
-  })
-
-  const versionNumber = await getNextVersionNumber(quote.id)
-  const changeSummary = buildChangeSummary(previous, merged)
-
-  await insertQuoteVersion({
-    quoteRequestId: quote.id,
-    versionNumber,
-    config: merged,
-    price: price as unknown as Record<string, unknown>,
-    availabilityLevel: input.availabilityLevel,
-    availabilityLabel: input.availabilityLabel ?? null,
-    changedBy: "customer",
-    changeSummary,
-  })
-
-  await releaseQuoteBooking(quote.booking_id)
-  const hold = await createQuoteHoldBooking(quote.id, merged, quote.lead_email)
-
-  // Hold-Fehler blockiert die Kundenänderung nicht (Spec): die Anfrage wird trotzdem
-  // gespeichert, Status geht zurück auf Prüfung, Team wird per Notiz gewarnt.
-  let holdWarning: string | null = null
-  let newBookingId: number | null = null
-  if (!hold.success) {
-    holdWarning = hold.error || "Hold fehlgeschlagen"
-  } else {
-    newBookingId = hold.bookingId ?? null
-  }
-
-  await sql`
-    UPDATE quote_requests SET
-      config_json = ${JSON.stringify(merged)},
-      price_snapshot_json = ${JSON.stringify(price)},
-      status = 'submitted',
-      approved_at = NULL,
-      expires_at = NULL,
-      stripe_checkout_session_id = NULL,
-      stripe_payment_link_url = NULL,
-      booking_id = ${newBookingId},
-      notes = CASE
-        WHEN ${holdWarning}::text IS NOT NULL
-        THEN COALESCE(notes || E'\n', '') || ${`[System] Hold nach Kundenänderung: ${holdWarning}`}
-        ELSE notes
-      END,
-      updated_at = NOW()
-    WHERE id = ${quote.id}
-  `
-
-  if (quote.lead_email) {
-    void sendQuoteTelegramNotification({
-      quoteId: quote.id,
-      email: quote.lead_email,
-      summary: `Kundenänderung: ${changeSummary}`,
-      totalNetto: Number(price.gesamt_netto) || 0,
-      totalBrutto: Number(price.gesamt_brutto) || 0,
-      source: quote.source,
-    }).catch((err) => console.error("Telegram customer-edit notify failed", err))
-  }
-
-  revalidatePath("/warenverwaltung/auftraege")
-  revalidatePath(`/angebot/${input.publicToken}`)
-  return { success: true, quoteId: quote.id }
 }
 
 function scheduleApprovalCustomerEmail(params: {
@@ -570,7 +590,7 @@ export async function approveQuoteRequest(
     } catch (e) {
       return {
         success: false,
-        error: e instanceof Error ? e.message : "Stripe-Checkout konnte nicht erstellt werden",
+        error: toSafeErrorMessage(e, "createCheckoutSessionForQuote"),
       }
     }
 
@@ -598,10 +618,9 @@ export async function approveQuoteRequest(
     revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
     return { success: true }
   } catch (e) {
-    console.error("approveQuoteRequest failed:", e)
     return {
       success: false,
-      error: e instanceof Error ? e.message : "Freigabe fehlgeschlagen",
+      error: toSafeErrorMessage(e, "approveQuoteRequest"),
     }
   }
 }
@@ -681,19 +700,29 @@ export async function cancelQuoteRequest(
   return { success: true }
 }
 
+/**
+ * B-09: Idempotenz gegen doppelt zugestellte Stripe-Events. Das INSERT mit
+ * `ON CONFLICT (event_id) DO NOTHING RETURNING` ist atomar (Postgres reserviert
+ * die Zeile innerhalb eines einzelnen Statements) — anders als ein vorheriges
+ * SELECT-then-INSERT können zwei parallele Zustellungen desselben Events NICHT
+ * beide den "noch nicht verarbeitet"-Zweig durchlaufen. Bei Konflikt (bereits
+ * verarbeitet) liefert die Funktion `alreadyProcessed: true` statt zu werfen,
+ * damit die Webhook-Route weiterhin `{received:true}` zurückgeben kann und
+ * Stripe nicht unnötig retried.
+ */
 export async function processPaidQuote(quoteId: number, stripeEventId: string) {
   const sql = getDb()
 
-  const existing = await sql`
-    SELECT event_id FROM stripe_webhook_events WHERE event_id = ${stripeEventId}
+  const inserted = await sql`
+    INSERT INTO stripe_webhook_events (event_id) VALUES (${stripeEventId})
+    ON CONFLICT (event_id) DO NOTHING
+    RETURNING event_id
   `
-  if (existing.length > 0) return { alreadyProcessed: true }
+  if (inserted.length === 0) return { alreadyProcessed: true }
 
   const quote = await getQuoteByIdInternal(quoteId)
   if (!quote) return { success: false, error: "Quote not found" }
   if (quote.status === "paid") return { alreadyProcessed: true }
-
-  await sql`INSERT INTO stripe_webhook_events (event_id) VALUES (${stripeEventId})`
 
   return finalizeQuoteAsPaid(quoteId, {
     paymentMethod: "stripe",
@@ -720,18 +749,17 @@ export async function finalizeQuoteAsPaid(
   }
 
   const sql = getDb()
-  await sql`
-    UPDATE quote_requests SET
-      status = 'paid',
-      paid_at = NOW(),
-      payment_method = ${options.paymentMethod},
-      payment_note = ${options.paymentNote?.trim() || null},
-      stripe_event_id = ${options.stripeEventId || null},
-      fulfillment_status = 'angenommen',
-      updated_at = NOW()
-    WHERE id = ${quoteId}
-  `
 
+  // C-04: Buchungs-Finalisierung läuft jetzt VOR dem Status-Wechsel auf "paid". Vorher
+  // wurde der Status zuerst auf "paid" gesetzt und bei einem Buchungsfehler nur eine
+  // Notiz angehängt — die Anfrage blieb dann "fertig bezahlt ohne Buchung" stehen, ohne
+  // klaren Retry-Pfad. Jetzt: Wenn die Buchung fehlschlägt, bleibt der Status auf dem
+  // bisherigen (zahlbaren) Wert stehen, die Notiz wird trotzdem geschrieben (bestehendes
+  // Logging bleibt erhalten) — ein erneuter Aufruf von finalizeQuoteAsPaid (z. B. über den
+  // Admin-Retry-Pfad `markQuoteAsPaid` in lib/actions/quotes.ts) kann die Buchung dann
+  // erneut versuchen, da `payable` weiterhin erfüllt ist. Für Stripe-Zahlungen bleibt das
+  // zugehörige Event dank B-09 (ON CONFLICT DO NOTHING auf stripe_webhook_events) bereits
+  // als verarbeitet markiert; ein manueller Admin-Retry ist davon unabhängig möglich.
   const lead = await getLeadById(quote.lead_id)
 
   const paidQuoteForBooking = {
@@ -754,7 +782,49 @@ export async function finalizeQuoteAsPaid(
         updated_at = NOW()
       WHERE id = ${quoteId}
     `
+    return {
+      success: false,
+      error: `Buchung fehlgeschlagen, Status bleibt ${quote.status} (Retry über "Als bezahlt markieren" möglich): ${bookingResult.error}`,
+    }
   }
+
+  // C-04: Status-Update und der zugehörige Fulfillment-Event-Eintrag laufen jetzt
+  // gemeinsam in EINER nicht-interaktiven HTTP-Transaktion (sql.transaction) — beide
+  // Schreibvorgänge committen atomisch zusammen. `mail_sent`/`mail_subject` sind zu diesem
+  // Zeitpunkt noch nicht bekannt (der Mailversand ist ein bewusster Seiteneffekt AUSSERHALB
+  // der DB-Transaktion, siehe unten) und werden defensiv mit `false`/`NULL` vorbelegt, dann
+  // per kompensierendem Update nachgetragen, sobald das Mail-Ergebnis vorliegt.
+  const [, insertedEvent] = await sql.transaction(
+    [
+      sql`
+        UPDATE quote_requests SET
+          status = 'paid',
+          paid_at = NOW(),
+          payment_method = ${options.paymentMethod},
+          payment_note = ${options.paymentNote?.trim() || null},
+          stripe_event_id = ${options.stripeEventId || null},
+          fulfillment_status = 'angenommen',
+          updated_at = NOW()
+        WHERE id = ${quoteId}
+      `,
+      sql`
+        INSERT INTO quote_fulfillment_events (
+          quote_id, from_status, to_status, comment, mail_sent, mail_subject, created_by
+        ) VALUES (
+          ${quoteId},
+          NULL,
+          'angenommen',
+          'Zahlung eingegangen',
+          false,
+          NULL,
+          ${options.paymentMethod === "stripe" ? "stripe" : "admin"}
+        )
+        RETURNING id
+      `,
+    ],
+    { isolationLevel: "ReadCommitted" },
+  )
+  const fulfillmentEventId = insertedEvent[0]?.id as number | undefined
 
   const paidQuote = await getQuoteByIdInternal(quoteId)
   const shouldSendMail = options.sendMail ?? true
@@ -778,19 +848,14 @@ export async function finalizeQuoteAsPaid(
     }
   }
 
-  await sql`
-    INSERT INTO quote_fulfillment_events (
-      quote_id, from_status, to_status, comment, mail_sent, mail_subject, created_by
-    ) VALUES (
-      ${quoteId},
-      NULL,
-      'angenommen',
-      'Zahlung eingegangen',
-      ${mailSent},
-      ${mailSent ? "Zahlung eingegangen" : null},
-      ${options.paymentMethod === "stripe" ? "stripe" : "admin"}
-    )
-  `
+  if (mailSent && fulfillmentEventId) {
+    await sql`
+      UPDATE quote_fulfillment_events SET
+        mail_sent = true,
+        mail_subject = 'Zahlung eingegangen'
+      WHERE id = ${fulfillmentEventId}
+    `
+  }
 
   revalidatePath("/warenverwaltung/auftraege")
   revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
