@@ -14,15 +14,13 @@ const LOCKED_KEYS: (keyof QuoteConfig)[] = [
   "modus",
   "station",
   "stationModus",
-  "gruppen",
-  "gruppenGroessen",
   "kanalanzahl",
   "land",
   "szenario",
   "variante",
 ]
 
-/** Erlaubte Kunden-Felder laut Spec: Menge, Logo/Branding, Techniker, Druck, Flex, Lieferoptionen */
+/** Erlaubte Kunden-Felder: Menge, Logo/Branding, Techniker, Druck, Flex, Lieferoptionen, Gruppen (PRO) */
 export function mergeCustomerEditConfig(
   previous: QuoteConfig,
   incoming: QuoteConfig,
@@ -48,6 +46,13 @@ export function buildChangeSummary(before: QuoteConfig, after: QuoteConfig): str
   }
   if (before.lieferpaket !== after.lieferpaket || before.lieferart !== after.lieferart || before.lieferzeit !== after.lieferzeit) {
     parts.push("Lieferung")
+  }
+  if (before.gruppen !== after.gruppen) {
+    parts.push(`Gruppen ${before.gruppen}→${after.gruppen}`)
+  } else {
+    const beforeSizes = JSON.stringify(before.gruppenGroessen ?? [])
+    const afterSizes = JSON.stringify(after.gruppenGroessen ?? [])
+    if (beforeSizes !== afterSizes) parts.push("Gruppenaufteilung")
   }
   return parts.length ? parts.join(" · ") : "Konfiguration angepasst"
 }

@@ -47,6 +47,38 @@ const hacked = { ...previousNoVon, von: "2099-01-01" }
 const mergedNoVon = mergeCustomerEditConfig(previousNoVon, hacked)
 assert(mergedNoVon.von === undefined, "missing von on previous clears hacked incoming von")
 
+const withGruppen: QuoteConfig = {
+  ...base,
+  station: "pro",
+  gruppen: 2,
+  gruppenGroessen: [250, 250],
+}
+const gruppenPatch = {
+  ...withGruppen,
+  gruppen: 4,
+  gruppenGroessen: [100, 100, 150, 150],
+  station: "eco" as const,
+  menge: 600,
+}
+const mergedGruppen = mergeCustomerEditConfig(withGruppen, gruppenPatch)
+assert(mergedGruppen.gruppen === 4, "gruppen editable")
+assert(
+  JSON.stringify(mergedGruppen.gruppenGroessen) === JSON.stringify([100, 100, 150, 150]),
+  "gruppenGroessen editable",
+)
+assert(mergedGruppen.station === "pro", "station still locked")
+assert(mergedGruppen.menge === 600, "menge still editable")
+
+const summaryGruppen = buildChangeSummary(withGruppen, mergedGruppen)
+assert(summaryGruppen.includes("Gruppen 2→4"), "summary mentions Gruppen count")
+
+const onlySplit = mergeCustomerEditConfig(withGruppen, {
+  ...withGruppen,
+  gruppenGroessen: [200, 300],
+})
+const summarySplit = buildChangeSummary(withGruppen, onlySplit)
+assert(summarySplit.includes("Gruppenaufteilung"), "summary mentions Verteilung")
+
 const summary = buildChangeSummary(base, merged)
 assert(summary.includes("Menge"), "summary mentions Menge")
 assert(summary.includes("Flex"), "summary mentions Flex")
