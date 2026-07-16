@@ -1,7 +1,7 @@
 # Kundenänderung: Gruppenaufteilung + Angebots-PDF Historie
 
 **Datum:** 2026-07-16  
-**Status:** Freigegeben — Plan bereit  
+**Status:** Freigegeben — implementiert  
 **Plan:** `docs/superpowers/plans/2026-07-16-customer-edit-gruppen-pdf.md`  
 **Erweitert:** `docs/superpowers/specs/2026-07-16-customer-quote-edit-design.md`  
 **Kontext:** Wristlink / inventory-report-popup — Edit-Modus, `/angebot/[token]`, `quote_request_versions`
