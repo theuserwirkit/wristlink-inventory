@@ -3,8 +3,13 @@ import { KonfiguratorClient } from "@/components/konfigurator/konfigurator-clien
 
 export const dynamic = "force-dynamic"
 
-export default async function KonfiguratorPage() {
+export default async function KonfiguratorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ edit?: string }>
+}) {
   const lead = await getVerifiedLead()
+  const { edit } = await searchParams
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -18,13 +23,14 @@ export default async function KonfiguratorPage() {
       </header>
       <main className="container mx-auto px-4 py-8">
         <KonfiguratorClient
-          initialVerified={Boolean(lead)}
+          initialVerified={Boolean(lead) || Boolean(edit)}
           initialEmail={lead?.email}
           initialContact={{
             name: lead?.name,
             firma: lead?.firma,
             telefon: lead?.telefon,
           }}
+          editToken={edit}
         />
       </main>
     </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -21,7 +22,6 @@ import { cn } from "@/lib/utils"
 import {
   STATION_OPTIONS,
   PRODUCT_OPTIONS,
-  isProductKonfiguratorAvailable,
   SZENARIO_OPTIONS,
   DRUCK_ART_OPTIONS,
   LIEFERLAND_INFO,
@@ -127,17 +127,28 @@ const DEFAULT_CONFIG: QuoteConfig = {
 export function ConfiguratorWizard({
   userEmail,
   initialContact,
+  editMode = false,
+  editToken,
+  initialConfig,
 }: {
   userEmail: string
   initialContact?: Pick<QuoteConfig, "kontaktName" | "kontaktFirma" | "kontaktTelefon">
+  editMode?: boolean
+  editToken?: string
+  initialConfig?: QuoteConfig
 }) {
+  const router = useRouter()
   const [step, setStep] = useState(0)
-  const [config, setConfig] = useState<QuoteConfig>({
-    ...DEFAULT_CONFIG,
-    kontaktName: initialContact?.kontaktName || "",
-    kontaktFirma: initialContact?.kontaktFirma || "",
-    kontaktTelefon: initialContact?.kontaktTelefon || "",
-  })
+  const [config, setConfig] = useState<QuoteConfig>(
+    initialConfig
+      ? { ...DEFAULT_CONFIG, ...initialConfig }
+      : {
+          ...DEFAULT_CONFIG,
+          kontaktName: initialContact?.kontaktName || "",
+          kontaktFirma: initialContact?.kontaktFirma || "",
+          kontaktTelefon: initialContact?.kontaktTelefon || "",
+        },
+  )
   const [price, setPrice] = useState<PreisEngineResult | null>(null)
   const [availability, setAvailability] = useState<AvailabilityResponse | null>(null)
   const [loadingAvailability, setLoadingAvailability] = useState(false)
@@ -154,7 +165,6 @@ export function ConfiguratorWizard({
   const [showFieldErrors, setShowFieldErrors] = useState(false)
   const [distanceLoading, setDistanceLoading] = useState(false)
   const [distanceError, setDistanceError] = useState<string | null>(null)
-  const [resolvedKanalanzahl, setResolvedKanalanzahl] = useState<number | null>(null)
   const [stationInfoModal, setStationInfoModal] = useState<"eco" | "pro" | null>(null)
   const [stationComparisonOpen, setStationComparisonOpen] = useState(false)
   const requestAbortRef = useRef<AbortController | null>(null)
@@ -323,7 +333,6 @@ export function ConfiguratorWizard({
       })
       if (signal?.aborted) return
       const data = await res.json()
-      applyKanalanzahlFromResponse(data)
       setPrice(data)
     } catch (error) {
       if ((error as { name?: string })?.name !== "AbortError") {
@@ -335,12 +344,6 @@ export function ConfiguratorWizard({
       }
     }
   }, [])
-
-  function applyKanalanzahlFromResponse(data: { kanalanzahl?: number }) {
-    if (data.kanalanzahl === 40 || data.kanalanzahl === 80) {
-      setResolvedKanalanzahl(data.kanalanzahl)
-    }
-  }
 
   const fetchAvailability = useCallback(async (cfg: QuoteConfig, signal?: AbortSignal) => {
     if (!cfg.von) {
@@ -357,7 +360,6 @@ export function ConfiguratorWizard({
       })
       if (signal?.aborted) return
       const data = await res.json()
-      applyKanalanzahlFromResponse(data)
       setAvailability(data)
     } catch (error) {
       if ((error as { name?: string })?.name !== "AbortError") {
@@ -390,7 +392,6 @@ export function ConfiguratorWizard({
       })
       if (signal?.aborted) return
       const data = await res.json()
-      applyKanalanzahlFromResponse(data)
       setStationAvailability(data)
     } catch (error) {
       if ((error as { name?: string })?.name !== "AbortError") {
@@ -414,7 +415,6 @@ export function ConfiguratorWizard({
       })
       if (signal?.aborted) return
       const data = await res.json()
-      applyKanalanzahlFromResponse(data)
       setGroupAvailability(data)
     } catch (error) {
       if ((error as { name?: string })?.name !== "AbortError") {
@@ -579,7 +579,7 @@ export function ConfiguratorWizard({
     }
     if (step === 2) {
       if (!config.von) return false
-      if (availability && !availability.verfuegbar) return false
+      if (!editMode && availability && !availability.verfuegbar) return false
       return true
     }
     if (step === 3) {
@@ -589,13 +589,14 @@ export function ConfiguratorWizard({
         return false
       }
       if (
+        !editMode &&
         config.station !== "keine" &&
         stationAvailability &&
         !stationAvailability.verfuegbar
       ) {
         return false
       }
-      if (config.gruppen > 0 && groupAvailability && !groupAvailability.verfuegbar) {
+      if (!editMode && config.gruppen > 0 && groupAvailability && !groupAvailability.verfuegbar) {
         return false
       }
       return true
@@ -616,13 +617,17 @@ export function ConfiguratorWizard({
   }
 
   const plzValid = normalizePlz(config.kontaktPlz || "").length === 5
-  const step2AvailabilityInvalid = Boolean(availability && !availability.verfuegbar)
+  const step2AvailabilityInvalid =
+    !editMode && Boolean(availability && !availability.verfuegbar)
   const step3GruppenInvalid =
     config.station === "pro" &&
     (!gruppenVerteilungGueltig(gruppenGroessen, config.menge) ||
-      (groupAvailability !== null && !groupAvailability.verfuegbar))
+      (!editMode && groupAvailability !== null && !groupAvailability.verfuegbar))
   const step3StationInvalid =
-    config.station !== "keine" && stationAvailability !== null && !stationAvailability.verfuegbar
+    !editMode &&
+    config.station !== "keine" &&
+    stationAvailability !== null &&
+    !stationAvailability.verfuegbar
   const step4LieferpaketInvalid =
     !hasAllowedLieferpaket(tageBisEvent, lieferungCtx) ||
     !isLieferpaketAllowed(lieferpaket, tageBisEvent, lieferungCtx)
@@ -655,6 +660,20 @@ export function ConfiguratorWizard({
     setSubmitting(true)
     setError(null)
     try {
+      if (editMode && editToken) {
+        const res = await fetch(`/api/konfigurator/update/${editToken}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setError(data.error || "Fehler beim Absenden der Änderung")
+          return
+        }
+        router.push(`/angebot/${editToken}`)
+        return
+      }
       const res = await fetch("/api/konfigurator/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -701,6 +720,14 @@ export function ConfiguratorWizard({
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
+      {editMode && (
+        <Alert className="border-blue-200 bg-blue-50 text-blue-900">
+          <AlertCircle className="h-4 w-4 text-blue-600" />
+          <AlertDescription>
+            Du änderst eine bestehende Anfrage. Nach dem Absenden prüfen wir erneut.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-sm text-muted-foreground">Angemeldet als {userEmail}</p>
         <div className="flex flex-wrap gap-1">
@@ -751,6 +778,7 @@ export function ConfiguratorWizard({
                         placeholder="Vor- und Nachname"
                         value={config.kontaktName || ""}
                         onChange={(e) => updateConfig({ kontaktName: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktName?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktName?.trim()))}
                       />
@@ -768,6 +796,7 @@ export function ConfiguratorWizard({
                         placeholder="+49 …"
                         value={config.kontaktTelefon || ""}
                         onChange={(e) => updateConfig({ kontaktTelefon: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktTelefon?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktTelefon?.trim()))}
                       />
@@ -784,6 +813,7 @@ export function ConfiguratorWizard({
                         placeholder="Firmenname"
                         value={config.kontaktFirma || ""}
                         onChange={(e) => updateConfig({ kontaktFirma: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktFirma?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktFirma?.trim()))}
                       />
@@ -800,6 +830,7 @@ export function ConfiguratorWizard({
                         placeholder="Musterstraße 12"
                         value={config.kontaktStrasse || ""}
                         onChange={(e) => updateConfig({ kontaktStrasse: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktStrasse?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktStrasse?.trim()))}
                       />
@@ -820,6 +851,7 @@ export function ConfiguratorWizard({
                             kontaktPlz: e.target.value.replace(/\D/g, "").slice(0, 5),
                           })
                         }
+                        disabled={editMode}
                         className={cn(fieldError(plzValid) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(plzValid)}
                       />
@@ -836,6 +868,7 @@ export function ConfiguratorWizard({
                         placeholder="Berlin"
                         value={config.kontaktOrt || ""}
                         onChange={(e) => updateConfig({ kontaktOrt: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktOrt?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktOrt?.trim()))}
                       />
@@ -943,6 +976,7 @@ export function ConfiguratorWizard({
                         type="date"
                         value={config.von || ""}
                         onChange={(e) => updateConfig({ von: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.von)) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.von))}
                       />
@@ -954,6 +988,7 @@ export function ConfiguratorWizard({
                         type="date"
                         value={config.bis || config.von || ""}
                         onChange={(e) => updateConfig({ bis: e.target.value })}
+                        disabled={editMode}
                       />
                     </div>
                   </div>
@@ -1719,6 +1754,8 @@ export function ConfiguratorWizard({
                 >
                   {submitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : editMode ? (
+                    "Änderung absenden"
                   ) : (
                     "Unverbindlich anfragen"
                   )}
