@@ -41,6 +41,12 @@ assert(merged.kontaktName === "Max", "kontakt locked")
 assert(merged.menge === 600, "menge editable")
 assert(merged.flexRueckgabe === true, "flex editable")
 
+const previousNoVon = { ...base }
+delete previousNoVon.von
+const hacked = { ...previousNoVon, von: "2099-01-01" }
+const mergedNoVon = mergeCustomerEditConfig(previousNoVon, hacked)
+assert(mergedNoVon.von === undefined, "missing von on previous clears hacked incoming von")
+
 const summary = buildChangeSummary(base, merged)
 assert(summary.includes("Menge"), "summary mentions Menge")
 assert(summary.includes("Flex"), "summary mentions Flex")

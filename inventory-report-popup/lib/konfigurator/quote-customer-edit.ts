@@ -29,9 +29,7 @@ export function mergeCustomerEditConfig(
 ): QuoteConfig {
   const next: QuoteConfig = { ...incoming }
   for (const key of LOCKED_KEYS) {
-    if (key in previous) {
-      ;(next as Record<string, unknown>)[key as string] = previous[key]
-    }
+    ;(next as Record<string, unknown>)[key as string] = previous[key]
   }
   return next
 }
