@@ -6,6 +6,7 @@ import {
   getVersandDeadlineForPacking,
 } from "../lib/konfigurator/fulfillment-timing"
 import type { QuoteRequest } from "../lib/konfigurator/types"
+import { addWorkdays } from "../lib/utils/date"
 
 let failed = 0
 
@@ -78,8 +79,8 @@ assert(
 
 const versand = getVersandDeadlineForPacking(makeQuote({}))
 assert(
-  "Pack-Versand 3 Kalendertage vor Anlieferung",
-  versand?.toISOString().slice(0, 10) === "2026-07-27",
+  "Pack-Versand 2 Werktage vor Anlieferung",
+  versand?.toISOString().slice(0, 10) === "2026-07-28",
 )
 
 const flexAnlieferung = getAnlieferungDeadlineForPacking(
@@ -106,8 +107,8 @@ const flexVersand = getVersandDeadlineForPacking(
   }),
 )
 assert(
-  "Pack-Flex-Versand mit Zusatzpuffer (5 Kalendertage)",
-  flexVersand?.toISOString().slice(0, 10) === "2026-07-22",
+  "Pack-Flex-Versand 2 Werktage vor Flex-Anlieferung",
+  flexVersand?.toISOString().slice(0, 10) === "2026-07-23",
 )
 
 const kurierAnlieferung = getAnlieferungDeadlineForPacking(
@@ -136,7 +137,7 @@ const kurierVersand = getVersandDeadlineForPacking(
   }),
 )
 assert(
-  "Pack-Kurier-Versand 1 Kalendertag vor Anlieferung",
+  "Pack-Kurier-Versand 1 Werktag vor Anlieferung",
   kurierVersand?.toISOString().slice(0, 10) === "2026-07-30",
 )
 
@@ -165,6 +166,30 @@ const eil = getFulfillmentDueDate(
   }),
 )
 assert("Eilauftrag: 2 Tage nach Zahlung", eil?.toISOString().slice(0, 10) === "2026-07-10")
+
+const baseConfig = makeQuote({}).config_json
+const { von: _von, bis: _bis, ...configOhneEvent } = baseConfig
+const noVon = makeQuote({
+  config_json: {
+    ...configOhneEvent,
+    lieferpaket: "regulaer",
+    lieferzeit: "standard",
+  },
+  paid_at: "2026-06-10",
+})
+const expectedNoVon = addWorkdays(new Date("2026-06-10T12:00:00"), 24)
+  .toISOString()
+  .slice(0, 10)
+const dueNoVon = getFulfillmentDueDate(noVon)
+const anlieferungNoVon = getAnlieferungDeadlineForPacking(noVon)
+assert(
+  "Ohne Event: Anker + 24 WT (Due)",
+  dueNoVon?.toISOString().slice(0, 10) === expectedNoVon,
+)
+assert(
+  "Ohne Event: Anker + 24 WT (Anlieferung)",
+  anlieferungNoVon?.toISOString().slice(0, 10) === expectedNoVon,
+)
 
 const sorted = [
   makeQuote({ id: 1, config_json: { ...makeQuote({}).config_json, von: "2026-09-01" } }),

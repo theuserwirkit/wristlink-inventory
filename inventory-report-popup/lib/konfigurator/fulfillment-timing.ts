@@ -1,14 +1,14 @@
 import { daysUntilEvent } from "@/lib/konfigurator/availability-stress"
 import { isFulfillmentComplete } from "@/lib/konfigurator/fulfillment-status"
 import {
-  LIEFERPAKET_OPTIONS,
+  minWerktageForPaket,
   normalizeFlexRueckgabe,
   normalizeLieferpaket,
   werktageToCalendarDays,
 } from "@/lib/konfigurator/lieferpaket"
 import { normalizeLieferart } from "@/lib/konfigurator/product-info"
 import type { QuoteConfig, QuoteRequest } from "@/lib/konfigurator/types"
-import { addDays, subtractWorkdays } from "@/lib/utils/date"
+import { addDays, addWorkdays, subtractWorkdays } from "@/lib/utils/date"
 
 /** @deprecated Nur noch für ältere Fulfillment-Fälligkeit – Packlisten nutzen Werktage */
 export const ANLIEFERUNG_TAGE_VOR_EVENT = 2
@@ -20,12 +20,10 @@ export const PACKING_ANLIEFERUNG_WERKTAGE_FLEX = 5
 /** Kurierfahrt (Eil/Overnight): knapper Anlieferungstermin */
 export const PACKING_ANLIEFERUNG_WERKTAGE_KURIER = 1
 
-/** UPS/TNT-Standard: Kalendertage Versandlaufzeit vor Anlieferung */
-export const PACKING_VERSAND_TRANSIT_KALENDERTAGE = 3
-/** Flex: zusätzlicher Puffer auf der Versandseite */
-export const PACKING_VERSAND_TRANSIT_FLEX_EXTRA = 2
+/** UPS/TNT-Standard: Werktage Versandlaufzeit vor Anlieferung */
+export const PACKING_VERSAND_TRANSIT_WERKTAGE = 2
 /** Kurierfahrt: kurze Laufzeit */
-export const PACKING_VERSAND_TRANSIT_KURIER = 1
+export const PACKING_VERSAND_TRANSIT_KURIER_WERKTAGE = 1
 
 export type PackingDeliveryMode = "standard" | "flex" | "kurier"
 
@@ -49,10 +47,11 @@ function addCalendarDays(date: Date, days: number): Date {
   return addDays(date, days)
 }
 
-function minTageForConfig(config: QuoteConfig): number {
+/** Mindest-Werktage ab Zahlung/Anfrage, wenn kein Eventdatum gesetzt ist. */
+function minWerktageForConfig(config: QuoteConfig): number {
   const paket = normalizeLieferpaket(config)
-  const opt = LIEFERPAKET_OPTIONS.find((o) => o.value === paket)
-  return opt?.minTage ?? werktageToCalendarDays(20)
+  const flexRueckgabe = normalizeFlexRueckgabe(config)
+  return minWerktageForPaket(paket, flexRueckgabe)
 }
 
 export function isKurierfahrt(config: QuoteConfig): boolean {
@@ -78,14 +77,13 @@ function anlieferungWerktageForMode(mode: PackingDeliveryMode): number {
   }
 }
 
-function versandTransitKalendertageForMode(mode: PackingDeliveryMode): number {
+function versandTransitWerktageForMode(mode: PackingDeliveryMode): number {
   switch (mode) {
     case "kurier":
-      return PACKING_VERSAND_TRANSIT_KURIER
+      return PACKING_VERSAND_TRANSIT_KURIER_WERKTAGE
     case "flex":
-      return PACKING_VERSAND_TRANSIT_KALENDERTAGE + PACKING_VERSAND_TRANSIT_FLEX_EXTRA
     default:
-      return PACKING_VERSAND_TRANSIT_KALENDERTAGE
+      return PACKING_VERSAND_TRANSIT_WERKTAGE
   }
 }
 
@@ -112,7 +110,7 @@ export function getFulfillmentDueDate(quote: TimingQuote): Date | null {
     return addCalendarDays(anchor, 2)
   }
 
-  return addCalendarDays(anchor, minTageForConfig(config))
+  return addWorkdays(anchor, minWerktageForConfig(config))
 }
 
 export function getFulfillmentTiming(quote: TimingQuote, from = new Date()): FulfillmentTiming {
@@ -202,16 +200,16 @@ export function getAnlieferungDeadlineForPacking(quote: TimingQuote): Date | nul
     return addCalendarDays(anchor, 2)
   }
 
-  return addCalendarDays(anchor, minTageForConfig(config))
+  return addWorkdays(anchor, minWerktageForConfig(config))
 }
 
-/** Spätestes Versanddatum aus dem Lager (Kalendertage Transit vor Anlieferung). */
+/** Spätestes Versanddatum aus dem Lager (Werktage Transit vor Anlieferung). */
 export function getVersandDeadlineForPacking(quote: TimingQuote): Date | null {
   const anlieferung = getAnlieferungDeadlineForPacking(quote)
   if (!anlieferung) return null
 
   const mode = resolvePackingDeliveryMode(quote.config_json)
-  return addCalendarDays(anlieferung, -versandTransitKalendertageForMode(mode))
+  return subtractWorkdays(anlieferung, versandTransitWerktageForMode(mode))
 }
 
 export function formatPackingDeadline(date: Date | null): string | null {

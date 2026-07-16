@@ -46,3 +46,22 @@ export function subtractWorkdays(date: Date, workdays: number): Date {
 export function rangesOverlap(a1: Date, a2: Date, b1: Date, b2: Date): boolean {
   return a1.getTime() <= b2.getTime() && a2.getTime() >= b1.getTime()
 }
+
+/** Werktage streng nach `from` bis einschließlich `to` (Mo–Fr). Wochenenden zählen nicht. */
+export function workdaysUntil(from: Date, to: Date): number {
+  const start = new Date(from)
+  start.setHours(12, 0, 0, 0)
+  const end = new Date(to)
+  end.setHours(12, 0, 0, 0)
+  if (end.getTime() < start.getTime()) {
+    return -workdaysUntil(end, start)
+  }
+  let count = 0
+  const d = new Date(start)
+  while (d.getTime() < end.getTime()) {
+    d.setDate(d.getDate() + 1)
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) count++
+  }
+  return count
+}
