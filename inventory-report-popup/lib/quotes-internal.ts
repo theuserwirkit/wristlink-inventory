@@ -30,6 +30,7 @@ import {
   ensureInitialQuoteVersion,
   insertQuoteVersion,
   getNextVersionNumber,
+  snapshotOfferPdfOntoLatestVersion,
 } from "@/lib/konfigurator/quote-versions"
 import type { AvailabilityStressLevel } from "@/lib/konfigurator/availability-stress"
 import type { PaymentMethod, QuoteConfig, QuoteRequest, QuoteSource } from "@/lib/konfigurator/types"
@@ -389,6 +390,8 @@ export async function updateQuoteByPublicToken(input: {
       changedBy: "system",
     })
 
+    await snapshotOfferPdfOntoLatestVersion(quote.id)
+
     const versionNumber = await getNextVersionNumber(quote.id)
     const changeSummary = buildChangeSummary(previous, merged)
 
@@ -429,6 +432,9 @@ export async function updateQuoteByPublicToken(input: {
         expires_at = NULL,
         stripe_checkout_session_id = NULL,
         stripe_payment_link_url = NULL,
+        offer_pdf_filename = NULL,
+        offer_pdf_data = NULL,
+        offer_pdf_mime_type = NULL,
         booking_id = ${newBookingId},
         notes = CASE
           WHEN ${holdWarning}::text IS NOT NULL
