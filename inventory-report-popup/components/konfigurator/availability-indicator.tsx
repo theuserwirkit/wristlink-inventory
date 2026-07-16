@@ -7,9 +7,11 @@ import { formatAvailabilityStandDatum } from "@/lib/konfigurator/availability-st
 export function AvailabilityIndicator({
   availability,
   loading,
+  hideDetails = false,
 }: {
   availability: AvailabilityResponse | null
   loading?: boolean
+  hideDetails?: boolean
 }) {
   if (loading) {
     return (
@@ -28,10 +30,12 @@ export function AvailabilityIndicator({
     <div className="rounded-lg border bg-card p-4 space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-semibold">Aktuelle Verfügbarkeit</p>
-        <p className="text-sm text-muted-foreground">{availability.stressLabel}</p>
+        {!hideDetails && (
+          <p className="text-sm text-muted-foreground">{availability.stressLabel}</p>
+        )}
       </div>
 
-      <div className="relative pt-1 pb-5">
+      <div className={hideDetails ? "relative pt-1" : "relative pt-1 pb-5"}>
         <div
           className="h-2.5 w-full rounded-full bg-gradient-to-r from-green-500 via-yellow-400 to-red-500 shadow-inner"
           aria-hidden
@@ -41,10 +45,12 @@ export function AvailabilityIndicator({
           style={{ left: markerLeft }}
           title={availability.stressLabel}
         />
-        <div className="mt-2 flex justify-between text-[10px] text-muted-foreground uppercase tracking-wide">
-          <span>entspannt</span>
-          <span>angespannt</span>
-        </div>
+        {!hideDetails && (
+          <div className="mt-2 flex justify-between text-[10px] text-muted-foreground uppercase tracking-wide">
+            <span>entspannt</span>
+            <span>angespannt</span>
+          </div>
+        )}
       </div>
 
       <p className="text-sm">
@@ -59,11 +65,11 @@ export function AvailabilityIndicator({
         )}
       </p>
 
-      {availability.hinweis && (
+      {!hideDetails && availability.hinweis && (
         <p className="text-xs text-muted-foreground leading-relaxed">{availability.hinweis}</p>
       )}
 
-      {availability.pendingInquiries > 0 && (
+      {!hideDetails && availability.pendingInquiries > 0 && (
         <p className="text-xs text-muted-foreground">
           {availability.pendingInquiries} offene Anfrage
           {availability.pendingInquiries === 1 ? "" : "n"} im ähnlichen Zeitraum

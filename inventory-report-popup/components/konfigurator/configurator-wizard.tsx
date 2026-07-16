@@ -1184,7 +1184,11 @@ export function ConfiguratorWizard({
                     showFieldErrors && step2AvailabilityInvalid && "rounded-lg ring-2 ring-destructive p-1",
                   )}
                 >
-                  <AvailabilityIndicator availability={availability} loading={loadingAvailability} />
+                  <AvailabilityIndicator
+                    availability={availability}
+                    loading={loadingAvailability}
+                    hideDetails={editMode}
+                  />
                 </div>
 
                 {!availability?.verfuegbar && availability && (
