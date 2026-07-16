@@ -2,7 +2,10 @@ import { NextRequest } from "next/server"
 import { z } from "zod"
 import { checkProductAvailability } from "@/lib/actions/n8n-api"
 import { updateQuoteByPublicToken } from "@/lib/quotes-internal"
+import { getQuoteByPublicToken } from "@/lib/actions/quotes"
 import { hasAngebotAccess } from "@/lib/konfigurator/angebot-access"
+import { canCustomerEditQuoteStatus } from "@/lib/konfigurator/quote-status"
+import { mergeCustomerEditConfig } from "@/lib/konfigurator/quote-customer-edit"
 import type { AvailabilityStressLevel } from "@/lib/konfigurator/availability-stress"
 import type { QuoteConfig } from "@/lib/konfigurator/types"
 import { resolveKanalanzahlForConfig } from "@/lib/konfigurator/resolve-kanalanzahl"
@@ -55,17 +58,34 @@ export async function POST(
   const config: QuoteConfig =
     kanalanzahl != null ? { ...rawConfig, kanalanzahl } : rawConfig
 
+  const quote = await getQuoteByPublicToken(token)
+  if (!quote) {
+    return Response.json({ error: "Anfrage nicht gefunden" }, { status: 404 })
+  }
+  if (!canCustomerEditQuoteStatus(quote.status)) {
+    return Response.json(
+      { error: "Änderung in diesem Status nicht möglich" },
+      { status: 409 },
+    )
+  }
+
+  // Ampel muss auf dem server-gemergten Config berechnet werden: von/bis/produkt/modus/
+  // kanalanzahl sind Locked-Felder und dürfen nicht aus dem (potenziell manipulierten)
+  // Client-Body kommen (Spec: Verfügbarkeitsprüfung darf nicht auf ungeprüften Werten laufen).
+  const merged = mergeCustomerEditConfig(quote.config_json, config)
+
   // Availability-Ampel darf die Kundenänderung nicht blockieren (Spec): schlägt die
   // Prüfung fehl, wird konservativ mit "yellow" ohne Label weitergemacht.
   let availabilityLevel: AvailabilityStressLevel = "yellow"
   let availabilityLabel: string | null = null
   try {
     const availability = await checkProductAvailability({
-      produkt: config.produkt,
-      modus: config.modus,
-      menge: config.menge,
-      von: config.von,
-      bis: config.bis || config.von,
+      produkt: merged.produkt,
+      modus: merged.modus,
+      menge: merged.menge,
+      von: merged.von,
+      bis: merged.bis || merged.von,
+      kanalanzahl: merged.kanalanzahl,
     })
     availabilityLevel = availability.stressLevel
     availabilityLabel = availability.stressLabel ?? null
