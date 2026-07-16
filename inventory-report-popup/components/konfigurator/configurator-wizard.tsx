@@ -1293,7 +1293,6 @@ export function ConfiguratorWizard({
                         step={1}
                         value={[Math.min(config.gruppen, maxGruppen)]}
                         onValueChange={([v]) => updateConfig({ gruppen: v })}
-                        disabled={editMode}
                       />
                       <p className="text-xs text-muted-foreground">
                         Je Gruppe {GRUPPEN_INFO.preisProGruppeNetto} EUR netto · max.{" "}
@@ -1310,7 +1309,6 @@ export function ConfiguratorWizard({
                           menge={config.menge}
                           groessen={gruppenGroessen}
                           onChange={(next) => updateConfig({ gruppenGroessen: next })}
-                          disabled={editMode}
                         />
 
                         {loadingGroupAvailability ? (
