@@ -28,6 +28,7 @@ import { STATUS_LABELS, SOURCE_LABELS, statusBadgeVariant } from "@/lib/konfigur
 import { loadPackingSheetForQuote } from "@/lib/konfigurator/packing-sheet-loader"
 import { FULFILLMENT_STATUS_LABELS } from "@/lib/konfigurator/fulfillment-status"
 import { formatAuftragHeading } from "@/lib/konfigurator/auftrag-heading"
+import { listQuoteVersions } from "@/lib/konfigurator/quote-versions"
 
 export const dynamic = "force-dynamic"
 
@@ -58,7 +59,7 @@ export default async function AuftragDetailPage({
     (config.modus === "miete" && Boolean(quote.booking_id)) ||
     needsReturnModal
 
-  const [events, warehouseData, bookingModalData, canPrintWarehouseLabels, warehouseContext, packingSheetData] =
+  const [events, warehouseData, bookingModalData, canPrintWarehouseLabels, warehouseContext, packingSheetData, versions] =
     await Promise.all([
       ["paid", "approved", "payment_pending", "submitted"].includes(quote.status)
         ? listFulfillmentEvents(quoteId).catch(() => [])
@@ -88,6 +89,7 @@ export default async function AuftragDetailPage({
       quote.status === "paid"
         ? loadPackingSheetForQuote(quoteId).catch(() => null)
         : Promise.resolve(null),
+      listQuoteVersions(quote.id),
     ])
 
   const bookingModalProps = bookingModalData
@@ -108,6 +110,10 @@ export default async function AuftragDetailPage({
     gesamt_brutto?: number
   }
   const userCanAdmin = true
+
+  // Client-Workflow-Komponenten benötigen `public_token` nicht – nur der
+  // serverseitig gerenderte Info-Tab (unten) erhält den vollen `quote`.
+  const { public_token: _publicToken, ...quoteForClient } = quote
 
   const resolvedWarehouseContext = {
     ...warehouseContext,
@@ -172,7 +178,7 @@ export default async function AuftragDetailPage({
         </div>
 
         <AuftragDetailView
-          quote={quote}
+          quote={quoteForClient}
           leadEmail={quote.lead_email || ""}
           events={events}
           stripeConfigured={isStripeConfigured()}
@@ -180,7 +186,7 @@ export default async function AuftragDetailPage({
           warehouseContext={resolvedWarehouseContext}
           warehousePanelProps={warehousePanelProps}
           packingSheetData={packingSheetData}
-          infoTab={<AuftragInfoTab quote={quote} config={config} price={price} />}
+          infoTab={<AuftragInfoTab quote={quote} config={config} price={price} versions={versions} />}
         />
       </div>
     </OperationsShell>
