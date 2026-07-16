@@ -54,6 +54,7 @@ import {
   normalizeLieferpaket,
   syncLieferpaketFromEvent,
   getLieferpaketBlockReason,
+  workdaysUntilEvent,
   type Lieferpaket,
 } from "@/lib/konfigurator/lieferpaket"
 import { OptionCard } from "@/components/konfigurator/option-card"
@@ -239,7 +240,8 @@ export function ConfiguratorWizard({
       }
       if (patch.von !== undefined && patch.von) {
         const tage = daysUntilEvent(patch.von)
-        const lieferPatch = syncLieferpaketFromEvent(next, tage)
+        const werktage = workdaysUntilEvent(patch.von)
+        const lieferPatch = syncLieferpaketFromEvent(next, werktage)
         Object.assign(next, lieferPatch)
         if (!isTechnikerAllowed(tage)) {
           next.techniker = false
@@ -248,8 +250,8 @@ export function ConfiguratorWizard({
       if (patch.druck !== undefined || patch.modus !== undefined) {
         const von = patch.von ?? next.von
         if (von) {
-          const tage = daysUntilEvent(von)
-          const lieferPatch = syncLieferpaketFromEvent(next, tage)
+          const werktage = workdaysUntilEvent(von)
+          const lieferPatch = syncLieferpaketFromEvent(next, werktage)
           Object.assign(next, lieferPatch)
         }
       }
@@ -445,7 +447,8 @@ export function ConfiguratorWizard({
   useEffect(() => {
     if (!config.von) return
     const tage = daysUntilEvent(config.von)
-    const lieferPatch = syncLieferpaketFromEvent(config, tage)
+    const werktage = workdaysUntilEvent(config.von)
+    const lieferPatch = syncLieferpaketFromEvent(config, werktage)
     const patch: Partial<QuoteConfig> = { ...lieferPatch }
     if (!isTechnikerAllowed(tage) && config.techniker) {
       patch.techniker = false
@@ -527,9 +530,10 @@ export function ConfiguratorWizard({
   const gruppenGroessen = normalizeGruppenGroessen(config)
   const maxGruppen = maxGruppenAnzahl(config.menge)
   const tageBisEvent = config.von ? daysUntilEvent(config.von) : null
+  const werktageBisEvent = config.von ? workdaysUntilEvent(config.von) : null
   const kurzeLieferzeit =
     tageBisEvent !== null && tageBisEvent >= 0 && tageBisEvent < SHORT_DELIVERY_WARNING_DAYS
-  const lieferpaketWarning = getLieferpaketWarning(tageBisEvent)
+  const lieferpaketWarning = getLieferpaketWarning(werktageBisEvent)
 
   const canNext = () => {
     if (step === 0) {
@@ -569,9 +573,9 @@ export function ConfiguratorWizard({
       return true
     }
     if (step === 4) {
-      if (!hasAllowedLieferpaket(tageBisEvent)) return false
-      if (!isLieferpaketAllowed(lieferpaket, tageBisEvent)) return false
-      if (flexRueckgabe && !isFlexRueckgabeAllowed(tageBisEvent, lieferpaket)) return false
+      if (!hasAllowedLieferpaket(werktageBisEvent)) return false
+      if (!isLieferpaketAllowed(lieferpaket, werktageBisEvent)) return false
+      if (flexRueckgabe && !isFlexRueckgabeAllowed(werktageBisEvent, lieferpaket)) return false
       if (config.techniker) {
         if (!isTechnikerAllowed(tageBisEvent)) return false
         if (!config.technikerTage || config.technikerTage < 1) return false
@@ -587,8 +591,8 @@ export function ConfiguratorWizard({
   const step3GruppenInvalid =
     config.station === "pro" && !gruppenVerteilungGueltig(gruppenGroessen, config.menge)
   const step4LieferpaketInvalid =
-    !hasAllowedLieferpaket(tageBisEvent) ||
-    !isLieferpaketAllowed(lieferpaket, tageBisEvent)
+    !hasAllowedLieferpaket(werktageBisEvent) ||
+    !isLieferpaketAllowed(lieferpaket, werktageBisEvent)
   const step4TechnikerInvalid =
     config.techniker &&
     (!config.technikerTage ||
@@ -1375,7 +1379,7 @@ export function ConfiguratorWizard({
                   {lieferpaketWarning && (
                     <p className="text-xs text-amber-700">{lieferpaketWarning}</p>
                   )}
-                  {!hasAllowedLieferpaket(tageBisEvent) && (
+                  {!hasAllowedLieferpaket(werktageBisEvent) && (
                     <p className="text-xs text-destructive">
                       Mit dem gewählten Eventtermin ist kein Lieferpaket mehr möglich (mindestens
                       48 Stunden Vorlauf erforderlich). Bitte wählen Sie einen späteren Termin.
@@ -1388,8 +1392,8 @@ export function ConfiguratorWizard({
                     )}
                   >
                     {LIEFERPAKET_OPTIONS.map((p) => {
-                      const allowed = isLieferpaketAllowed(p.value, tageBisEvent)
-                      const blockReason = getLieferpaketBlockReason(p.value, tageBisEvent)
+                      const allowed = isLieferpaketAllowed(p.value, werktageBisEvent)
+                      const blockReason = getLieferpaketBlockReason(p.value, werktageBisEvent)
                       return (
                         <OptionCard
                           key={p.value}
@@ -1418,16 +1422,16 @@ export function ConfiguratorWizard({
                         <p className="text-xs text-muted-foreground">
                           {FLEX_RUECKGABE_INFO.description}
                         </p>
-                        {!isFlexRueckgabeAllowed(tageBisEvent, lieferpaket) && (
+                        {!isFlexRueckgabeAllowed(werktageBisEvent, lieferpaket) && (
                           <p className="text-xs text-amber-700">
-                            Bei nur noch {tageBisEvent} Tag{tageBisEvent === 1 ? "" : "en"} bis
-                            zum Event nicht verfügbar.
+                            Bei nur noch {werktageBisEvent} Werktag
+                            {werktageBisEvent === 1 ? "" : "en"} bis zum Event nicht verfügbar.
                           </p>
                         )}
                       </div>
                       <Switch
                         checked={flexRueckgabe}
-                        disabled={!isFlexRueckgabeAllowed(tageBisEvent, lieferpaket)}
+                        disabled={!isFlexRueckgabeAllowed(werktageBisEvent, lieferpaket)}
                         onCheckedChange={(v) => updateConfig({ flexRueckgabe: v })}
                       />
                     </div>
