@@ -1,7 +1,7 @@
 # Lieferpaket-Vorlauf in echten Werktagen
 
 **Datum:** 2026-07-16  
-**Status:** Freigegeben — Plan bereit  
+**Status:** Freigegeben — implementiert  
 **Plan:** `docs/superpowers/plans/2026-07-16-lieferpaket-werktage-vorlauf.md`  
 **Kontext:** Wristlink / inventory-report-popup — `lib/konfigurator/lieferpaket.ts`, Packlisten in `fulfillment-timing.ts`
 
