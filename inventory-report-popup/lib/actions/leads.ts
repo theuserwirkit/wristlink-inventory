@@ -217,14 +217,10 @@ export async function getVerifiedLead(): Promise<Lead | null> {
   return rows[0] as Lead
 }
 
-export async function getLeadById(id: number): Promise<Lead | null> {
-  const sql = getDb()
-  const rows = await sql`
-    SELECT id, email, name, firma, telefon, verified_at, marketing_consent, consent_text_version, consent_ip, customer_id, created_at
-    FROM leads WHERE id = ${id} LIMIT 1
-  `
-  return rows.length ? (rows[0] as Lead) : null
-}
+// A-12: `getLeadById` wurde nach `lib/actions/leads-internal.ts` verschoben (kein
+// "use server"-Export mehr, siehe Kommentar dort) – Re-Export hier entfernt, damit
+// keine Server-Action-Referenz für diese Datei mehr entsteht. Aufrufer importieren
+// jetzt direkt aus `@/lib/actions/leads-internal`.
 
 /** Lead für externe Kanäle (n8n) – automatisch verifiziert. */
 export async function getOrCreateVerifiedLeadForEmail(email: string): Promise<Lead> {

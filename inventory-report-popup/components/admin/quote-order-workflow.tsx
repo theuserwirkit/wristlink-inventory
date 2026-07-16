@@ -23,19 +23,9 @@ import {
   type WarehousePipelineContext,
 } from "@/lib/konfigurator/order-pipeline"
 import type { PackingSheetData } from "@/lib/konfigurator/packing-sheet"
+import { buildOrderContext } from "@/lib/konfigurator/order-context"
 import type { QuoteFulfillmentEvent, QuoteRequest } from "@/lib/konfigurator/types"
 import { toast } from "@/hooks/use-toast"
-
-function buildOrderContext(quote: QuoteRequest): string {
-  const config = quote.config_json
-  const parts: string[] = [`${config.menge}× ${config.produkt}`, config.modus]
-  if (config.modus === "miete" && config.von) {
-    parts.push(`${config.von} – ${config.bis || config.von}`)
-  }
-  parts.push(config.druck ? "mit Druck" : "ohne Druck")
-  if (config.szenario) parts.push(config.szenario)
-  return parts.join(" · ")
-}
 
 const STEP_INTRO: Partial<Record<OrderPipelineStepKey, string>> = {
   material_zuweisen:
@@ -56,7 +46,8 @@ export function QuoteOrderWorkflow({
   warehousePanelProps,
   packingSheetData,
 }: {
-  quote: QuoteRequest
+  /** Ohne `public_token` – der Token wird ausschließlich im Info-Tab serverseitig gerendert. */
+  quote: Omit<QuoteRequest, "public_token">
   leadEmail: string
   events: QuoteFulfillmentEvent[]
   stripeConfigured: boolean

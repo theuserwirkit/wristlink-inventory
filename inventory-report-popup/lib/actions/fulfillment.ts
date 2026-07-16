@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { getDb } from "@/lib/db"
 import { requireRole } from "@/lib/auth"
-import { getLeadById } from "@/lib/actions/leads"
+import { getLeadById } from "@/lib/actions/leads-internal"
 import { getQuoteByIdInternal } from "@/lib/quotes-internal"
 import { getEmailTemplateByKey } from "@/lib/konfigurator/email-template-store"
 import {
@@ -18,6 +18,7 @@ import {
 } from "@/lib/konfigurator/fulfillment-status"
 import { isVersandDienstleister } from "@/lib/konfigurator/versand-dienstleister"
 import { validateWarehouseForFulfillmentStep } from "@/lib/actions/quote-warehouse"
+import { toSafeErrorMessage } from "@/lib/safe-error"
 import type { FulfillmentStatus, QuoteFulfillmentEvent, VersandDienstleister } from "@/lib/konfigurator/types"
 
 function mapEventRow(row: Record<string, unknown>): QuoteFulfillmentEvent {
@@ -166,11 +167,7 @@ export async function advanceFulfillmentStep(
     revalidatePath("/warenverwaltung/auftraege")
     return { success: true }
   } catch (error) {
-    console.error("advanceFulfillmentStep failed:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Schritt konnte nicht gespeichert werden",
-    }
+    return { success: false, error: toSafeErrorMessage(error, "advanceFulfillmentStep") }
   }
 }
 

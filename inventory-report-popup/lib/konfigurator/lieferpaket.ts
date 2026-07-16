@@ -48,7 +48,7 @@ export const LIEFERPAKET_OPTIONS: ReadonlyArray<{
     value: "eil",
     label: "Eilauftrag",
     description:
-      "Produktion 48 Std · Overnight per UPS/TNT · Rückversand 3 Werktage · keine Bedruckung",
+      "Produktion 48 Std · Overnight per UPS/TNT · Rückversand 3 Werktage · Bedruckung möglich",
     minTage: 2,
     preisNetto: LIEFERPAKET_PREIS.eil,
   },
@@ -62,6 +62,7 @@ export const FLEX_RUECKGABE_INFO = {
   minTage: werktageToCalendarDays(5),
 } as const
 
+/** @deprecated hasDruck wirkt nicht mehr auf die Freigabe (Eil + Bedruckung ist erlaubt). */
 export type LieferungContext = {
   hasDruck?: boolean
 }
@@ -136,20 +137,30 @@ export function applyLieferpaket(
   }
 }
 
-function minTageForPaket(paket: Lieferpaket, ctx?: LieferungContext): number {
-  if (paket === "eil" && ctx?.hasDruck) return Number.POSITIVE_INFINITY
+function minTageForPaket(paket: Lieferpaket): number {
   const opt = LIEFERPAKET_OPTIONS.find((o) => o.value === paket)
   return opt?.minTage ?? 0
 }
 
+/** Zeitliche Freigabe eines Lieferpakets (Kalendertage bis Event). Bedruckung ist unabhängig davon erlaubt. */
 export function isLieferpaketAllowed(
   paket: Lieferpaket,
   daysUntilEvent: number | null,
-  ctx?: LieferungContext,
+  _ctx?: LieferungContext,
 ): boolean {
   if (daysUntilEvent === null) return true
   if (daysUntilEvent < 0) return false
-  return daysUntilEvent >= minTageForPaket(paket, ctx)
+  return daysUntilEvent >= minTageForPaket(paket)
+}
+
+/** Nutzertext, warum ein Paket gerade nicht wählbar ist. */
+export function getLieferpaketBlockReason(
+  paket: Lieferpaket,
+  daysUntilEvent: number | null,
+  ctx?: LieferungContext,
+): string | null {
+  if (isLieferpaketAllowed(paket, daysUntilEvent, ctx)) return null
+  return "Zu kurzer Vorlauf bis zum Event"
 }
 
 export function isFlexRueckgabeAllowed(
@@ -189,13 +200,13 @@ export function getLieferpaketWarning(
 ): string | null {
   if (daysUntilEvent === null) return null
 
-  const blocked = LIEFERPAKET_OPTIONS.filter(
+  const blockedByTime = LIEFERPAKET_OPTIONS.filter(
     (opt) => !isLieferpaketAllowed(opt.value, daysUntilEvent, ctx),
   )
-  if (blocked.length === 0) return null
+  if (blockedByTime.length === 0) return null
 
-  const names = blocked.map((opt) => opt.label).join(", ")
-  return `Bei nur noch ${daysUntilEvent} Tag${daysUntilEvent === 1 ? "" : "en"} bis zum Event ${blocked.length === 1 ? "ist" : "sind"} ${names} nicht verfügbar.`
+  const names = blockedByTime.map((opt) => opt.label).join(", ")
+  return `Bei nur noch ${daysUntilEvent} Tag${daysUntilEvent === 1 ? "" : "en"} bis zum Event ${blockedByTime.length === 1 ? "ist" : "sind"} ${names} nicht verfügbar.`
 }
 
 export function syncLieferpaketFromEvent(
@@ -209,14 +220,13 @@ export function syncLieferpaketFromEvent(
   },
   daysUntilEvent: number | null,
 ): Partial<ReturnType<typeof applyLieferpaket>> {
-  const ctx: LieferungContext = { hasDruck: config.druck }
   const paket = normalizeLieferpaket(config)
   let flexRueckgabe = normalizeFlexRueckgabe(config)
   const patch: Partial<ReturnType<typeof applyLieferpaket>> = {}
 
   let nextPaket = paket
-  if (!isLieferpaketAllowed(paket, daysUntilEvent, ctx)) {
-    const allowed = firstAllowedLieferpaket(daysUntilEvent, ctx)
+  if (!isLieferpaketAllowed(paket, daysUntilEvent)) {
+    const allowed = firstAllowedLieferpaket(daysUntilEvent)
     if (allowed) {
       nextPaket = allowed
       flexRueckgabe = false

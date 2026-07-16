@@ -1,12 +1,7 @@
 import { getKonfiguratorLogoById, getKonfiguratorLogoForLead } from "@/lib/actions/konfigurator-logos"
 import { getVerifiedLead } from "@/lib/actions/leads"
 import { requireRole } from "@/lib/auth"
-
-/** Erlaubt nur alphanumerische Zeichen, Punkt und Bindestrich – verhindert Header-/Pfad-Injection. */
-function sanitizeFilename(filename: string): string {
-  const sanitized = filename.replace(/[^a-zA-Z0-9.\-]/g, "_")
-  return sanitized || "logo"
-}
+import { sanitizeFilename } from "@/lib/utils/sanitize-filename"
 
 export async function GET(
   request: Request,
@@ -36,7 +31,7 @@ export async function GET(
   return new Response(new Uint8Array(logo.data), {
     headers: {
       "Content-Type": logo.mimeType,
-      "Content-Disposition": `${disposition}; filename="${sanitizeFilename(logo.filename)}"`,
+      "Content-Disposition": `${disposition}; filename="${sanitizeFilename(logo.filename, "logo")}"`,
       "Cache-Control": "private, max-age=3600",
     },
   })

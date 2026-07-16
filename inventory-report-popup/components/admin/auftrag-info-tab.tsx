@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"
 import { getProbedruckLabel, normalizeProbedruckOption } from "@/lib/konfigurator/product-info"
 import type { QuoteConfig, QuoteRequest } from "@/lib/konfigurator/types"
+import type { QuoteVersionRow } from "@/lib/konfigurator/quote-versions"
+import { QuoteVersionTimeline } from "@/components/angebot/quote-version-timeline"
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   stripe: "Stripe",
@@ -21,9 +23,10 @@ type AuftragInfoTabProps = {
     mwst_19?: number
     gesamt_brutto?: number
   }
+  versions?: QuoteVersionRow[]
 }
 
-export function AuftragInfoTab({ quote, config, price }: AuftragInfoTabProps) {
+export function AuftragInfoTab({ quote, config, price, versions = [] }: AuftragInfoTabProps) {
   return (
     <div className="space-y-4">
       <Card>
@@ -237,6 +240,17 @@ export function AuftragInfoTab({ quote, config, price }: AuftragInfoTabProps) {
           </dl>
         </CardContent>
       </Card>
+
+      {versions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Änderungsverlauf</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <QuoteVersionTimeline versions={versions} showActor />
+          </CardContent>
+        </Card>
+      )}
 
       {price.positionen && (
         <Card>

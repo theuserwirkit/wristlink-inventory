@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server"
+import { z } from "zod"
 import { getLeadSession } from "@/lib/konfigurator/lead-auth"
 import { getVerifiedLead } from "@/lib/actions/leads"
+import { checkKonfiguratorSessionRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 import { checkProductAvailability } from "@/lib/actions/n8n-api"
 import { checkStationAvailability } from "@/lib/konfigurator/station-availability"
 import { checkGroupProgrammingAvailability } from "@/lib/konfigurator/group-allocation"
@@ -9,6 +11,12 @@ import { MAX_PHYSICAL_GROUPS, normalizeKanalanzahl } from "@/lib/konfigurator/ka
 import { resolveKanalanzahlForConfig } from "@/lib/konfigurator/resolve-kanalanzahl"
 import { rechnePreis } from "@/lib/pricing/preis-engine"
 import type { QuoteConfig } from "@/lib/konfigurator/types"
+import { quoteConfigSchema, formatZodError } from "@/lib/api-schemas"
+
+const sessionBodySchema = z.object({
+  action: z.string().max(50).optional(),
+  config: quoteConfigSchema,
+})
 
 export async function GET(request: NextRequest) {
   const session = await getLeadSession()
@@ -34,15 +42,29 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Nicht verifiziert" }, { status: 401 })
   }
 
-  let body: Record<string, unknown>
+  // B-08: leichtes Rate-Limit gegen exzessives Polling der Preis-/Verfügbarkeits-Actions.
+  const rateLimit = await checkKonfiguratorSessionRateLimit(getClientIp(request))
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit)
+  }
+
+  let rawBody: unknown
   try {
-    body = await request.json()
+    rawBody = await request.json()
   } catch {
     return Response.json({ error: "Ungültiger JSON-Body" }, { status: 400 })
   }
 
-  const action = body.action as string
-  const rawConfig = body.config as QuoteConfig
+  const parsed = sessionBodySchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return Response.json(
+      { error: `Ungültige Konfiguration: ${formatZodError(parsed.error)}` },
+      { status: 400 },
+    )
+  }
+
+  const action = parsed.data.action
+  const rawConfig = parsed.data.config as QuoteConfig
 
   if (action === "price") {
     const kanalanzahl =

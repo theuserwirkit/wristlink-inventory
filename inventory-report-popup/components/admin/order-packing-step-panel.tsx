@@ -19,7 +19,6 @@ import { Check, Circle } from "lucide-react"
 
 type OrderPackingStepPanelProps = {
   phase: WarehousePipelineStepKey | "verpackt"
-  quoteId: number
   allocationComplete: boolean
   packingDocsPrinted: boolean
   primaryBooking: BookingWithRelations | null
@@ -58,7 +57,6 @@ function StepIndicator({
 
 export function OrderPackingStepPanel({
   phase,
-  quoteId,
   allocationComplete,
   packingDocsPrinted,
   primaryBooking,

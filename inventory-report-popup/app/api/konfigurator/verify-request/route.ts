@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server"
 import { requestEmailVerification } from "@/lib/actions/leads"
+import { checkVerifyRequestRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request)
+  const rateLimit = await checkVerifyRequestRateLimit(ip)
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit)
+  }
+
   let body: {
     email?: string
     marketingConsent?: boolean
@@ -20,11 +27,6 @@ export async function POST(request: NextRequest) {
   if (!email) {
     return Response.json({ error: "E-Mail erforderlich" }, { status: 400 })
   }
-
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    undefined
 
   const result = await requestEmailVerification(
     email,

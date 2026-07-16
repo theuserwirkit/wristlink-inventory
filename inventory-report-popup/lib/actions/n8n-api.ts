@@ -1,8 +1,8 @@
-import { getDb } from "@/lib/db"
-import {
-  getAvailabilityForGroupBatchesByDateRange,
-  createBookingInternal,
-} from "@/lib/actions/bookings"
+import "server-only"
+
+import { getDb, type SqlRow } from "@/lib/db"
+import { getAvailabilityForGroupBatchesByDateRange } from "@/lib/actions/bookings"
+import { createBookingInternal } from "@/lib/actions/bookings-internal"
 import {
   computeAvailabilityStress,
   daysUntilEvent,
@@ -283,7 +283,9 @@ async function findBestAllocation(
   return best
 }
 
-export async function createN8nBooking(input: N8nBookingRequest) {
+export async function createN8nBooking(
+  input: N8nBookingRequest,
+): Promise<{ success: true; data: SqlRow } | { success: false; error: string }> {
   const modus = String(input.modus || "").toLowerCase()
   if (modus !== "miete") {
     return { success: false, error: "Buchungs-API unterstuetzt nur modus=miete" }

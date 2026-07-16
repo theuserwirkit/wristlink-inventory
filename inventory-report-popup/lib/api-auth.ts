@@ -1,3 +1,5 @@
+import "server-only"
+
 import { timingSafeEqual } from "crypto"
 import type { NextRequest } from "next/server"
 

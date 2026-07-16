@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -21,7 +22,6 @@ import { cn } from "@/lib/utils"
 import {
   STATION_OPTIONS,
   PRODUCT_OPTIONS,
-  isProductKonfiguratorAvailable,
   SZENARIO_OPTIONS,
   DRUCK_ART_OPTIONS,
   LIEFERLAND_INFO,
@@ -53,6 +53,7 @@ import {
   normalizeFlexRueckgabe,
   normalizeLieferpaket,
   syncLieferpaketFromEvent,
+  getLieferpaketBlockReason,
   type Lieferpaket,
 } from "@/lib/konfigurator/lieferpaket"
 import { OptionCard } from "@/components/konfigurator/option-card"
@@ -127,17 +128,28 @@ const DEFAULT_CONFIG: QuoteConfig = {
 export function ConfiguratorWizard({
   userEmail,
   initialContact,
+  editMode = false,
+  editToken,
+  initialConfig,
 }: {
   userEmail: string
   initialContact?: Pick<QuoteConfig, "kontaktName" | "kontaktFirma" | "kontaktTelefon">
+  editMode?: boolean
+  editToken?: string
+  initialConfig?: QuoteConfig
 }) {
+  const router = useRouter()
   const [step, setStep] = useState(0)
-  const [config, setConfig] = useState<QuoteConfig>({
-    ...DEFAULT_CONFIG,
-    kontaktName: initialContact?.kontaktName || "",
-    kontaktFirma: initialContact?.kontaktFirma || "",
-    kontaktTelefon: initialContact?.kontaktTelefon || "",
-  })
+  const [config, setConfig] = useState<QuoteConfig>(
+    initialConfig
+      ? { ...DEFAULT_CONFIG, ...initialConfig }
+      : {
+          ...DEFAULT_CONFIG,
+          kontaktName: initialContact?.kontaktName || "",
+          kontaktFirma: initialContact?.kontaktFirma || "",
+          kontaktTelefon: initialContact?.kontaktTelefon || "",
+        },
+  )
   const [price, setPrice] = useState<PreisEngineResult | null>(null)
   const [availability, setAvailability] = useState<AvailabilityResponse | null>(null)
   const [loadingAvailability, setLoadingAvailability] = useState(false)
@@ -154,7 +166,6 @@ export function ConfiguratorWizard({
   const [showFieldErrors, setShowFieldErrors] = useState(false)
   const [distanceLoading, setDistanceLoading] = useState(false)
   const [distanceError, setDistanceError] = useState<string | null>(null)
-  const [resolvedKanalanzahl, setResolvedKanalanzahl] = useState<number | null>(null)
   const [stationInfoModal, setStationInfoModal] = useState<"eco" | "pro" | null>(null)
   const [stationComparisonOpen, setStationComparisonOpen] = useState(false)
   const requestAbortRef = useRef<AbortController | null>(null)
@@ -193,12 +204,6 @@ export function ConfiguratorWizard({
             ? false
             : (patch.flexRueckgabe ?? next.flexRueckgabe ?? false)
         Object.assign(next, applyLieferpaket(patch.lieferpaket as Lieferpaket, flexRg))
-        if (patch.lieferpaket === "eil") {
-          next.druck = false
-          next.probedruckOption = "none"
-          next.probedruck = false
-          next.logoId = undefined
-        }
       }
       if (patch.probedruckOption !== undefined) {
         next.probedruck = patch.probedruckOption !== "none"
@@ -208,12 +213,6 @@ export function ConfiguratorWizard({
           next,
           applyLieferpaket(normalizeLieferpaket(next), patch.flexRueckgabe),
         )
-      }
-      if (patch.lieferzeit === "hyperexpress" || patch.lieferpaket === "eil") {
-        next.druck = false
-        next.probedruckOption = "none"
-        next.probedruck = false
-        next.logoId = undefined
       }
       if (patch.druck === false) {
         next.probedruckOption = "none"
@@ -323,7 +322,6 @@ export function ConfiguratorWizard({
       })
       if (signal?.aborted) return
       const data = await res.json()
-      applyKanalanzahlFromResponse(data)
       setPrice(data)
     } catch (error) {
       if ((error as { name?: string })?.name !== "AbortError") {
@@ -335,12 +333,6 @@ export function ConfiguratorWizard({
       }
     }
   }, [])
-
-  function applyKanalanzahlFromResponse(data: { kanalanzahl?: number }) {
-    if (data.kanalanzahl === 40 || data.kanalanzahl === 80) {
-      setResolvedKanalanzahl(data.kanalanzahl)
-    }
-  }
 
   const fetchAvailability = useCallback(async (cfg: QuoteConfig, signal?: AbortSignal) => {
     if (!cfg.von) {
@@ -357,7 +349,6 @@ export function ConfiguratorWizard({
       })
       if (signal?.aborted) return
       const data = await res.json()
-      applyKanalanzahlFromResponse(data)
       setAvailability(data)
     } catch (error) {
       if ((error as { name?: string })?.name !== "AbortError") {
@@ -390,7 +381,6 @@ export function ConfiguratorWizard({
       })
       if (signal?.aborted) return
       const data = await res.json()
-      applyKanalanzahlFromResponse(data)
       setStationAvailability(data)
     } catch (error) {
       if ((error as { name?: string })?.name !== "AbortError") {
@@ -414,7 +404,6 @@ export function ConfiguratorWizard({
       })
       if (signal?.aborted) return
       const data = await res.json()
-      applyKanalanzahlFromResponse(data)
       setGroupAvailability(data)
     } catch (error) {
       if ((error as { name?: string })?.name !== "AbortError") {
@@ -540,10 +529,9 @@ export function ConfiguratorWizard({
   const gruppenGesamt = gruppenGroessen.reduce((sum, n) => sum + n, 0)
   const maxGruppen = maxGruppenAnzahl(config.menge)
   const tageBisEvent = config.von ? daysUntilEvent(config.von) : null
-  const lieferungCtx = { hasDruck: config.modus === "kauf" && config.druck }
   const kurzeLieferzeit =
     tageBisEvent !== null && tageBisEvent >= 0 && tageBisEvent < SHORT_DELIVERY_WARNING_DAYS
-  const lieferpaketWarning = getLieferpaketWarning(tageBisEvent, lieferungCtx)
+  const lieferpaketWarning = getLieferpaketWarning(tageBisEvent)
 
   function updateGruppeGroesse(index: number, value: number) {
     const next = [...gruppenGroessen]
@@ -578,9 +566,8 @@ export function ConfiguratorWizard({
       return true
     }
     if (step === 2) {
-      if (!config.von) return false
-      if (availability && !availability.verfuegbar) return false
-      return true
+      // Rote Ampel blockiert nicht: Anfrage geht in manuelle Prüfung.
+      return Boolean(config.von)
     }
     if (step === 3) {
       if (config.station === "pro" && config.gruppen < GRUPPEN_MIN) return false
@@ -588,21 +575,12 @@ export function ConfiguratorWizard({
       if (config.station === "pro" && !gruppenVerteilungGueltig(gruppenGroessen, config.menge)) {
         return false
       }
-      if (
-        config.station !== "keine" &&
-        stationAvailability &&
-        !stationAvailability.verfuegbar
-      ) {
-        return false
-      }
-      if (config.gruppen > 0 && groupAvailability && !groupAvailability.verfuegbar) {
-        return false
-      }
+      // Basis-/Gruppen-Verfügbarkeit blockiert nicht (rote Warnung bleibt sichtbar).
       return true
     }
     if (step === 4) {
-      if (!hasAllowedLieferpaket(tageBisEvent, lieferungCtx)) return false
-      if (!isLieferpaketAllowed(lieferpaket, tageBisEvent, lieferungCtx)) return false
+      if (!hasAllowedLieferpaket(tageBisEvent)) return false
+      if (!isLieferpaketAllowed(lieferpaket, tageBisEvent)) return false
       if (flexRueckgabe && !isFlexRueckgabeAllowed(tageBisEvent, lieferpaket)) return false
       if (config.techniker) {
         if (!isTechnikerAllowed(tageBisEvent)) return false
@@ -616,16 +594,11 @@ export function ConfiguratorWizard({
   }
 
   const plzValid = normalizePlz(config.kontaktPlz || "").length === 5
-  const step2AvailabilityInvalid = Boolean(availability && !availability.verfuegbar)
   const step3GruppenInvalid =
-    config.station === "pro" &&
-    (!gruppenVerteilungGueltig(gruppenGroessen, config.menge) ||
-      (groupAvailability !== null && !groupAvailability.verfuegbar))
-  const step3StationInvalid =
-    config.station !== "keine" && stationAvailability !== null && !stationAvailability.verfuegbar
+    config.station === "pro" && !gruppenVerteilungGueltig(gruppenGroessen, config.menge)
   const step4LieferpaketInvalid =
-    !hasAllowedLieferpaket(tageBisEvent, lieferungCtx) ||
-    !isLieferpaketAllowed(lieferpaket, tageBisEvent, lieferungCtx)
+    !hasAllowedLieferpaket(tageBisEvent) ||
+    !isLieferpaketAllowed(lieferpaket, tageBisEvent)
   const step4TechnikerInvalid =
     config.techniker &&
     (!config.technikerTage ||
@@ -652,9 +625,27 @@ export function ConfiguratorWizard({
       setError("Preis konnte nicht berechnet werden")
       return
     }
+    if (editMode && !editToken) {
+      setError("Bearbeitungs-Token fehlt. Bitte laden Sie die Seite erneut.")
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
+      if (editMode && editToken) {
+        const res = await fetch(`/api/konfigurator/update/${editToken}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setError(data.error || "Fehler beim Absenden der Änderung")
+          return
+        }
+        router.push(`/angebot/${editToken}`)
+        return
+      }
       const res = await fetch("/api/konfigurator/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -701,6 +692,14 @@ export function ConfiguratorWizard({
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
+      {editMode && (
+        <Alert className="border-blue-200 bg-blue-50 text-blue-900">
+          <AlertCircle className="h-4 w-4 text-blue-600" />
+          <AlertDescription>
+            Du änderst eine bestehende Anfrage. Nach dem Absenden prüfen wir erneut.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-sm text-muted-foreground">Angemeldet als {userEmail}</p>
         <div className="flex flex-wrap gap-1">
@@ -751,6 +750,7 @@ export function ConfiguratorWizard({
                         placeholder="Vor- und Nachname"
                         value={config.kontaktName || ""}
                         onChange={(e) => updateConfig({ kontaktName: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktName?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktName?.trim()))}
                       />
@@ -768,6 +768,7 @@ export function ConfiguratorWizard({
                         placeholder="+49 …"
                         value={config.kontaktTelefon || ""}
                         onChange={(e) => updateConfig({ kontaktTelefon: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktTelefon?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktTelefon?.trim()))}
                       />
@@ -784,6 +785,7 @@ export function ConfiguratorWizard({
                         placeholder="Firmenname"
                         value={config.kontaktFirma || ""}
                         onChange={(e) => updateConfig({ kontaktFirma: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktFirma?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktFirma?.trim()))}
                       />
@@ -800,6 +802,7 @@ export function ConfiguratorWizard({
                         placeholder="Musterstraße 12"
                         value={config.kontaktStrasse || ""}
                         onChange={(e) => updateConfig({ kontaktStrasse: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktStrasse?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktStrasse?.trim()))}
                       />
@@ -820,6 +823,7 @@ export function ConfiguratorWizard({
                             kontaktPlz: e.target.value.replace(/\D/g, "").slice(0, 5),
                           })
                         }
+                        disabled={editMode}
                         className={cn(fieldError(plzValid) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(plzValid)}
                       />
@@ -836,6 +840,7 @@ export function ConfiguratorWizard({
                         placeholder="Berlin"
                         value={config.kontaktOrt || ""}
                         onChange={(e) => updateConfig({ kontaktOrt: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.kontaktOrt?.trim())) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.kontaktOrt?.trim()))}
                       />
@@ -871,6 +876,7 @@ export function ConfiguratorWizard({
                     <OptionCard
                       key={s.value}
                       selected={config.szenario === s.value}
+                      disabled={editMode}
                       onClick={() => updateConfig({ szenario: s.value })}
                       title={s.label}
                       description={s.hint}
@@ -943,6 +949,7 @@ export function ConfiguratorWizard({
                         type="date"
                         value={config.von || ""}
                         onChange={(e) => updateConfig({ von: e.target.value })}
+                        disabled={editMode}
                         className={cn(fieldError(Boolean(config.von)) && INVALID_INPUT_CLASS)}
                         aria-invalid={fieldError(Boolean(config.von))}
                       />
@@ -954,6 +961,7 @@ export function ConfiguratorWizard({
                         type="date"
                         value={config.bis || config.von || ""}
                         onChange={(e) => updateConfig({ bis: e.target.value })}
+                        disabled={editMode}
                       />
                     </div>
                   </div>
@@ -969,7 +977,7 @@ export function ConfiguratorWizard({
                     <OptionCard
                       key={p.value}
                       selected={config.produkt === p.value}
-                      disabled={!p.available}
+                      disabled={editMode || !p.available}
                       onClick={() => updateConfig({ produkt: p.value })}
                       title={p.label}
                       description={p.description}
@@ -982,6 +990,7 @@ export function ConfiguratorWizard({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <OptionCard
                     selected={config.modus === "miete"}
+                    disabled={editMode}
                     onClick={() => updateConfig({ modus: "miete" })}
                     title="Miete"
                     description="Für Events mit festem Zeitraum. Rückgabe nach dem Event."
@@ -989,6 +998,7 @@ export function ConfiguratorWizard({
                   />
                   <OptionCard
                     selected={config.modus === "kauf"}
+                    disabled={editMode}
                     onClick={() => updateConfig({ modus: "kauf" })}
                     title="Kauf"
                     description="Eigentum, individueller Logodruck möglich."
@@ -1137,17 +1147,18 @@ export function ConfiguratorWizard({
                     ) : null}
                   </p>
                 )}
-                <div
-                  className={cn(
-                    showFieldErrors && step2AvailabilityInvalid && "rounded-lg ring-2 ring-destructive p-1",
-                  )}
-                >
-                  <AvailabilityIndicator availability={availability} loading={loadingAvailability} />
-                </div>
+                <AvailabilityIndicator
+                  availability={availability}
+                  loading={loadingAvailability}
+                  hideDetails={editMode}
+                />
 
                 {!availability?.verfuegbar && availability && (
                   <p className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                    Für Ihren Wunschtermin ist die Verfügbarkeit voraussichtlich nicht ausreichend.
+                    Für Deinen Termin sind laut Lagerbestand nicht genug LED-Bänder verfügbar. Wir
+                    prüfen natürlich trotzdem, ob wir Dir helfen können – eventuell kommt in der
+                    Zwischenzeit noch eine Lieferung oder wir bekommen Refurbished-Bänder zurück
+                    ins Lager.
                   </p>
                 )}
 
@@ -1192,6 +1203,7 @@ export function ConfiguratorWizard({
                         key={s.value}
                         className={s.value === "keine" ? "sm:col-span-2" : undefined}
                         selected={config.station === s.value}
+                        disabled={editMode}
                         onClick={() =>
                           updateConfig({
                             station: s.value,
@@ -1235,7 +1247,7 @@ export function ConfiguratorWizard({
                             : "Unabhängig vom Produktmodus"
                         }
                         priceHint={config.station === "eco" ? "399 EUR netto" : undefined}
-                        disabled={config.station === "pro"}
+                        disabled={editMode || config.station === "pro"}
                       />
                       <OptionCard
                         selected={stationModus === "miete"}
@@ -1245,21 +1257,25 @@ export function ConfiguratorWizard({
                         priceHint={
                           config.station === "pro" ? "649 EUR netto" : "250 EUR netto"
                         }
+                        disabled={editMode}
                       />
                     </div>
                   </div>
                 )}
 
                 {(config.station === "eco" || config.station === "pro") && (
-                  <div
-                    className={cn(
-                      showFieldErrors && step3StationInvalid && "rounded-lg ring-2 ring-destructive p-1",
-                    )}
-                  >
+                  <div className="space-y-3">
                     <StationAvailabilityIndicator
                       station={config.station}
                       availability={stationAvailability}
                     />
+                    {stationAvailability && !stationAvailability.verfuegbar && (
+                      <p className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        Für Deinen Termin ist laut Lagerbestand die gewählte Basis/Fernsteuerung
+                        voraussichtlich nicht verfügbar. Wir prüfen natürlich trotzdem, ob wir Dir
+                        helfen können.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1283,6 +1299,7 @@ export function ConfiguratorWizard({
                         step={1}
                         value={[Math.min(config.gruppen, maxGruppen)]}
                         onValueChange={([v]) => updateConfig({ gruppen: v })}
+                        disabled={editMode}
                       />
                       <p className="text-xs text-muted-foreground">
                         Je Gruppe {GRUPPEN_INFO.preisProGruppeNetto} EUR netto · max.{" "}
@@ -1309,7 +1326,7 @@ export function ConfiguratorWizard({
                                 step={GRUPPEN_SLIDER_STEP}
                                 value={[groesse]}
                                 onValueChange={([v]) => updateGruppeGroesse(index, v)}
-                                disabled={max < min}
+                                disabled={editMode || max < min}
                               />
                             </div>
                           )
@@ -1342,9 +1359,14 @@ export function ConfiguratorWizard({
                                   ` (über ${groupAvailability.physischeGruppen} physische Lagergruppe${groupAvailability.physischeGruppen === 1 ? "" : "n"})`}
                               </p>
                             ) : (
-                              <p className="text-sm text-destructive font-medium">
-                                Gruppenprogrammierung voraussichtlich nicht vollständig möglich
-                              </p>
+                              <div className="space-y-2">
+                                <p className="text-sm text-destructive font-medium">
+                                  Gruppenprogrammierung voraussichtlich nicht vollständig möglich
+                                </p>
+                                <p className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                                  Wir prüfen natürlich trotzdem, ob wir Dir helfen können.
+                                </p>
+                              </div>
                             )}
                             {groupAvailability.hinweis && (
                               <p className="text-xs text-muted-foreground">{groupAvailability.hinweis}</p>
@@ -1389,13 +1411,7 @@ export function ConfiguratorWizard({
                   {lieferpaketWarning && (
                     <p className="text-xs text-amber-700">{lieferpaketWarning}</p>
                   )}
-                  {config.druck && (
-                    <p className="text-xs text-muted-foreground">
-                      Bedruckung benötigt mindestens 48 Stunden Vorlauf. Eilauftrag ist daher
-                      nicht verfügbar.
-                    </p>
-                  )}
-                  {!hasAllowedLieferpaket(tageBisEvent, lieferungCtx) && (
+                  {!hasAllowedLieferpaket(tageBisEvent) && (
                     <p className="text-xs text-destructive">
                       Mit dem gewählten Eventtermin ist kein Lieferpaket mehr möglich (mindestens
                       48 Stunden Vorlauf erforderlich). Bitte wählen Sie einen späteren Termin.
@@ -1408,7 +1424,8 @@ export function ConfiguratorWizard({
                     )}
                   >
                     {LIEFERPAKET_OPTIONS.map((p) => {
-                      const allowed = isLieferpaketAllowed(p.value, tageBisEvent, lieferungCtx)
+                      const allowed = isLieferpaketAllowed(p.value, tageBisEvent)
+                      const blockReason = getLieferpaketBlockReason(p.value, tageBisEvent)
                       return (
                         <OptionCard
                           key={p.value}
@@ -1417,7 +1434,7 @@ export function ConfiguratorWizard({
                           onClick={() => updateConfig({ lieferpaket: p.value })}
                           title={p.label}
                           description={p.description}
-                          warning={!allowed ? "Zu kurzer Vorlauf bis zum Event" : undefined}
+                          warning={blockReason ?? undefined}
                           priceHint={
                             p.preisNetto > 0
                               ? `+${formatEur(p.preisNetto)} netto`
@@ -1719,6 +1736,8 @@ export function ConfiguratorWizard({
                 >
                   {submitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : editMode ? (
+                    "Änderung absenden"
                   ) : (
                     "Unverbindlich anfragen"
                   )}

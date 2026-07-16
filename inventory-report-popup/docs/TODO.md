@@ -1,6 +1,17 @@
 # TODO – Sicherheit, Betrieb & Restarbeiten
 
-Stand: 15. Juli 2026 (Auftragsdetail UX-Redesign, Migration 21)
+Stand: 16. Juli 2026 (Mitarbeiter-Anleitung dokumentiert; zuvor: Auftragsdetail UX, Migration 21)
+
+## Mitarbeiter-Anleitung (bei UX-/Prozess-Änderungen mitpflegen)
+
+Es gibt eine **Mitarbeiter-Anleitung** für den Team-Einsatz (Login, Warenverwaltung, Auftragspipeline, Gotchas):
+
+| Datei | Zweck |
+|-------|--------|
+| `docs/mitarbeiter-anleitung.html` | Quelle / Browser-Ansicht (druckfertig, „Als PDF speichern“) |
+| `docs/mitarbeiter-anleitung.pdf` | Weitergabe an Mitarbeitende (nach HTML-Änderung neu erzeugen) |
+
+**Wann aktualisieren:** Änderungen an Routen, Status-Labels, Freigabe-/Zahlungs-/Fulfillment-Schritten, Pack-/Druck-Ablauf, PLZ-Gate, sevDesk, Stripe, E-Mail-CC oder Navigation → HTML anpassen, danach PDF neu erzeugen (Chrome headless oder Druckdialog). Technische Details bleiben in `docs/konfigurator.md` / `docs/auftrag-detail-ux-redesign.md`; die Anleitung ist die **staff-facing** Kurzfassung.
 
 ## Kritisch (vor Go-Live)
 

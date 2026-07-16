@@ -1,3 +1,5 @@
+import "server-only"
+
 import Stripe from "stripe"
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
 import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"

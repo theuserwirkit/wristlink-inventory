@@ -104,8 +104,7 @@ const outlineClassName =
 export function OperationsHeaderActions({
   userCanEdit,
   userCanAdmin,
-  mode = "operations",
-}: Pick<BookingModalProps, "userCanEdit" | "userCanAdmin"> & { mode?: "operations" | "ledger" }) {
+}: Pick<BookingModalProps, "userCanEdit" | "userCanAdmin">) {
   const [isExporting, setIsExporting] = useState(false)
   const modal = useContext(BookingModalContext)
 

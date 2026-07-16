@@ -2,6 +2,8 @@
 
 Diese Datei beschreibt Logik, Berechnungen und interne Regeln des B2B-Konfigurators (`/konfigurator`). Kunden sehen technische Details wie Kanalanzahl (40/80 CH) **nicht** – sie werden serverseitig ermittelt und in Anfragen gespeichert.
 
+> **Mitarbeiter-Anleitung:** Bei Änderungen an Ablauf, Status, Freigabe, Lager/Fulfillment oder Support-Gotchas auch `docs/mitarbeiter-anleitung.html` (+ PDF) aktualisieren – siehe Hinweis in `docs/TODO.md`.
+
 ---
 
 ## Ablauf (6 Schritte)
@@ -63,6 +65,42 @@ Implementierung:
 | `components/angebot/plz-gate.tsx` | PLZ-Eingabe |
 | `components/angebot/angebot-status-view.tsx` | Status-UI inkl. Fulfillment-Timeline |
 
+### Kundenänderung per Angebots-Link (`?edit=[token]`)
+
+Bis zur Zahlung (`submitted`, `approved`, `payment_pending`) kann der Kunde auf `/angebot/[token]` über den Button **„Anfrage ändern“** seine Anfrage direkt im Konfigurator anpassen — ohne neuen Link oder Support-Kontakt.
+
+**Ablauf:**
+
+1. `/angebot/[token]` → Button „Anfrage ändern“ (nur in editierbaren Status; sonst kein Button)
+2. Öffnet `/konfigurator?edit=[token]` — Wizard vorbefüllt aus dem aktuellen Stand der Anfrage
+3. `POST /api/konfigurator/update/[token]` speichert die Änderung
+
+**Editierbar:** Menge, Logo/Branding, Druck, Techniker, Flex-Rückgabe, Lieferoptionen.
+**Gesperrt:** Eventdatum/Zeitraum — server- und clientseitig erzwungen (Server verwirft abweichende Werte).
+
+**Bei jeder Änderung:**
+
+- Neue Zeile in `quote_request_versions` (append-only Snapshot aus `config_json` + `price_snapshot_json` + Ampel-Stand)
+- Status der Anfrage zurück auf `submitted` (erneute Prüfung nötig)
+- Alter Stripe-Zahlungslink wird ungültig (`NULL`)
+- Hold-Reservierung wird erneuert (alte ANFRAGE-Buchung lösen, neue für aktuelle Menge/Datum)
+- Admin/Telegram-Hinweis auf die Kundenänderung
+
+**Ampel im Edit-Modus:** Dieselbe `AvailabilityIndicator`-Komponente wie im normalen Konfigurator, aber **ohne** Stückzahlen und **ohne** zusätzliche Untertitel-Zeilen (z. B. „entspannt · Absenden ok“). Absenden ist auch bei roter Ampel möglich — die Anfrage geht dann in die erneute Prüfung.
+
+**Implementierung:**
+
+| Modul | Zweck |
+|-------|--------|
+| `scripts/migration/24-quote-request-versions.sql` | Tabelle `quote_request_versions` |
+| `lib/konfigurator/quote-versions.ts` | Version schreiben/lesen, `ensureInitialQuoteVersion` für Altbestand |
+| `app/api/konfigurator/edit-session/[token]/route.ts` | Lädt Config + Edit-Flags für `?edit=[token]` |
+| `app/api/konfigurator/update/[token]/route.ts` | Update-Pfad (Auth: Token + PLZ-Cookie, Eventdatum-Lock, Preis neu, Version schreiben, Hold erneuern, Stripe-Link nullen) |
+| `components/konfigurator/configurator-wizard.tsx` | Edit-Modus: Vorbefüllung, Banner, Datum read-only |
+| `components/angebot/angebot-status-view.tsx` | „Anfrage ändern“-Button + Versions-Chronologie |
+
+Design-Spec (Entscheidungen, Datenmodell, Fehlerfälle): **`docs/superpowers/specs/2026-07-16-customer-quote-edit-design.md`**
+
 ---
 
 ## Standard vs. Premium (Armband)
@@ -112,7 +150,7 @@ Staffelpreise **100–4.000** (Schritt 50) für Kauf und Miete pro Stück (nur `
 | Basis-Station PRO | Nur Miete 649 EUR netto |
 | **Lieferpaket Regulär** | 100 EUR netto (20 WT Produktion, Anlieferung bis 2 Tage vor Event, Rückversand 3 WT) |
 | **Lieferpaket Express** | 349 EUR netto (10 WT Produktion, gleiche Anlieferung) |
-| **Lieferpaket Eilauftrag** | 919 EUR netto (48 h Produktion + Overnight UPS/TNT, keine Bedruckung) |
+| **Lieferpaket Eilauftrag** | 919 EUR netto (48 h Produktion + Overnight UPS/TNT, Bedruckung möglich) |
 | Flex-Rückgabe | +199 EUR netto (optional bei Regulär/Express: frühere Anlieferung ≥5 WT, Rückversand 8 WT) |
 | Versand DE | 90 EUR netto (nur Deutschland im Online-Konfigurator) |
 | Techniker | Reisepauschale 400 EUR, 1.200 EUR/Tag, 0,50 EUR/km ab Wehrheim; **min. 7 Tage Vorlauf** |
@@ -125,7 +163,7 @@ Kunde wählt **ein Paket** statt getrennt Lieferzeit + Lieferart. Intern werden 
 |-------|---------------|---------------------|------------|
 | Regulär | `regulaer` | 28 | erlaubt |
 | Express | `express` | 14 | erlaubt |
-| Eilauftrag | `eil` | 2 | nicht möglich |
+| Eilauftrag | `eil` | 2 | möglich |
 
 Bei zu kurzem Vorlauf werden nicht verfügbare Pakete ausgegraut; das schnellste noch mögliche Paket wird vorausgewählt.
 
@@ -136,7 +174,7 @@ Bei zu kurzem Vorlauf werden nicht verfügbare Pakete ausgegraut; das schnellste
 - Menge **100–4.000**, Schritt 50 (`MIN_MENGE`, `MAX_MENGE`, `MENGE_STEP` in `product-info.ts`)
 - Gruppen 0–20; mit PRO-Station mindestens **1 Gruppe**
 - Gruppenprogrammierung nur mit `station === "pro"`
-- Bedruckung nur bei Kauf; nicht bei Eilauftrag (`lieferpaket: eil`)
+- Bedruckung nur bei Kauf (auch mit Eilauftrag möglich)
 - PRO-Station nur Miete
 - LED Ball, LED Platine, LED Lanyard und LED-Licht im Konfigurator nur Vorschau („Aktuell hier nicht konfigurierbar“)
 - Techniker nur ab 7 Tagen Vorlauf bis Event

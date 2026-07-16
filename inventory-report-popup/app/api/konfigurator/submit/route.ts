@@ -1,8 +1,12 @@
 import { NextRequest } from "next/server"
+import { z } from "zod"
 import { submitQuoteRequest } from "@/lib/actions/quotes"
 import type { QuoteConfig } from "@/lib/konfigurator/types"
 import { resolveKanalanzahlForConfig } from "@/lib/konfigurator/resolve-kanalanzahl"
 import { checkSubmitRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
+import { quoteConfigSchema, formatZodError } from "@/lib/api-schemas"
+
+const submitBodySchema = z.object({ config: quoteConfigSchema })
 
 export async function POST(request: NextRequest) {
   const rateLimit = await checkSubmitRateLimit(getClientIp(request))
@@ -10,27 +14,33 @@ export async function POST(request: NextRequest) {
     return rateLimitResponse(rateLimit)
   }
 
-  let body: { config?: QuoteConfig }
+  let rawBody: unknown
   try {
-    body = await request.json()
+    rawBody = await request.json()
   } catch {
     return Response.json({ error: "Ungültiger JSON-Body" }, { status: 400 })
   }
 
-  if (!body.config) {
-    return Response.json({ error: "Konfiguration fehlt" }, { status: 400 })
+  const parsed = submitBodySchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return Response.json(
+      { error: `Ungültige Konfiguration: ${formatZodError(parsed.error)}` },
+      { status: 400 },
+    )
   }
 
+  const rawConfig = parsed.data.config as QuoteConfig
+
   const kanalanzahlSchonGesetzt =
-    body.config.kanalanzahl === 40 || body.config.kanalanzahl === 80
+    rawConfig.kanalanzahl === 40 || rawConfig.kanalanzahl === 80
   const kanalanzahl =
-    body.config.produkt === "armband"
+    rawConfig.produkt === "armband"
       ? kanalanzahlSchonGesetzt
-        ? body.config.kanalanzahl
-        : await resolveKanalanzahlForConfig(body.config)
+        ? rawConfig.kanalanzahl
+        : await resolveKanalanzahlForConfig(rawConfig)
       : undefined
   const config: QuoteConfig =
-    kanalanzahl != null ? { ...body.config, kanalanzahl } : body.config
+    kanalanzahl != null ? { ...rawConfig, kanalanzahl } : rawConfig
 
   const result = await submitQuoteRequest(config, { skipAvailabilityCheck: true })
   if (!result.success) {

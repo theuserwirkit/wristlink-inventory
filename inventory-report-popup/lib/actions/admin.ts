@@ -8,21 +8,7 @@ import {
   formatLeuchtgruppeName,
   LEUCHTGRUPPE_MAX_SLOT,
 } from "@/lib/konfigurator/leuchtgruppen"
-
-/**
- * Loggt den ursprünglichen Fehler serverseitig und gibt eine generische,
- * für den Client sichere Fehlermeldung zurück. Bekannte, bewusst geworfene
- * Fehler (z. B. fehlende Authentifizierung) werden unverändert durchgereicht,
- * da sie keine internen Details (SQL, Stacktraces, o. Ä.) enthalten.
- */
-function toSafeErrorMessage(error: unknown, action: string): string {
-  const knownMessages = ["Nicht authentifiziert"]
-  if (error instanceof Error && knownMessages.includes(error.message)) {
-    return error.message
-  }
-  console.error(`[admin:${action}] failed:`, error)
-  return "Die Aktion konnte nicht ausgeführt werden. Bitte versuchen Sie es später erneut."
-}
+import { toSafeErrorMessage } from "@/lib/safe-error"
 
 export async function createGroup(input: { slot: number; kanalanzahl: number }) {
   try {
@@ -359,6 +345,7 @@ export async function getInventoryChangesReport(year: number, month: number) {
 
 export async function syncSKUsAndLots() {
   try {
+    await requireRole(["ADMIN"])
     const sql = getDb()
 
     const groups = await sql`SELECT * FROM groups`

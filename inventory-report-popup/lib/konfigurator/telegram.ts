@@ -1,3 +1,5 @@
+import "server-only"
+
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
 import { REJECTION_REASONS } from "@/lib/konfigurator/rejection-reasons"
 import type { QuoteSource } from "@/lib/konfigurator/types"

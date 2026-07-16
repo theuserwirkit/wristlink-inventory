@@ -73,19 +73,6 @@ export async function getQuoteOfferPdf(
   }
 }
 
-export async function getQuoteOfferPdfForEmail(
-  quoteId: number,
-): Promise<{ data: Buffer; filename: string } | null> {
-  const sql = getDb()
-  const rows = await sql`
-    SELECT offer_pdf_data, offer_pdf_filename
-    FROM quote_requests
-    WHERE id = ${quoteId}
-    LIMIT 1
-  `
-  if (!rows.length || !rows[0].offer_pdf_data) return null
-  return {
-    data: rows[0].offer_pdf_data as Buffer,
-    filename: String(rows[0].offer_pdf_filename || "angebot.pdf"),
-  }
-}
+// A-12: `getQuoteOfferPdfForEmail` wurde nach `lib/actions/quote-offer-pdf-internal.ts`
+// verschoben (kein "use server"-Export mehr, siehe Kommentar dort). Aufrufer
+// importieren jetzt direkt aus `@/lib/actions/quote-offer-pdf-internal`.

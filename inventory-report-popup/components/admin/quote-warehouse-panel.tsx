@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition, type ReactNode } from "react"
+import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -275,19 +275,6 @@ function getAllocationReadiness(
   }
 }
 
-const PACKED_OR_LATER_STATUSES: FulfillmentStatus[] = [
-  "verpackt",
-  "bedruckt",
-  "versand_beauftragt",
-  "versandt",
-  "ruecksendung_angekommen",
-  "zurueckgepackt",
-]
-
-function isPackedOrLater(fulfillmentStatus: FulfillmentStatus | null): boolean {
-  return fulfillmentStatus != null && PACKED_OR_LATER_STATUSES.includes(fulfillmentStatus)
-}
-
 function FulfillmentReadinessHint({
   quoteStatus,
   fulfillmentStatus,
@@ -330,94 +317,6 @@ function FulfillmentReadinessHint({
       <CheckItem ok={hasBooking} label="Buchung verknüpft" />
       <CheckItem ok={bandAllocationComplete} label="Leuchtgruppe + Charge" />
       {needsBase && <CheckItem ok={baseAllocationComplete} label="Basis" />}
-    </div>
-  )
-}
-
-function PackingCompletionSection({
-  quoteId,
-  canPrint = false,
-  fulfillmentStatus,
-  primaryBooking,
-  stationInfo,
-  requiredMenge,
-}: {
-  quoteId: number
-  canPrint?: boolean
-  fulfillmentStatus: FulfillmentStatus | null
-  primaryBooking: BookingWithRelations
-  stationInfo: QuoteStationInfo | null
-  requiredMenge: number
-}) {
-  const { allocationComplete } = getAllocationReadiness(
-    primaryBooking,
-    stationInfo,
-    requiredMenge,
-  )
-  const packed = isPackedOrLater(fulfillmentStatus)
-  const printHref = `/warenverwaltung/auftraege/${quoteId}/druck/checkliste`
-
-  function ChecklistItem({
-    ok,
-    label,
-    children,
-  }: {
-    ok?: boolean
-    label: string
-    children?: ReactNode
-  }) {
-    return (
-      <li className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm">
-        {ok != null && (
-          <span
-            className={
-              ok ? "text-muted-foreground shrink-0" : "text-amber-700 dark:text-amber-400 shrink-0"
-            }
-          >
-            {ok ? "✓" : "✗"}
-          </span>
-        )}
-        <div className="min-w-0 space-y-1">
-          <span className={ok === false ? "text-amber-700 dark:text-amber-400" : ""}>{label}</span>
-          {children}
-        </div>
-      </li>
-    )
-  }
-
-  return (
-    <div className="space-y-3 border-t pt-4">
-      <h4 className="text-sm font-semibold">Packen & Abschluss</h4>
-      <ol className="space-y-3">
-        <ChecklistItem ok={allocationComplete} label="Zuweisung vollständig (Bänder + Basis falls nötig)" />
-
-        <ChecklistItem label="Lagerunterlagen drucken">
-          {canPrint ? (
-            <Button asChild variant="outline" size="sm" className="h-8 text-xs">
-              <Link href={printHref}>Pack-Checkliste öffnen</Link>
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" className="h-8 text-xs" disabled>
-              Pack-Checkliste öffnen
-            </Button>
-          )}
-        </ChecklistItem>
-
-        <ChecklistItem
-          ok={packed ? true : allocationComplete ? undefined : false}
-          label="Als zusammengepackt markieren"
-        >
-          {packed ? null : allocationComplete ? (
-            <Button asChild variant="outline" size="sm" className="h-8 text-xs">
-              <Link href="#fulfillment-workflow">Zum Fulfillment-Schritt →</Link>
-            </Button>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Zuerst über „Packen & Material zuweisen“ Leuchtgruppe, Charge und ggf. Basis zuordnen.
-            </p>
-          )}
-        </ChecklistItem>
-      </ol>
     </div>
   )
 }

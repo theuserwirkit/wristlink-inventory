@@ -2,11 +2,15 @@ import { NextRequest } from "next/server"
 import { unauthorizedResponse, verifyApiKey } from "@/lib/api-auth"
 import { checkProductAvailability } from "@/lib/actions/n8n-api"
 import { availabilityRequestSchema, formatZodError } from "@/lib/api-schemas"
+import { checkN8nApiRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
   if (!verifyApiKey(request)) return unauthorizedResponse()
+
+  const rateLimit = await checkN8nApiRateLimit(getClientIp(request))
+  if (!rateLimit.success) return rateLimitResponse(rateLimit)
 
   const params = request.nextUrl.searchParams
   const rawBody = {
@@ -32,6 +36,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (!verifyApiKey(request)) return unauthorizedResponse()
+
+  const rateLimit = await checkN8nApiRateLimit(getClientIp(request))
+  if (!rateLimit.success) return rateLimitResponse(rateLimit)
 
   let body: unknown
   try {

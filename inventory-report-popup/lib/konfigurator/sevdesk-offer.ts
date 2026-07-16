@@ -1,3 +1,5 @@
+import "server-only"
+
 import type { PreisPosition } from "@/lib/pricing/types"
 import { normalizeGruppenGroessen } from "@/lib/konfigurator/gruppen-config"
 import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"

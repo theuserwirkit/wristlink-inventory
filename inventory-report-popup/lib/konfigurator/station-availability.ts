@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db"
-import { getBaseAvailability, getBaseAvailabilityByDateRange } from "@/lib/actions/bookings"
+import { getBaseAvailabilityInternal, getBaseAvailabilityByDateRangeInternal } from "@/lib/actions/bookings"
 import { computeStationStress } from "@/lib/konfigurator/group-allocation"
 import type { AvailabilityStressLevel } from "@/lib/konfigurator/availability-stress"
 import { isBaseStationTyp, type BaseStationTyp } from "@/lib/konfigurator/station-types"
@@ -120,7 +120,7 @@ export async function checkStationAvailability(input: {
     const ausgabe = parseDate(von)
     const rueckgabe = parseDate(bis || von)
     const statsList = await Promise.all(
-      bases.map((base) => getBaseAvailabilityByDateRange(base.id, ausgabe, rueckgabe)),
+      bases.map((base) => getBaseAvailabilityByDateRangeInternal(base.id, ausgabe, rueckgabe)),
     )
     for (const stats of statsList) {
       bestand += stats.gesamtsumme
@@ -129,7 +129,7 @@ export async function checkStationAvailability(input: {
     }
   } else {
     const statsList = await Promise.all(
-      bases.map((base) => getBaseAvailability(base.id)),
+      bases.map((base) => getBaseAvailabilityInternal(base.id)),
     )
     for (const stats of statsList) {
       bestand += stats.gesamtsumme

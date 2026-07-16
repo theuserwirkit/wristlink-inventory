@@ -9,7 +9,8 @@ import type { QuoteFulfillmentEvent, QuoteRequest } from "@/lib/konfigurator/typ
 import type { ReactNode } from "react"
 
 type AuftragDetailViewProps = {
-  quote: QuoteRequest
+  /** Ohne `public_token` – der Token wird ausschließlich im Info-Tab serverseitig gerendert. */
+  quote: Omit<QuoteRequest, "public_token">
   leadEmail: string
   events: QuoteFulfillmentEvent[]
   stripeConfigured: boolean

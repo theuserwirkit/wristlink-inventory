@@ -2,11 +2,15 @@ import { NextRequest } from "next/server"
 import { unauthorizedResponse, verifyApiKey } from "@/lib/api-auth"
 import { createExternalQuoteRequest, type ExternalQuoteInput } from "@/lib/quotes-internal"
 import type { QuoteConfig } from "@/lib/konfigurator/types"
+import { checkN8nApiRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest) {
   if (!verifyApiKey(request)) return unauthorizedResponse()
+
+  const rateLimit = await checkN8nApiRateLimit(getClientIp(request))
+  if (!rateLimit.success) return rateLimitResponse(rateLimit)
 
   let body: ExternalQuoteInput
   try {

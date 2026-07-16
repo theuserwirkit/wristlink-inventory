@@ -1,3 +1,5 @@
+import "server-only"
+
 const DEFAULT_BASE_URL = "https://my.sevdesk.de/api/v1"
 
 function getApiToken(): string {

@@ -21,7 +21,7 @@ import {
   rejectQuoteRequest,
   type ExternalQuoteInput,
 } from "@/lib/quotes-internal"
-import { getLeadById } from "@/lib/actions/leads"
+import { getLeadById } from "@/lib/actions/leads-internal"
 import {
   compareFulfillmentUrgency,
   isFulfillmentWorkOpen,
@@ -157,7 +157,9 @@ export async function submitQuoteRequest(
     }
   }
 
-  if (config.von && !(options?.skipAvailabilityCheck && config.modus === "miete")) {
+  // Soft-Submit: bei skipAvailabilityCheck (Konfigurator) Anfrage trotz knapper
+  // Verfügbarkeit anlegen – Ampel/Hold bleiben Hinweis, blockieren aber nicht.
+  if (config.von && !options?.skipAvailabilityCheck) {
     const availability = await checkProductAvailability({
       produkt: config.produkt,
       modus: config.modus,

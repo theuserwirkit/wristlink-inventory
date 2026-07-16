@@ -5,6 +5,8 @@ import {
   hasAngebotAccess,
 } from "@/lib/konfigurator/angebot-access"
 import { getQuoteAccessPlz } from "@/lib/konfigurator/kontakt-adresse"
+import { listQuoteVersions } from "@/lib/konfigurator/quote-versions"
+import { canCustomerEditQuoteStatus } from "@/lib/konfigurator/quote-status"
 import { AngebotPlzGate } from "@/components/angebot/plz-gate"
 import { AngebotStatusView } from "@/components/angebot/angebot-status-view"
 
@@ -32,11 +34,15 @@ export default async function AngebotPage({
   }
 
   const fulfillmentEvents = await getPublicFulfillmentEvents(quote.id)
+  const versions = await listQuoteVersions(quote.id)
+  const canEdit = canCustomerEditQuoteStatus(quote.status)
 
   return (
     <AngebotStatusView
       quote={quote}
       fulfillmentEvents={fulfillmentEvents}
+      versions={versions}
+      canEdit={canEdit}
       paid={paid}
       cancelled={cancelled}
     />

@@ -6,6 +6,8 @@
 
 Spec und Referenz für die Auftragsabwicklung im Tab **Abwicklung**. Details zu Lager-Logik und Druckformaten: `docs/konfigurator.md`.
 
+> **Mitarbeiter-Anleitung:** Pipeline-/Schritt-Änderungen hier auch in `docs/mitarbeiter-anleitung.html` (+ PDF) nachziehen – siehe `docs/TODO.md`.
+
 ---
 
 ## Ziel

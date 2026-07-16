@@ -48,27 +48,12 @@ import {
   getNextFulfillmentStep,
   isFulfillmentComplete,
 } from "@/lib/konfigurator/fulfillment-status"
-import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"
 import { VERSAND_DIENSTLEISTER_OPTIONS } from "@/lib/konfigurator/versand-dienstleister"
+import { buildOrderContext } from "@/lib/konfigurator/order-context"
 import type { FulfillmentStatus, QuoteFulfillmentEvent, QuoteRequest, VersandDienstleister } from "@/lib/konfigurator/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
-
-function buildOrderContext(quote: QuoteRequest): string {
-  const config = quote.config_json
-  const parts: string[] = [
-    `${config.menge}× ${config.produkt}`,
-    config.modus,
-  ]
-  if (config.modus === "miete" && config.von) {
-    parts.push(`${config.von} – ${config.bis || config.von}`)
-  }
-  parts.push(config.druck ? "mit Druck" : "ohne Druck")
-  parts.push(getLieferpaketLabel(normalizeLieferpaket(config)))
-  if (config.szenario) parts.push(config.szenario)
-  return parts.join(" · ")
-}
 
 function FulfillmentStepper({
   steps,
@@ -147,7 +132,8 @@ export function QuoteFulfillmentWorkflow({
   embedded = false,
   hideAdvanceButtons = false,
 }: {
-  quote: QuoteRequest
+  /** Ohne `public_token` – der Token wird ausschließlich im Info-Tab serverseitig gerendert. */
+  quote: Omit<QuoteRequest, "public_token">
   leadEmail: string
   events: QuoteFulfillmentEvent[]
   embedded?: boolean
