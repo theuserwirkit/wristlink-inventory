@@ -4,19 +4,99 @@ export const GRUPPEN_MIN = 1
 export const GRUPPEN_MAX = 20
 export const GRUPPEN_SLIDER_STEP = 50
 
+export const GRUPPEN_SEGMENT_COLORS = [
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#a855f7",
+  "#ef4444",
+  "#06b6d4",
+  "#84cc16",
+  "#ec4899",
+  "#6366f1",
+  "#14b8a6",
+  "#f97316",
+  "#d946ef",
+  "#0ea5e9",
+  "#65a30d",
+  "#e11d48",
+  "#8b5cf6",
+  "#0891b2",
+  "#ca8a04",
+  "#db2777",
+  "#4f46e5",
+] as const
+
+export function equalSplitToMenge(menge: number, gruppen: number): number[] {
+  if (gruppen <= 0) return []
+  const min = GRUPPEN_SLIDER_STEP
+  const sizes = Array.from({ length: gruppen }, () => min)
+  let remaining = menge - gruppen * min
+  if (remaining < 0) {
+    return sizes
+  }
+
+  let i = 0
+  while (remaining >= GRUPPEN_SLIDER_STEP) {
+    sizes[i % gruppen] += GRUPPEN_SLIDER_STEP
+    remaining -= GRUPPEN_SLIDER_STEP
+    i++
+  }
+  return sizes
+}
+
+export function groessenToBoundaries(groessen: number[]): number[] {
+  const out: number[] = []
+  let acc = 0
+  for (let i = 0; i < groessen.length - 1; i++) {
+    acc += groessen[i]
+    out.push(acc)
+  }
+  return out
+}
+
+export function boundariesToGroessen(boundaries: number[], menge: number): number[] {
+  const sizes: number[] = []
+  let prev = 0
+  for (const boundary of boundaries) {
+    sizes.push(boundary - prev)
+    prev = boundary
+  }
+  sizes.push(menge - prev)
+  return sizes
+}
+
+export function applyBoundaryDrag(
+  groessen: number[],
+  handleIndex: number,
+  newBoundary: number,
+): number[] {
+  if (handleIndex < 0 || handleIndex >= groessen.length - 1) return [...groessen]
+
+  const next = [...groessen]
+  const sumLeft = next.slice(0, handleIndex).reduce((sum, n) => sum + n, 0)
+  const pairTotal = next[handleIndex] + next[handleIndex + 1]
+  const min = GRUPPEN_SLIDER_STEP
+
+  let left = newBoundary - sumLeft
+  left = Math.round(left / GRUPPEN_SLIDER_STEP) * GRUPPEN_SLIDER_STEP
+  left = Math.max(min, Math.min(pairTotal - min, left))
+
+  next[handleIndex] = left
+  next[handleIndex + 1] = pairTotal - left
+  return next
+}
+
 export function normalizeGruppenGroessen(config: QuoteConfig): number[] {
   const count = config.gruppen
   if (count <= 0) return []
 
   if (config.gruppenGroessen?.length === count) {
-    return clampGruppenGroessenToMenge([...config.gruppenGroessen], config.menge)
+    const current = [...config.gruppenGroessen]
+    if (gruppenVerteilungGueltig(current, config.menge)) return current
   }
 
-  const fallback = config.baenderProGruppe ?? defaultGroesseProGruppe(config.menge, count)
-  return clampGruppenGroessenToMenge(
-    Array.from({ length: count }, () => fallback),
-    config.menge,
-  )
+  return equalSplitToMenge(config.menge, count)
 }
 
 export function defaultGroesseProGruppe(menge: number, gruppen: number): number {
@@ -43,6 +123,7 @@ export function maxGroesseForGruppe(
   return Math.max(0, menge - others)
 }
 
+/** Reduziert Overflow über die Menge; unter-Allokation bleibt (Legacy). Neue Pfade nutzen equalSplit. */
 export function clampGruppenGroessenToMenge(groessen: number[], menge: number): number[] {
   if (groessen.length === 0) return []
   let next = [...groessen]
@@ -67,7 +148,10 @@ export function syncGruppenGroessen(
   patch: Partial<QuoteConfig>,
 ): number[] | undefined {
   if (patch.gruppenGroessen !== undefined) {
-    return clampGruppenGroessenToMenge(patch.gruppenGroessen, patch.menge ?? config.menge)
+    const menge = patch.menge ?? config.menge
+    const next = [...patch.gruppenGroessen]
+    if (gruppenVerteilungGueltig(next, menge)) return next
+    return equalSplitToMenge(menge, next.length || (patch.gruppen ?? config.gruppen))
   }
 
   if (patch.gruppen === undefined && patch.menge === undefined) {
@@ -78,17 +162,14 @@ export function syncGruppenGroessen(
   if (nextGruppen <= 0) return []
 
   const menge = patch.menge ?? config.menge
-  const merged = { ...config, ...patch, gruppen: nextGruppen, menge }
-  const prev = normalizeGruppenGroessen(merged)
-  const defaultPer = defaultGroesseProGruppe(menge, nextGruppen)
-
-  return clampGruppenGroessenToMenge(
-    Array.from({ length: nextGruppen }, (_, i) => prev[i] ?? defaultPer),
-    menge,
-  )
+  return equalSplitToMenge(menge, nextGruppen)
 }
 
 export function gruppenVerteilungGueltig(groessen: number[], menge: number): boolean {
+  if (groessen.length === 0) return false
+  if (groessen.some((n) => n < GRUPPEN_SLIDER_STEP || n % GRUPPEN_SLIDER_STEP !== 0)) {
+    return false
+  }
   const total = groessen.reduce((sum, n) => sum + n, 0)
-  return total > 0 && total <= menge
+  return total === menge
 }

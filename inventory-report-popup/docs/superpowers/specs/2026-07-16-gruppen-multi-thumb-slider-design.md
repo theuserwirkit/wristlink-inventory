@@ -1,7 +1,8 @@
 # Multi-Thumb-Gruppenverteilung (Konfigurator Schritt 4)
 
 **Datum:** 2026-07-16  
-**Status:** Entwurf — wartet auf Review  
+**Status:** Freigegeben — implementiert  
+**Plan:** `docs/superpowers/plans/2026-07-16-gruppen-multi-thumb-slider.md`  
 **Kontext:** Wristlink / inventory-report-popup — `components/konfigurator/configurator-wizard.tsx`, Schritt Gruppenprogrammierung (PRO)
 
 ## Problem

@@ -69,14 +69,13 @@ import type { GroupProgrammingAvailability } from "@/lib/konfigurator/group-allo
 import {
   normalizeGruppenGroessen,
   syncGruppenGroessen,
-  maxGroesseForGruppe,
-  minGroesseProGruppe,
   gruppenVerteilungGueltig,
   maxGruppenAnzahl,
   GRUPPEN_MIN,
   GRUPPEN_SLIDER_STEP,
 } from "@/lib/konfigurator/gruppen-config"
 import { MAX_PHYSICAL_GROUPS } from "@/lib/konfigurator/kanalanzahl"
+import { GruppenVerteilungsSlider } from "@/components/konfigurator/gruppen-verteilungs-slider"
 
 const STEPS = [
   { label: "Event", question: "Was planen Sie?" },
@@ -526,20 +525,11 @@ export function ConfiguratorWizard({
   ])
 
   const gruppenGroessen = normalizeGruppenGroessen(config)
-  const gruppenGesamt = gruppenGroessen.reduce((sum, n) => sum + n, 0)
   const maxGruppen = maxGruppenAnzahl(config.menge)
   const tageBisEvent = config.von ? daysUntilEvent(config.von) : null
   const kurzeLieferzeit =
     tageBisEvent !== null && tageBisEvent >= 0 && tageBisEvent < SHORT_DELIVERY_WARNING_DAYS
   const lieferpaketWarning = getLieferpaketWarning(tageBisEvent)
-
-  function updateGruppeGroesse(index: number, value: number) {
-    const next = [...gruppenGroessen]
-    const min = minGroesseProGruppe(config.menge, config.gruppen)
-    const max = maxGroesseForGruppe(next, index, config.menge)
-    next[index] = Math.min(max, Math.max(min, value))
-    updateConfig({ gruppenGroessen: next })
-  }
 
   const canNext = () => {
     if (step === 0) {
@@ -1312,38 +1302,12 @@ export function ConfiguratorWizard({
 
                     {config.gruppen > 0 && (
                       <div className="space-y-4 pt-2 border-t">
-                        {gruppenGroessen.map((groesse, index) => {
-                          const min = minGroesseProGruppe(config.menge, config.gruppen)
-                          const max = maxGroesseForGruppe(gruppenGroessen, index, config.menge)
-                          return (
-                            <div key={index} className="space-y-2">
-                              <Label>
-                                Bänder in Gruppe {index + 1}: {groesse} Stück
-                              </Label>
-                              <Slider
-                                min={min}
-                                max={Math.max(min, max)}
-                                step={GRUPPEN_SLIDER_STEP}
-                                value={[groesse]}
-                                onValueChange={([v]) => updateGruppeGroesse(index, v)}
-                                disabled={editMode || max < min}
-                              />
-                            </div>
-                          )
-                        })}
-                        <p
-                          className={`text-xs ${
-                            gruppenGesamt > config.menge
-                              ? "text-destructive"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          {gruppenGesamt} von {config.menge} Bändern auf {config.gruppen} Gruppe(n)
-                          verteilt
-                          {gruppenGesamt > config.menge
-                            ? " – bitte Verteilung anpassen"
-                            : ""}
-                        </p>
+                        <GruppenVerteilungsSlider
+                          menge={config.menge}
+                          groessen={gruppenGroessen}
+                          onChange={(next) => updateConfig({ gruppenGroessen: next })}
+                          disabled={editMode}
+                        />
 
                         {loadingGroupAvailability ? (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">

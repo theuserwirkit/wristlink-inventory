@@ -12,6 +12,7 @@
     "start": "next start",
     "test:n8n-api": "node scripts/test-n8n-api.mjs",
     "test:preis-engine": "tsx scripts/test-preis-engine.ts",
+    "test:gruppen-config": "tsx scripts/test-gruppen-config.ts",
     "test:quote-versions": "tsx scripts/test-quote-versions.ts",
     "db:migrate": "node scripts/run-migrations.mjs",
     "db:indexes": "node scripts/run-performance-indexes.mjs",
