@@ -3,6 +3,7 @@
 **Datum:** 2026-07-16  
 **Status:** Freigegeben — implementiert auf `feature/customer-quote-edit`  
 **Plan:** `docs/superpowers/plans/2026-07-16-customer-quote-edit.md`  
+**Verwandt:** `docs/superpowers/specs/2026-07-16-availability-soft-submit-design.md` (Soft-Submit bei Rot auch für Erst-Anfrage)
 
 **Kontext:** Wristlink / inventory-report-popup — öffentliche Statusseite `/angebot/[token]`
 
@@ -27,7 +28,7 @@ Kunden können bis zur Zahlung über denselben Link erlaubte Felder ändern. Jed
 |---|---|
 | Edit-Fenster | Bis zur Zahlung: `submitted`, `approved`, `payment_pending` |
 | Nach Speichern | Status → `submitted` (erneute Prüfung), alter Stripe-Zahlungslink ungültig |
-| Bei „nicht verfügbar“ | Absenden trotzdem erlaubt (Wunsch geht in Prüfung) |
+| Bei „nicht verfügbar“ | Absenden trotzdem erlaubt (Wunsch geht in Prüfung); gilt auch für Erst-Submit — siehe Soft-Submit-Spec |
 | Editierbare Felder | Menge, Logo/Branding, Techniker, Druck, Flex-Option, Lieferoptionen |
 | Gesperrt | Eventdatum (serverseitig erzwungen) |
 | UI | Konfigurator-Wizard vorbefüllt im Edit-Modus (Variante B) |
@@ -120,9 +121,9 @@ Version 1 wird beim Erst-Submit angelegt (oder lazy beim ersten Edit, wenn Altbe
 - Eventdatum read-only  
 - Editierbar: Menge, Logo/Branding, Techniker, Druck, Flex, Lieferoptionen  
 - Ampel: bestehende Stress-Balken-Komponente; **keine** zusätzlichen Untertitel-Zeilen („entspannt · Absenden ok“ o. ä.); **keine** Restmengen und **keine** Anzeige „X offene Anfragen“ gegenüber dem Kunden  
+- Bei Rot: Absenden erlaubt; rote Hinweisbox erklärt Soft-Submit (LED-/Basis-Texte in Soft-Submit-Spec)  
 - Kontakt-/Eventadresse (außer technikerbezogenen Feldern) bleiben unverändert / nicht editierbar  
 - CTA: „Änderung absenden“  
-- Bei Rot: Absenden erlaubt  
 
 ### Admin Auftrag
 
@@ -156,4 +157,4 @@ Version 1 wird beim Erst-Submit angelegt (oder lazy beim ersten Edit, wenn Altbe
 3. Jede Änderung erscheint chronologisch für Kunde und Admin.  
 4. Status geht zurück auf Prüfung; Zahlungslink der alten Freigabe funktioniert nicht mehr.  
 5. Ampel ohne Stückzahlen und ohne die genannten Untertitel-Zusätze.  
-6. Absenden bei roter Ampel möglich.  
+6. Absenden bei roter Ampel möglich (Edit **und** Erst-Anfrage; Soft-Submit-Spec).  

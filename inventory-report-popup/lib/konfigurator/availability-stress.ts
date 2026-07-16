@@ -103,8 +103,9 @@ export function formatAvailabilityStandDatum(iso: string): string {
   }).format(new Date(iso))
 }
 
+/** Früher Hard-Block im Wizard; Soft-Submit: knappe Verfügbarkeit blockiert nicht. */
 export function availabilityBlocksBooking(
-  availability: { verfuegbar: boolean } | null | undefined,
+  _availability: { verfuegbar: boolean } | null | undefined,
 ): boolean {
-  return Boolean(availability && !availability.verfuegbar)
+  return false
 }

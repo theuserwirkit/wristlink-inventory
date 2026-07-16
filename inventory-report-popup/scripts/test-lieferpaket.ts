@@ -2,6 +2,8 @@ import {
   LIEFERPAKET_PREIS,
   applyLieferpaket,
   firstAllowedLieferpaket,
+  getLieferpaketBlockReason,
+  getLieferpaketWarning,
   hasAllowedLieferpaket,
   isFlexRueckgabeAllowed,
   isLieferpaketAllowed,
@@ -33,8 +35,36 @@ assert("14 Tage: Express", firstAllowedLieferpaket(14) === "express")
 assert("28 Tage: Regulär", firstAllowedLieferpaket(28) === "regulaer")
 
 assert(
-  "Bedruckung blockiert Eilauftrag",
-  !isLieferpaketAllowed("eil", 10, { hasDruck: true }),
+  "Eilauftrag mit Bedruckung bei 14 Tagen wählbar",
+  isLieferpaketAllowed("eil", 14, { hasDruck: true }),
+)
+assert(
+  "14 Tage: Express + Eil ja, Regulär nein",
+  isLieferpaketAllowed("express", 14) &&
+    isLieferpaketAllowed("eil", 14) &&
+    !isLieferpaketAllowed("regulaer", 14),
+)
+assert(
+  "Warnung bei 14 Tagen nennt nur Regulär",
+  getLieferpaketWarning(14) ===
+    "Bei nur noch 14 Tagen bis zum Event ist Regulär nicht verfügbar.",
+)
+assert(
+  "Eil bei 14 Tagen hat keinen Sperrgrund",
+  getLieferpaketBlockReason("eil", 14, { hasDruck: true }) === null,
+)
+
+const preisEilDruck = rechnePreis({
+  produkt: "armband",
+  modus: "kauf",
+  menge: 300,
+  druck: true,
+  lieferpaket: "eil",
+  land: "DE",
+})
+assert(
+  "Preis-Engine: Eilauftrag + Bedruckung gültig",
+  preisEilDruck.gueltig,
 )
 
 assert("Flex-Rückgabe ab 7 Tagen", isFlexRueckgabeAllowed(7, "regulaer"))

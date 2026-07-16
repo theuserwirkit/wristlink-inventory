@@ -130,9 +130,6 @@ export function rechnePreis(input: PreisEngineInput): PreisEngineResult {
   if (druck && modus === "miete") {
     fehler.push("Druck ist nur beim Kauf möglich")
   }
-  if (druck && lieferpaket === "eil") {
-    fehler.push("Druck bei Eilauftrag nicht möglich")
-  }
   if (variante === "premium" && produkt !== "armband") {
     fehler.push("Premium-Variante nur für LED-Armbänder")
   }

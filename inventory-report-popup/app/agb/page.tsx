@@ -156,8 +156,9 @@ export default function AgbPage() {
             </p>
             <p className="mt-2">
               Anlieferungs- und Rücksendetermine sind unverbindlich, sofern im Angebot nicht
-              ausdrücklich als verbindlich bezeichnet. Bei Eilaufträgen können bestimmte Optionen
-              (z. B. Bedruckung) ausgeschlossen sein.
+              ausdrücklich als verbindlich bezeichnet. Mindestvorlaufzeiten und ggf. ausgeschlossene
+              Optionen (z. B. Flex-Rückgabe beim Eilauftrag) ergeben sich aus dem gewählten Paket und
+              dem Angebot.
             </p>
             <p className="mt-2">
               Teillieferungen sind zulässig, soweit dem Kunden zumutbar. Die gelieferte Stückzahl

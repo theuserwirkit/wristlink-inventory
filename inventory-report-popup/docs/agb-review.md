@@ -129,7 +129,7 @@ Die **Vorversion** der AGB (10 Abschnitte) deckte B2B-Grundlagen, unverbindliche
 | 5 | **Schäden/Verlust:** Abnutzung vs. Schaden, Ersatzwert, Dokumentationspflicht, Versicherungsempfehlung | Hoch |
 | 6 | **Batterietausch:** Pflichten bei Miete, wer trägt Kosten, Fristen | Mittel |
 | 7 | **Verfügbarkeit:** Konfigurator-Ampel nicht als Zusage; Hold bei Submit; verbindliche Buchung erst bei Zahlung | Hoch |
-| 8 | **Lieferpakete:** Regulär/Express/Eilauftrag, Mindestvorlauf, Eilauftrag ohne Bedruckung, Flex-Rückgabe | Mittel |
+| 8 | **Lieferpakete:** Regulär/Express/Eilauftrag, Mindestvorlauf, Eilauftrag inkl. Bedruckung möglich, Flex-Rückgabe | Mittel |
 | 9 | **Zahlung:** Stripe (Drittanbieter), Überweisung, Fälligkeit, Verzug, Aufrechnungs-/Zurückbehaltungsverbot B2B | Mittel |
 | 10 | **Eigentumsvorbehalt:** Kauf bis vollständige Zahlung; Miete – Eigentum verbleibt beim Anbieter | Mittel |
 | 11 | **Gewährleistung B2B:** § 377 HGB Rüge, 12-Monats-Verjährung zulässig?, Miete vs. Kauf | Hoch |

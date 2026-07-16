@@ -213,13 +213,18 @@ export async function createQuoteWithHold(input: {
     changedBy: "customer",
   })
 
+  // Hold-Fehler blockiert die Anfrage nicht (Soft-Submit): Quote bleibt submitted,
+  // Team sieht den Hinweis in notes und prüft manuell.
   const hold = await createQuoteHoldBooking(quoteId, input.config, lead?.email)
   if (!hold.success) {
-    await sql`DELETE FROM quote_requests WHERE id = ${quoteId}`
-    return { success: false, error: hold.error || "Reservierung fehlgeschlagen" }
-  }
-
-  if (hold.bookingId) {
+    const holdWarning = hold.error || "Hold fehlgeschlagen"
+    await sql`
+      UPDATE quote_requests SET
+        notes = COALESCE(notes || E'\n', '') || ${`[System] Hold bei Anfrage: ${holdWarning}`},
+        updated_at = NOW()
+      WHERE id = ${quoteId}
+    `
+  } else if (hold.bookingId) {
     await sql`UPDATE quote_requests SET booking_id = ${hold.bookingId}, updated_at = NOW() WHERE id = ${quoteId}`
   }
 
@@ -294,10 +299,6 @@ export async function createExternalQuoteRequest(
     if (!computed.gueltig) {
       return { success: false, error: computed.fehler.join("; ") }
     }
-  }
-
-  if (input.config.modus === "miete" && input.config.von) {
-    // createQuoteWithHold erzeugt die Reservierung direkt und validiert dabei die Verfügbarkeit.
   }
 
   return createQuoteWithHold({

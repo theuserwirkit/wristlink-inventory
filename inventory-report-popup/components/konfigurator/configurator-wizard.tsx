@@ -53,6 +53,7 @@ import {
   normalizeFlexRueckgabe,
   normalizeLieferpaket,
   syncLieferpaketFromEvent,
+  getLieferpaketBlockReason,
   type Lieferpaket,
 } from "@/lib/konfigurator/lieferpaket"
 import { OptionCard } from "@/components/konfigurator/option-card"
@@ -203,12 +204,6 @@ export function ConfiguratorWizard({
             ? false
             : (patch.flexRueckgabe ?? next.flexRueckgabe ?? false)
         Object.assign(next, applyLieferpaket(patch.lieferpaket as Lieferpaket, flexRg))
-        if (patch.lieferpaket === "eil") {
-          next.druck = false
-          next.probedruckOption = "none"
-          next.probedruck = false
-          next.logoId = undefined
-        }
       }
       if (patch.probedruckOption !== undefined) {
         next.probedruck = patch.probedruckOption !== "none"
@@ -218,12 +213,6 @@ export function ConfiguratorWizard({
           next,
           applyLieferpaket(normalizeLieferpaket(next), patch.flexRueckgabe),
         )
-      }
-      if (patch.lieferzeit === "hyperexpress" || patch.lieferpaket === "eil") {
-        next.druck = false
-        next.probedruckOption = "none"
-        next.probedruck = false
-        next.logoId = undefined
       }
       if (patch.druck === false) {
         next.probedruckOption = "none"
@@ -540,10 +529,9 @@ export function ConfiguratorWizard({
   const gruppenGesamt = gruppenGroessen.reduce((sum, n) => sum + n, 0)
   const maxGruppen = maxGruppenAnzahl(config.menge)
   const tageBisEvent = config.von ? daysUntilEvent(config.von) : null
-  const lieferungCtx = { hasDruck: config.modus === "kauf" && config.druck }
   const kurzeLieferzeit =
     tageBisEvent !== null && tageBisEvent >= 0 && tageBisEvent < SHORT_DELIVERY_WARNING_DAYS
-  const lieferpaketWarning = getLieferpaketWarning(tageBisEvent, lieferungCtx)
+  const lieferpaketWarning = getLieferpaketWarning(tageBisEvent)
 
   function updateGruppeGroesse(index: number, value: number) {
     const next = [...gruppenGroessen]
@@ -578,9 +566,8 @@ export function ConfiguratorWizard({
       return true
     }
     if (step === 2) {
-      if (!config.von) return false
-      if (!editMode && availability && !availability.verfuegbar) return false
-      return true
+      // Rote Ampel blockiert nicht: Anfrage geht in manuelle Prüfung.
+      return Boolean(config.von)
     }
     if (step === 3) {
       if (config.station === "pro" && config.gruppen < GRUPPEN_MIN) return false
@@ -588,22 +575,12 @@ export function ConfiguratorWizard({
       if (config.station === "pro" && !gruppenVerteilungGueltig(gruppenGroessen, config.menge)) {
         return false
       }
-      if (
-        !editMode &&
-        config.station !== "keine" &&
-        stationAvailability &&
-        !stationAvailability.verfuegbar
-      ) {
-        return false
-      }
-      if (!editMode && config.gruppen > 0 && groupAvailability && !groupAvailability.verfuegbar) {
-        return false
-      }
+      // Basis-/Gruppen-Verfügbarkeit blockiert nicht (rote Warnung bleibt sichtbar).
       return true
     }
     if (step === 4) {
-      if (!hasAllowedLieferpaket(tageBisEvent, lieferungCtx)) return false
-      if (!isLieferpaketAllowed(lieferpaket, tageBisEvent, lieferungCtx)) return false
+      if (!hasAllowedLieferpaket(tageBisEvent)) return false
+      if (!isLieferpaketAllowed(lieferpaket, tageBisEvent)) return false
       if (flexRueckgabe && !isFlexRueckgabeAllowed(tageBisEvent, lieferpaket)) return false
       if (config.techniker) {
         if (!isTechnikerAllowed(tageBisEvent)) return false
@@ -617,20 +594,11 @@ export function ConfiguratorWizard({
   }
 
   const plzValid = normalizePlz(config.kontaktPlz || "").length === 5
-  const step2AvailabilityInvalid =
-    !editMode && Boolean(availability && !availability.verfuegbar)
   const step3GruppenInvalid =
-    config.station === "pro" &&
-    (!gruppenVerteilungGueltig(gruppenGroessen, config.menge) ||
-      (!editMode && groupAvailability !== null && !groupAvailability.verfuegbar))
-  const step3StationInvalid =
-    !editMode &&
-    config.station !== "keine" &&
-    stationAvailability !== null &&
-    !stationAvailability.verfuegbar
+    config.station === "pro" && !gruppenVerteilungGueltig(gruppenGroessen, config.menge)
   const step4LieferpaketInvalid =
-    !hasAllowedLieferpaket(tageBisEvent, lieferungCtx) ||
-    !isLieferpaketAllowed(lieferpaket, tageBisEvent, lieferungCtx)
+    !hasAllowedLieferpaket(tageBisEvent) ||
+    !isLieferpaketAllowed(lieferpaket, tageBisEvent)
   const step4TechnikerInvalid =
     config.techniker &&
     (!config.technikerTage ||
@@ -1179,21 +1147,18 @@ export function ConfiguratorWizard({
                     ) : null}
                   </p>
                 )}
-                <div
-                  className={cn(
-                    showFieldErrors && step2AvailabilityInvalid && "rounded-lg ring-2 ring-destructive p-1",
-                  )}
-                >
-                  <AvailabilityIndicator
-                    availability={availability}
-                    loading={loadingAvailability}
-                    hideDetails={editMode}
-                  />
-                </div>
+                <AvailabilityIndicator
+                  availability={availability}
+                  loading={loadingAvailability}
+                  hideDetails={editMode}
+                />
 
                 {!availability?.verfuegbar && availability && (
                   <p className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                    Für Ihren Wunschtermin ist die Verfügbarkeit voraussichtlich nicht ausreichend.
+                    Für Deinen Termin sind laut Lagerbestand nicht genug LED-Bänder verfügbar. Wir
+                    prüfen natürlich trotzdem, ob wir Dir helfen können – eventuell kommt in der
+                    Zwischenzeit noch eine Lieferung oder wir bekommen Refurbished-Bänder zurück
+                    ins Lager.
                   </p>
                 )}
 
@@ -1299,15 +1264,18 @@ export function ConfiguratorWizard({
                 )}
 
                 {(config.station === "eco" || config.station === "pro") && (
-                  <div
-                    className={cn(
-                      showFieldErrors && step3StationInvalid && "rounded-lg ring-2 ring-destructive p-1",
-                    )}
-                  >
+                  <div className="space-y-3">
                     <StationAvailabilityIndicator
                       station={config.station}
                       availability={stationAvailability}
                     />
+                    {stationAvailability && !stationAvailability.verfuegbar && (
+                      <p className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        Für Deinen Termin ist laut Lagerbestand die gewählte Basis/Fernsteuerung
+                        voraussichtlich nicht verfügbar. Wir prüfen natürlich trotzdem, ob wir Dir
+                        helfen können.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1391,9 +1359,14 @@ export function ConfiguratorWizard({
                                   ` (über ${groupAvailability.physischeGruppen} physische Lagergruppe${groupAvailability.physischeGruppen === 1 ? "" : "n"})`}
                               </p>
                             ) : (
-                              <p className="text-sm text-destructive font-medium">
-                                Gruppenprogrammierung voraussichtlich nicht vollständig möglich
-                              </p>
+                              <div className="space-y-2">
+                                <p className="text-sm text-destructive font-medium">
+                                  Gruppenprogrammierung voraussichtlich nicht vollständig möglich
+                                </p>
+                                <p className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                                  Wir prüfen natürlich trotzdem, ob wir Dir helfen können.
+                                </p>
+                              </div>
                             )}
                             {groupAvailability.hinweis && (
                               <p className="text-xs text-muted-foreground">{groupAvailability.hinweis}</p>
@@ -1438,13 +1411,7 @@ export function ConfiguratorWizard({
                   {lieferpaketWarning && (
                     <p className="text-xs text-amber-700">{lieferpaketWarning}</p>
                   )}
-                  {config.druck && (
-                    <p className="text-xs text-muted-foreground">
-                      Bedruckung benötigt mindestens 48 Stunden Vorlauf. Eilauftrag ist daher
-                      nicht verfügbar.
-                    </p>
-                  )}
-                  {!hasAllowedLieferpaket(tageBisEvent, lieferungCtx) && (
+                  {!hasAllowedLieferpaket(tageBisEvent) && (
                     <p className="text-xs text-destructive">
                       Mit dem gewählten Eventtermin ist kein Lieferpaket mehr möglich (mindestens
                       48 Stunden Vorlauf erforderlich). Bitte wählen Sie einen späteren Termin.
@@ -1457,7 +1424,8 @@ export function ConfiguratorWizard({
                     )}
                   >
                     {LIEFERPAKET_OPTIONS.map((p) => {
-                      const allowed = isLieferpaketAllowed(p.value, tageBisEvent, lieferungCtx)
+                      const allowed = isLieferpaketAllowed(p.value, tageBisEvent)
+                      const blockReason = getLieferpaketBlockReason(p.value, tageBisEvent)
                       return (
                         <OptionCard
                           key={p.value}
@@ -1466,7 +1434,7 @@ export function ConfiguratorWizard({
                           onClick={() => updateConfig({ lieferpaket: p.value })}
                           title={p.label}
                           description={p.description}
-                          warning={!allowed ? "Zu kurzer Vorlauf bis zum Event" : undefined}
+                          warning={blockReason ?? undefined}
                           priceHint={
                             p.preisNetto > 0
                               ? `+${formatEur(p.preisNetto)} netto`

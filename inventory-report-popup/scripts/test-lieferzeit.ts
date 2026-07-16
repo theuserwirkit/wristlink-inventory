@@ -43,8 +43,8 @@ assert(
 )
 
 assert(
-  "Bedruckung blockiert Hyperexpress",
-  !isLieferzeitOptionAllowed("hyperexpress", 10, { hasDruck: true }),
+  "Bedruckung blockiert Hyperexpress nicht",
+  isLieferzeitOptionAllowed("hyperexpress", 10, { hasDruck: true }),
 )
 assert(
   "Bedruckung: Express ab 14 Tagen",

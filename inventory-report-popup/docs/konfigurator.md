@@ -150,7 +150,7 @@ Staffelpreise **100–4.000** (Schritt 50) für Kauf und Miete pro Stück (nur `
 | Basis-Station PRO | Nur Miete 649 EUR netto |
 | **Lieferpaket Regulär** | 100 EUR netto (20 WT Produktion, Anlieferung bis 2 Tage vor Event, Rückversand 3 WT) |
 | **Lieferpaket Express** | 349 EUR netto (10 WT Produktion, gleiche Anlieferung) |
-| **Lieferpaket Eilauftrag** | 919 EUR netto (48 h Produktion + Overnight UPS/TNT, keine Bedruckung) |
+| **Lieferpaket Eilauftrag** | 919 EUR netto (48 h Produktion + Overnight UPS/TNT, Bedruckung möglich) |
 | Flex-Rückgabe | +199 EUR netto (optional bei Regulär/Express: frühere Anlieferung ≥5 WT, Rückversand 8 WT) |
 | Versand DE | 90 EUR netto (nur Deutschland im Online-Konfigurator) |
 | Techniker | Reisepauschale 400 EUR, 1.200 EUR/Tag, 0,50 EUR/km ab Wehrheim; **min. 7 Tage Vorlauf** |
@@ -163,7 +163,7 @@ Kunde wählt **ein Paket** statt getrennt Lieferzeit + Lieferart. Intern werden 
 |-------|---------------|---------------------|------------|
 | Regulär | `regulaer` | 28 | erlaubt |
 | Express | `express` | 14 | erlaubt |
-| Eilauftrag | `eil` | 2 | nicht möglich |
+| Eilauftrag | `eil` | 2 | möglich |
 
 Bei zu kurzem Vorlauf werden nicht verfügbare Pakete ausgegraut; das schnellste noch mögliche Paket wird vorausgewählt.
 
@@ -174,7 +174,7 @@ Bei zu kurzem Vorlauf werden nicht verfügbare Pakete ausgegraut; das schnellste
 - Menge **100–4.000**, Schritt 50 (`MIN_MENGE`, `MAX_MENGE`, `MENGE_STEP` in `product-info.ts`)
 - Gruppen 0–20; mit PRO-Station mindestens **1 Gruppe**
 - Gruppenprogrammierung nur mit `station === "pro"`
-- Bedruckung nur bei Kauf; nicht bei Eilauftrag (`lieferpaket: eil`)
+- Bedruckung nur bei Kauf (auch mit Eilauftrag möglich)
 - PRO-Station nur Miete
 - LED Ball, LED Platine, LED Lanyard und LED-Licht im Konfigurator nur Vorschau („Aktuell hier nicht konfigurierbar“)
 - Techniker nur ab 7 Tagen Vorlauf bis Event
