@@ -13,16 +13,35 @@ export type QuoteVersionRow = {
   changed_by: "customer" | "admin" | "system"
   change_summary: string
   created_at: string
+  offer_pdf_filename: string | null
+  has_offer_pdf: boolean
 }
 
 export async function listQuoteVersions(quoteRequestId: number): Promise<QuoteVersionRow[]> {
   const sql = getDb()
   const rows = await sql`
-    SELECT * FROM quote_request_versions
+    SELECT
+      id,
+      quote_request_id,
+      version_number,
+      config_json,
+      price_snapshot_json,
+      availability_level,
+      availability_label,
+      changed_by,
+      change_summary,
+      created_at,
+      offer_pdf_filename,
+      (offer_pdf_data IS NOT NULL) AS has_offer_pdf
+    FROM quote_request_versions
     WHERE quote_request_id = ${quoteRequestId}
     ORDER BY version_number DESC
   `
-  return rows as QuoteVersionRow[]
+  return rows.map((r) => ({
+    ...(r as Omit<QuoteVersionRow, "has_offer_pdf">),
+    has_offer_pdf: Boolean(r.has_offer_pdf),
+    offer_pdf_filename: (r.offer_pdf_filename as string | null) ?? null,
+  }))
 }
 
 export async function getNextVersionNumber(quoteRequestId: number): Promise<number> {
@@ -87,4 +106,68 @@ export async function ensureInitialQuoteVersion(input: {
     changedBy: input.changedBy ?? "system",
     changeSummary: "Erst-Anfrage",
   })
+}
+
+/** Kopiert aktuelles Anfrage-PDF auf die höchste existierende Version. No-op wenn kein PDF. */
+export async function snapshotOfferPdfOntoLatestVersion(quoteRequestId: number): Promise<void> {
+  const sql = getDb()
+  await sql`
+    UPDATE quote_request_versions AS v
+    SET
+      offer_pdf_filename = q.offer_pdf_filename,
+      offer_pdf_data = q.offer_pdf_data,
+      offer_pdf_mime_type = q.offer_pdf_mime_type
+    FROM quote_requests AS q
+    WHERE q.id = ${quoteRequestId}
+      AND v.quote_request_id = q.id
+      AND v.version_number = (
+        SELECT MAX(version_number) FROM quote_request_versions WHERE quote_request_id = ${quoteRequestId}
+      )
+      AND q.offer_pdf_data IS NOT NULL
+  `
+}
+
+export async function getOfferPdfByPublicToken(publicToken: string): Promise<{
+  data: Buffer
+  mimeType: string
+  filename: string
+} | null> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT offer_pdf_data, offer_pdf_mime_type, offer_pdf_filename
+    FROM quote_requests
+    WHERE public_token = ${publicToken}
+    LIMIT 1
+  `
+  if (!rows.length || !rows[0].offer_pdf_data) return null
+  return {
+    data: rows[0].offer_pdf_data as Buffer,
+    mimeType: String(rows[0].offer_pdf_mime_type || "application/pdf"),
+    filename: String(rows[0].offer_pdf_filename || "angebot.pdf"),
+  }
+}
+
+export async function getVersionOfferPdfByPublicToken(
+  publicToken: string,
+  versionNumber: number,
+): Promise<{
+  data: Buffer
+  mimeType: string
+  filename: string
+} | null> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT v.offer_pdf_data, v.offer_pdf_mime_type, v.offer_pdf_filename
+    FROM quote_request_versions v
+    JOIN quote_requests q ON q.id = v.quote_request_id
+    WHERE q.public_token = ${publicToken}
+      AND v.version_number = ${versionNumber}
+    LIMIT 1
+  `
+  if (!rows.length || !rows[0].offer_pdf_data) return null
+  return {
+    data: rows[0].offer_pdf_data as Buffer,
+    mimeType: String(rows[0].offer_pdf_mime_type || "application/pdf"),
+    filename: String(rows[0].offer_pdf_filename || "angebot.pdf"),
+  }
 }
