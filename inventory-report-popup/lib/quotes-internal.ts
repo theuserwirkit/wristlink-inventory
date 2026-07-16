@@ -23,6 +23,14 @@ import {
 import { sendQuoteTelegramNotification, isTelegramConfigured } from "@/lib/konfigurator/telegram"
 import { createCheckoutSessionForQuote, isStripeConfigured } from "@/lib/konfigurator/stripe"
 import { getAppBaseUrl } from "@/lib/konfigurator/lead-auth"
+import { canCustomerEditQuoteStatus } from "@/lib/konfigurator/quote-status"
+import { mergeCustomerEditConfig, buildChangeSummary } from "@/lib/konfigurator/quote-customer-edit"
+import {
+  ensureInitialQuoteVersion,
+  insertQuoteVersion,
+  getNextVersionNumber,
+} from "@/lib/konfigurator/quote-versions"
+import type { AvailabilityStressLevel } from "@/lib/konfigurator/availability-stress"
 import type { PaymentMethod, QuoteConfig, QuoteRequest, QuoteSource } from "@/lib/konfigurator/types"
 import { getProbedruckLabel, normalizeProbedruckOption } from "@/lib/konfigurator/product-info"
 import { getLieferpaketLabel, normalizeLieferpaket } from "@/lib/konfigurator/lieferpaket"
@@ -196,6 +204,13 @@ export async function createQuoteWithHold(input: {
   const quoteId = inserted[0].id as number
   const lead = await getLeadById(input.leadId)
 
+  await ensureInitialQuoteVersion({
+    quoteRequestId: quoteId,
+    config: input.config,
+    price: input.price as unknown as Record<string, unknown>,
+    changedBy: "customer",
+  })
+
   const hold = await createQuoteHoldBooking(quoteId, input.config, lead?.email)
   if (!hold.success) {
     await sql`DELETE FROM quote_requests WHERE id = ${quoteId}`
@@ -333,6 +348,103 @@ export async function getQuoteByIdInternal(id: number): Promise<QuoteRequest | n
   `
   if (!rows.length) return null
   return mapQuoteRow(rows[0])
+}
+
+export async function updateQuoteByPublicToken(input: {
+  publicToken: string
+  incomingConfig: QuoteConfig
+  availabilityLevel: AvailabilityStressLevel
+  availabilityLabel?: string | null
+}): Promise<{ success: boolean; error?: string; quoteId?: number }> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT qr.*, l.email AS lead_email
+    FROM quote_requests qr
+    JOIN leads l ON l.id = qr.lead_id
+    WHERE qr.public_token = ${input.publicToken}
+    LIMIT 1
+  `
+  if (!rows.length) return { success: false, error: "Anfrage nicht gefunden" }
+  const quote = mapQuoteRow(rows[0])
+
+  if (!canCustomerEditQuoteStatus(quote.status)) {
+    return { success: false, error: "Änderung in diesem Status nicht möglich" }
+  }
+
+  const previous = quote.config_json
+  const merged = mergeCustomerEditConfig(previous, input.incomingConfig)
+  const price = rechnePreis(merged)
+  if (!price.gueltig) {
+    return { success: false, error: price.fehler.join("; ") }
+  }
+
+  await ensureInitialQuoteVersion({
+    quoteRequestId: quote.id,
+    config: previous,
+    price: quote.price_snapshot_json,
+    changedBy: "system",
+  })
+
+  const versionNumber = await getNextVersionNumber(quote.id)
+  const changeSummary = buildChangeSummary(previous, merged)
+
+  await insertQuoteVersion({
+    quoteRequestId: quote.id,
+    versionNumber,
+    config: merged,
+    price: price as unknown as Record<string, unknown>,
+    availabilityLevel: input.availabilityLevel,
+    availabilityLabel: input.availabilityLabel ?? null,
+    changedBy: "customer",
+    changeSummary,
+  })
+
+  await releaseQuoteBooking(quote.booking_id)
+  const hold = await createQuoteHoldBooking(quote.id, merged, quote.lead_email)
+
+  // Hold-Fehler blockiert die Kundenänderung nicht (Spec): die Anfrage wird trotzdem
+  // gespeichert, Status geht zurück auf Prüfung, Team wird per Notiz gewarnt.
+  let holdWarning: string | null = null
+  let newBookingId: number | null = null
+  if (!hold.success) {
+    holdWarning = hold.error || "Hold fehlgeschlagen"
+  } else {
+    newBookingId = hold.bookingId ?? null
+  }
+
+  await sql`
+    UPDATE quote_requests SET
+      config_json = ${JSON.stringify(merged)},
+      price_snapshot_json = ${JSON.stringify(price)},
+      status = 'submitted',
+      approved_at = NULL,
+      expires_at = NULL,
+      stripe_checkout_session_id = NULL,
+      stripe_payment_link_url = NULL,
+      booking_id = ${newBookingId},
+      notes = CASE
+        WHEN ${holdWarning}::text IS NOT NULL
+        THEN COALESCE(notes || E'\n', '') || ${`[System] Hold nach Kundenänderung: ${holdWarning}`}
+        ELSE notes
+      END,
+      updated_at = NOW()
+    WHERE id = ${quote.id}
+  `
+
+  if (quote.lead_email) {
+    void sendQuoteTelegramNotification({
+      quoteId: quote.id,
+      email: quote.lead_email,
+      summary: `Kundenänderung: ${changeSummary}`,
+      totalNetto: Number(price.gesamt_netto) || 0,
+      totalBrutto: Number(price.gesamt_brutto) || 0,
+      source: quote.source,
+    }).catch((err) => console.error("Telegram customer-edit notify failed", err))
+  }
+
+  revalidatePath("/warenverwaltung/auftraege")
+  revalidatePath(`/angebot/${input.publicToken}`)
+  return { success: true, quoteId: quote.id }
 }
 
 function scheduleApprovalCustomerEmail(params: {
