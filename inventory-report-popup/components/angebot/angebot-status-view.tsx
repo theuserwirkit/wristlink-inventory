@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { formatEur } from "@/lib/pricing/preis-engine"
 import { formatPriceSummary } from "@/lib/pricing/display"
 import { PRICING_NOTICE_B2B } from "@/lib/konfigurator/consent"
@@ -7,10 +8,12 @@ import {
 } from "@/lib/konfigurator/fulfillment-status"
 import { formatKontaktAdresse } from "@/lib/konfigurator/kontakt-adresse"
 import type { FulfillmentStatus, QuoteConfig, QuoteRequest } from "@/lib/konfigurator/types"
+import type { QuoteVersionRow } from "@/lib/konfigurator/quote-versions"
+import { QuoteVersionTimeline } from "@/components/angebot/quote-version-timeline"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, Circle, Clock, CreditCard, Package, XCircle } from "lucide-react"
+import { CheckCircle2, Circle, Clock, CreditCard, Package, Pencil, XCircle } from "lucide-react"
 
 const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   submitted: { label: "In Prüfung", variant: "secondary" },
@@ -43,11 +46,15 @@ type FulfillmentEvent = {
 export function AngebotStatusView({
   quote,
   fulfillmentEvents,
+  versions,
+  canEdit,
   paid,
   cancelled,
 }: {
   quote: QuoteRequest
   fulfillmentEvents: FulfillmentEvent[]
+  versions: QuoteVersionRow[]
+  canEdit: boolean
   paid?: string
   cancelled?: string
 }) {
@@ -139,6 +146,21 @@ export function AngebotStatusView({
                 <CheckCircle2 className="h-5 w-5" />
                 Zahlung eingegangen – wir starten mit der Vorbereitung.
               </div>
+            )}
+
+            {canEdit && (
+              <Button asChild variant="outline" className="w-full">
+                <Link href={`/konfigurator?edit=${quote.public_token}`}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Anfrage ändern
+                </Link>
+              </Button>
+            )}
+
+            {versions.length > 1 && quote.status === "submitted" && (
+              <p className="text-sm text-muted-foreground">
+                Deine Änderung wird erneut geprüft.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -282,6 +304,17 @@ export function AngebotStatusView({
                   </div>
                 )
               })()}
+            </CardContent>
+          </Card>
+        )}
+
+        {versions.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Änderungsverlauf</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <QuoteVersionTimeline versions={versions} />
             </CardContent>
           </Card>
         )}
