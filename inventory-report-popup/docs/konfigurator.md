@@ -159,11 +159,13 @@ Staffelpreise **100–4.000** (Schritt 50) für Kauf und Miete pro Stück (nur `
 
 Kunde wählt **ein Paket** statt getrennt Lieferzeit + Lieferart. Intern werden `lieferzeit`, `lieferart` und `flex` weiter abgeleitet.
 
-| Paket | `lieferpaket` | Min. Tage bis Event | Bedruckung |
-|-------|---------------|---------------------|------------|
-| Regulär | `regulaer` | 28 | erlaubt |
+| Paket | `lieferpaket` | Min. Werktage bis Event | Bedruckung |
+|-------|---------------|-------------------------|------------|
+| Regulär | `regulaer` | 24 | erlaubt |
 | Express | `express` | 14 | erlaubt |
-| Eilauftrag | `eil` | 2 | möglich |
+| Eilauftrag | `eil` | 3 | möglich |
+
+Formel: **Produktion + 2 WT Versand + Ankunft** (Standard 2 WT vor Event, Flex 5 WT vor Event).
 
 Bei zu kurzem Vorlauf werden nicht verfügbare Pakete ausgegraut; das schnellste noch mögliche Paket wird vorausgewählt.
 
@@ -459,13 +461,13 @@ Berechnet Zieltermine und Dringlichkeit für offene Aufträge (`paid`, Fulfillme
 | Eilauftrag (`eil`) | **2 Kalendertage nach Zahlung** (`paid_at`) |
 | Nach Versand (`versandt` / `ruecksendung_angekommen`) | Rücksendung **3 Werktage nach Eventende** |
 
-**Lager-Packlisten** (Versand am / Anlieferung beim Kunden) – eigene Berechnung, **Werktage** für Anlieferung, **Kalendertage** für Versandlaufzeit:
+**Lager-Packlisten** (Versand am / Anlieferung beim Kunden) – eigene Berechnung in **Werktagen**:
 
 | Modus | Anlieferung beim Kunden | Versand aus Lager |
 |-------|-------------------------|-------------------|
-| Standard | **2 Werktage** vor Event | **3 Kalendertage** vor Anlieferung |
-| Flex (`flexRueckgabe` / `lieferart: flex`) | **5 Werktage** vor Event | **5 Kalendertage** vor Anlieferung (3 + 2 Puffer) |
-| Kurierfahrt (`eil` / `overnight`) | **1 Werktag** vor Event | **1 Kalendertag** vor Anlieferung |
+| Standard | **2 Werktage** vor Event | **2 Werktage** vor Anlieferung |
+| Flex (`flexRueckgabe` / `lieferart: flex`) | **5 Werktage** vor Event | **2 Werktage** vor Anlieferung |
+| Kurierfahrt (`eil` / `overnight`) | **1 Werktag** vor Event | **1 Werktag** vor Anlieferung |
 
 Bereits versendet: tatsächliches Versanddatum aus Fulfillment-Event (`versand_beauftragt` / `versandt`), Anlieferung weiterhin Plantermin.
 
