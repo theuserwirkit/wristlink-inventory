@@ -90,8 +90,6 @@ export function BookingModal({
             batches={batches}
             customers={customers}
             bases={bases}
-            inventoryLots={inventoryLots}
-            openRentals={openRentals}
             onSuccess={handleSuccess}
             onBookingCreated={onBookingCreated}
             prefilledBooking={prefilledBooking}

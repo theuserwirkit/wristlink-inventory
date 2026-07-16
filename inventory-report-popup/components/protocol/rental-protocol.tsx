@@ -3,9 +3,10 @@
 import { useEffect } from "react"
 import { format } from "date-fns"
 import { de } from "date-fns/locale"
+import type { BookingWithRelations } from "@/lib/types"
 
 interface RentalProtocolProps {
-  booking: any
+  booking: BookingWithRelations
 }
 
 export function RentalProtocol({ booking }: RentalProtocolProps) {
@@ -52,7 +53,7 @@ export function RentalProtocol({ booking }: RentalProtocolProps) {
             </h1>
             <div className="text-right text-sm text-gray-600">
               <div>Buchungs-ID: #{booking.id}</div>
-              <div>Erstellt: {format(new Date(booking.created_at), "dd.MM.yyyy HH:mm", { locale: de })}</div>
+              <div>Erstellt: {booking.created_at ? format(new Date(booking.created_at), "dd.MM.yyyy HH:mm", { locale: de }) : "-"}</div>
             </div>
           </div>
           <h2 className="text-2xl font-semibold text-gray-800">Ausgabe/Rückgabeprotokoll</h2>
@@ -67,14 +68,14 @@ export function RentalProtocol({ booking }: RentalProtocolProps) {
           <div>
             <div className="text-sm font-semibold text-gray-600 mb-1">Vermietete Baender:</div>
             <div className="text-lg font-medium">
-              {booking.items?.filter((i: any) => i.group).reduce((sum: number, item: any) => sum + item.anzahl, 0) || 0} Stueck
+              {booking.items?.filter((i) => i.group).reduce((sum, item) => sum + item.anzahl, 0) || 0} Stueck
             </div>
           </div>
-          {booking.items?.some((i: any) => i.base) && (
+          {booking.items?.some((i) => i.base) && (
             <div>
               <div className="text-sm font-semibold text-gray-600 mb-1">Vermietete Basen:</div>
               <div className="text-lg font-medium">
-                {booking.items?.filter((i: any) => i.base).reduce((sum: number, item: any) => sum + (item.anzahl_basen || 0), 0) || 0} Stueck
+                {booking.items?.filter((i) => i.base).reduce((sum, item) => sum + (item.anzahl_basen || 0), 0) || 0} Stueck
               </div>
             </div>
           )}
@@ -92,7 +93,7 @@ export function RentalProtocol({ booking }: RentalProtocolProps) {
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Baender je Gruppe:</h3>
           <div className="space-y-3">
-            {booking.items?.filter((i: any) => i.group).map((item: any) => (
+            {booking.items?.filter((i) => i.group).map((item) => (
               <div key={item.id} className="flex items-center justify-between p-4 border-2 border-gray-300 rounded-lg">
                 <div className="flex-1">
                   <div className="font-medium text-gray-900">{item.group?.name || "Unbekannte Gruppe"}</div>
@@ -107,11 +108,11 @@ export function RentalProtocol({ booking }: RentalProtocolProps) {
         </div>
 
         {/* Bases */}
-        {booking.items?.some((i: any) => i.base) && (
+        {booking.items?.some((i) => i.base) && (
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Basen:</h3>
             <div className="space-y-3">
-              {booking.items?.filter((i: any) => i.base).map((item: any) => (
+              {booking.items?.filter((i) => i.base).map((item) => (
                 <div key={item.id} className="flex items-center justify-between p-4 border-2 border-gray-300 rounded-lg">
                   <div className="flex-1">
                     <div className="font-medium text-gray-900">{item.base?.bezeichnung}</div>
@@ -177,7 +178,7 @@ export function RentalProtocol({ booking }: RentalProtocolProps) {
               <div>
                 <span className="font-semibold text-gray-600">Anzahl gesamt:</span>
                 <span className="ml-2 text-gray-900">
-                  {booking.items?.reduce((sum: number, item: any) => sum + item.anzahl, 0) || 0} Stück
+                  {booking.items?.reduce((sum, item) => sum + item.anzahl, 0) || 0} Stück
                 </span>
               </div>
             </div>
@@ -188,7 +189,7 @@ export function RentalProtocol({ booking }: RentalProtocolProps) {
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Folgende Bänder zurückgegeben:</h3>
           <div className="space-y-3">
-            {booking.items?.map((item: any) => (
+            {booking.items?.map((item) => (
               <div key={item.id} className="flex items-center justify-between p-4 border-2 border-gray-300 rounded-lg">
                 <div className="flex-1">
                   <div className="font-medium text-gray-900">{item.group?.name || "Unbekannte Gruppe"}</div>

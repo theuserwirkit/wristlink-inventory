@@ -25,7 +25,18 @@ export async function POST(request: NextRequest) {
     const quoteId = session.metadata?.quote_request_id
 
     if (quoteId) {
-      await processPaidQuote(Number(quoteId), event.id)
+      try {
+        const result = await processPaidQuote(Number(quoteId), event.id)
+        if (!("alreadyProcessed" in result) && result.success === false) {
+          // Fachlicher Fehler (z. B. Quote nicht gefunden/ungültiger Status): geloggt,
+          // aber weiterhin 200 an Stripe, da ein Retry das Ergebnis nicht ändern würde.
+          console.error(`Stripe webhook: processPaidQuote failed for quote #${quoteId}:`, result.error)
+        }
+      } catch (err) {
+        // B-09: Fehler (inkl. PK-Konflikt bei bereits verarbeitetem Event) hier abfangen,
+        // damit Stripe kein unnötiges Retry auslöst; Ursache bleibt im Server-Log sichtbar.
+        console.error(`Stripe webhook: processPaidQuote threw for quote #${quoteId}:`, err)
+      }
     }
   }
 

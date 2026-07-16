@@ -1,8 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { getDb } from "@/lib/db"
-import { isAuthenticated } from "@/lib/auth"
+import { getDb, withInteractiveTransaction, acquireResourceLocks } from "@/lib/db"
+import { isAuthenticated, getUser, canEdit } from "@/lib/auth"
+import { toSafeErrorMessage } from "@/lib/safe-error"
+import { resolveSkuId, resolveLotId } from "@/lib/actions/sku-lot-internal"
 import {
   getBookingById,
   getAvailabilityForGroupInternal,
@@ -269,29 +271,6 @@ export async function getWarehouseFulfillmentBlockMessage(
   return null
 }
 
-async function resolveSkuId(sql: ReturnType<typeof getDb>, groupId: number): Promise<number> {
-  const existingSku = await sql`
-    SELECT id FROM skus WHERE item_type = 'LED_BAND' AND group_id = ${groupId} LIMIT 1
-  `
-  if (existingSku.length > 0) return existingSku[0].id
-
-  const newSku = await sql`
-    INSERT INTO skus (item_type, group_id) VALUES ('LED_BAND', ${groupId}) RETURNING id
-  `
-  return newSku[0].id
-}
-
-async function resolveLotId(
-  sql: ReturnType<typeof getDb>,
-  skuId: number,
-  batchId: number,
-): Promise<number | null> {
-  const existingLot = await sql`
-    SELECT id FROM inventory_lots WHERE sku_id = ${skuId} AND batch_id = ${batchId} LIMIT 1
-  `
-  return existingLot.length > 0 ? existingLot[0].id : null
-}
-
 async function loadBandBatchPools(
   quote: Awaited<ReturnType<typeof getQuoteByIdInternal>>,
   primaryBooking: BookingWithRelations | null,
@@ -414,8 +393,8 @@ export async function updateQuoteBookingBaseAllocation(
   input: { baseId: number; anzahl?: number },
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const authed = await isAuthenticated()
-    if (!authed) return { success: false, error: "Nicht authentifiziert" }
+    const user = await getUser()
+    if (!(await canEdit(user))) return { success: false, error: "Keine Berechtigung" }
 
     const quote = await getQuoteByIdInternal(quoteId)
     if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
@@ -439,21 +418,8 @@ export async function updateQuoteBookingBaseAllocation(
     const currentAnzahl = existingBaseItem
       ? (existingBaseItem.anzahl_basen ?? existingBaseItem.anzahl ?? 0)
       : 0
-    const sameAllocation =
-      existingBaseItem?.base_id === input.baseId && currentAnzahl === anzahl
-
-    if (!sameAllocation) {
-      const availabilityCheck = await checkBaseAvailabilityForBooking(
-        input.baseId,
-        anzahl,
-        booking,
-        existingBaseItem,
-      )
-      if (!availabilityCheck.ok) return { success: false, error: availabilityCheck.error }
-    }
 
     const sql = getDb()
-
     const baseRow = await sql`
       SELECT seriennummer FROM bases WHERE id = ${input.baseId} LIMIT 1
     `
@@ -467,20 +433,50 @@ export async function updateQuoteBookingBaseAllocation(
       }
     }
 
-    if (existingBaseItem) {
-      await sql`
-        UPDATE booking_items
-        SET base_id = ${input.baseId},
-            anzahl_basen = ${anzahl},
-            anzahl = ${anzahl}
-        WHERE id = ${existingBaseItem.id}
-      `
-    } else {
-      await sql`
-        INSERT INTO booking_items (booking_id, base_id, anzahl_basen, anzahl, anzahl_fehlt)
-        VALUES (${quote.booking_id}, ${input.baseId}, ${anzahl}, ${anzahl}, 0)
-      `
+    // C-05: Verfügbarkeits-Check + Schreiben laufen unter einem Advisory-Lock auf die
+    // betroffene(n) Basis-Ressource(n) in EINER echten Transaktion (TOCTOU-Schutz) —
+    // die fachliche Prüfung selbst (checkBaseAvailabilityForBooking) bleibt unverändert,
+    // sie läuft nur garantiert erst NACH Lock-Erwerb, sodass kein zweiter, paralleler
+    // Aufruf für dieselbe Basis mehr dazwischenkommen kann, bevor committet wurde.
+    const lockKeys = [`base:${input.baseId}`]
+    if (existingBaseItem?.base_id != null && existingBaseItem.base_id !== input.baseId) {
+      lockKeys.push(`base:${existingBaseItem.base_id}`)
     }
+
+    const result = await withInteractiveTransaction(async (query) => {
+      await acquireResourceLocks(query, lockKeys)
+
+      const sameAllocation =
+        existingBaseItem?.base_id === input.baseId && currentAnzahl === anzahl
+      if (!sameAllocation) {
+        const availabilityCheck = await checkBaseAvailabilityForBooking(
+          input.baseId,
+          anzahl,
+          booking,
+          existingBaseItem,
+        )
+        if (!availabilityCheck.ok) {
+          return { success: false as const, error: availabilityCheck.error }
+        }
+      }
+
+      if (existingBaseItem) {
+        await query(
+          `UPDATE booking_items SET base_id = $1, anzahl_basen = $2, anzahl = $3 WHERE id = $4`,
+          [input.baseId, anzahl, anzahl, existingBaseItem.id],
+        )
+      } else {
+        await query(
+          `INSERT INTO booking_items (booking_id, base_id, anzahl_basen, anzahl, anzahl_fehlt)
+           VALUES ($1, $2, $3, $4, 0)`,
+          [quote.booking_id, input.baseId, anzahl, anzahl],
+        )
+      }
+
+      return { success: true as const }
+    }, { isolationLevel: "RepeatableRead" })
+
+    if (!result.success) return result
 
     revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
     revalidatePath("/warenverwaltung/buchungen")
@@ -489,9 +485,7 @@ export async function updateQuoteBookingBaseAllocation(
 
     return { success: true }
   } catch (error) {
-    console.error("updateQuoteBookingBaseAllocation failed:", error)
-    const message = error instanceof Error ? error.message : "Unbekannter Fehler"
-    return { success: false, error: `Fehler beim Aktualisieren der Basis-Zuweisung: ${message}` }
+    return { success: false, error: toSafeErrorMessage(error, "updateQuoteBookingBaseAllocation") }
   }
 }
 
@@ -513,8 +507,8 @@ export async function saveQuoteBandAllocations(
   allocations: Array<{ groupId: number; batchId: number; anzahl: number }>,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const authed = await isAuthenticated()
-    if (!authed) return { success: false, error: "Nicht authentifiziert" }
+    const user = await getUser()
+    if (!(await canEdit(user))) return { success: false, error: "Keine Berechtigung" }
 
     const quote = await getQuoteByIdInternal(quoteId)
     if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
@@ -553,37 +547,59 @@ export async function saveQuoteBandAllocations(
     }
 
     const bandItems = booking.items.filter((item) => item.group_id != null)
-    for (const row of normalized) {
-      const effective = await effectiveBandAvailability(
-        row.groupId,
-        row.batchId,
-        booking,
-        bandItems,
-      )
-      if (effective < row.anzahl) {
-        const groupRows = await getDb()`SELECT name FROM groups WHERE id = ${row.groupId} LIMIT 1`
-        const batchRows = await getDb()`SELECT code FROM batches WHERE id = ${row.batchId} LIMIT 1`
-        return {
-          success: false,
-          error: `Nicht genügend verfügbar für ${groupRows[0]?.name ?? "Gruppe"} / ${batchRows[0]?.code ?? "Charge"}. Verfügbar: ${effective}, benötigt: ${row.anzahl}`,
-        }
+
+    // C-05/C-07: Verfügbarkeits-Check + DELETE/INSERT laufen jetzt gemeinsam unter
+    // Advisory-Locks auf ALLE betroffenen (Gruppe, Charge)-Ressourcen in EINER echten
+    // Transaktion. Das behebt zwei Dinge gleichzeitig: (a) TOCTOU zwischen Check und
+    // Schreiben (C-05) und (b) die DELETE+INSERT-Schleife war vorher nicht atomar
+    // (C-07) — bei einem Fehler mitten in der Schleife blieben alte Positionen bereits
+    // gelöscht, ohne dass alle neuen Positionen geschrieben wurden. Jetzt: alles oder
+    // nichts. Die fachliche Verfügbarkeitsberechnung (effectiveBandAvailability) bleibt
+    // unverändert.
+    const lockKeys = new Set<string>()
+    for (const item of bandItems) {
+      if (item.group_id != null && item.batch_id != null) {
+        lockKeys.add(`band:${item.group_id}:${item.batch_id}`)
       }
     }
-
-    const sql = getDb()
-    const bandItemIds = bandItems.map((item) => item.id)
-    if (bandItemIds.length > 0) {
-      await sql`DELETE FROM booking_items WHERE id = ANY(${bandItemIds})`
-    }
-
     for (const row of normalized) {
-      const skuId = await resolveSkuId(sql, row.groupId)
-      const lotId = await resolveLotId(sql, skuId, row.batchId)
-      await sql`
-        INSERT INTO booking_items (booking_id, group_id, sku_id, lot_id, batch_id, anzahl, anzahl_fehlt)
-        VALUES (${quote.booking_id}, ${row.groupId}, ${skuId}, ${lotId}, ${row.batchId}, ${row.anzahl}, 0)
-      `
+      lockKeys.add(`band:${row.groupId}:${row.batchId}`)
     }
+
+    const result = await withInteractiveTransaction(async (query) => {
+      await acquireResourceLocks(query, Array.from(lockKeys))
+
+      for (const row of normalized) {
+        const effective = await effectiveBandAvailability(row.groupId, row.batchId, booking, bandItems)
+        if (effective < row.anzahl) {
+          const groupRows = await getDb()`SELECT name FROM groups WHERE id = ${row.groupId} LIMIT 1`
+          const batchRows = await getDb()`SELECT code FROM batches WHERE id = ${row.batchId} LIMIT 1`
+          return {
+            success: false as const,
+            error: `Nicht genügend verfügbar für ${groupRows[0]?.name ?? "Gruppe"} / ${batchRows[0]?.code ?? "Charge"}. Verfügbar: ${effective}, benötigt: ${row.anzahl}`,
+          }
+        }
+      }
+
+      const bandItemIds = bandItems.map((item) => item.id)
+      if (bandItemIds.length > 0) {
+        await query(`DELETE FROM booking_items WHERE id = ANY($1)`, [bandItemIds])
+      }
+
+      for (const row of normalized) {
+        const skuId = await resolveSkuId(query, row.groupId)
+        const lotId = await resolveLotId(query, skuId, row.batchId)
+        await query(
+          `INSERT INTO booking_items (booking_id, group_id, sku_id, lot_id, batch_id, anzahl, anzahl_fehlt)
+           VALUES ($1, $2, $3, $4, $5, $6, 0)`,
+          [quote.booking_id, row.groupId, skuId, lotId, row.batchId, row.anzahl],
+        )
+      }
+
+      return { success: true as const }
+    }, { isolationLevel: "RepeatableRead" })
+
+    if (!result.success) return result
 
     revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
     revalidatePath("/warenverwaltung/buchungen")
@@ -592,9 +608,7 @@ export async function saveQuoteBandAllocations(
 
     return { success: true }
   } catch (error) {
-    console.error("saveQuoteBandAllocations failed:", error)
-    const message = error instanceof Error ? error.message : "Unbekannter Fehler"
-    return { success: false, error: `Fehler beim Speichern der Zuweisung: ${message}` }
+    return { success: false, error: toSafeErrorMessage(error, "saveQuoteBandAllocations") }
   }
 }
 
@@ -603,8 +617,8 @@ export async function updateQuoteBookingAllocation(
   input: { groupId: number; batchId: number; bookingItemId?: number },
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const authed = await isAuthenticated()
-    if (!authed) return { success: false, error: "Nicht authentifiziert" }
+    const user = await getUser()
+    if (!(await canEdit(user))) return { success: false, error: "Keine Berechtigung" }
 
     const quote = await getQuoteByIdInternal(quoteId)
     if (!quote) return { success: false, error: "Anfrage nicht gefunden" }
@@ -629,35 +643,41 @@ export async function updateQuoteBookingAllocation(
       return { success: false, error: "Kein Leuchtgruppen-Position in der Buchung gefunden" }
     }
 
-    const sameAllocation =
-      targetItem.group_id === input.groupId && targetItem.batch_id === input.batchId
-    if (!sameAllocation) {
-      const effective = await effectiveBandAvailability(
-        input.groupId,
-        input.batchId,
-        booking,
-        bandItems,
-      )
-      if (effective < targetItem.anzahl) {
-        return {
-          success: false,
-          error: `Nicht genügend verfügbar. Verfügbar: ${effective}, benötigt: ${targetItem.anzahl}`,
-        }
-      }
+    // C-05: Verfügbarkeits-Check + Schreiben unter Advisory-Lock auf alte und neue
+    // (Gruppe, Charge)-Ressource in EINER echten Transaktion (TOCTOU-Schutz), fachliche
+    // Prüfung (effectiveBandAvailability) unverändert.
+    const lockKeys = new Set<string>([`band:${input.groupId}:${input.batchId}`])
+    if (targetItem.group_id != null && targetItem.batch_id != null) {
+      lockKeys.add(`band:${targetItem.group_id}:${targetItem.batch_id}`)
     }
 
-    const sql = getDb()
-    const newSkuId = await resolveSkuId(sql, input.groupId)
-    const newLotId = await resolveLotId(sql, newSkuId, input.batchId)
+    const result = await withInteractiveTransaction(async (query) => {
+      await acquireResourceLocks(query, Array.from(lockKeys))
 
-    await sql`
-      UPDATE booking_items
-      SET group_id = ${input.groupId},
-          batch_id = ${input.batchId},
-          sku_id = ${newSkuId},
-          lot_id = ${newLotId}
-      WHERE id = ${targetItem.id}
-    `
+      const sameAllocation =
+        targetItem.group_id === input.groupId && targetItem.batch_id === input.batchId
+      if (!sameAllocation) {
+        const effective = await effectiveBandAvailability(input.groupId, input.batchId, booking, bandItems)
+        if (effective < targetItem.anzahl) {
+          return {
+            success: false as const,
+            error: `Nicht genügend verfügbar. Verfügbar: ${effective}, benötigt: ${targetItem.anzahl}`,
+          }
+        }
+      }
+
+      const newSkuId = await resolveSkuId(query, input.groupId)
+      const newLotId = await resolveLotId(query, newSkuId, input.batchId)
+
+      await query(
+        `UPDATE booking_items SET group_id = $1, batch_id = $2, sku_id = $3, lot_id = $4 WHERE id = $5`,
+        [input.groupId, input.batchId, newSkuId, newLotId, targetItem.id],
+      )
+
+      return { success: true as const }
+    }, { isolationLevel: "RepeatableRead" })
+
+    if (!result.success) return result
 
     revalidatePath(`/warenverwaltung/auftraege/${quoteId}`)
     revalidatePath("/warenverwaltung/buchungen")
@@ -666,9 +686,7 @@ export async function updateQuoteBookingAllocation(
 
     return { success: true }
   } catch (error) {
-    console.error("updateQuoteBookingAllocation failed:", error)
-    const message = error instanceof Error ? error.message : "Unbekannter Fehler"
-    return { success: false, error: `Fehler beim Aktualisieren der Zuweisung: ${message}` }
+    return { success: false, error: toSafeErrorMessage(error, "updateQuoteBookingAllocation") }
   }
 }
 
@@ -707,15 +725,16 @@ export async function confirmPackingDocsPrinted(
     revalidatePath("/warenverwaltung/auftraege")
     return { success: true }
   } catch (error) {
-    console.error("confirmPackingDocsPrinted failed:", error)
-    const message = error instanceof Error ? error.message : "Unbekannter Fehler"
-    if (message.includes("packing_docs_printed_at")) {
+    // Bekannter Ops-Hinweis (keine internen Details) bleibt erhalten; alles andere
+    // läuft über die generische, sichere Fehlermeldung.
+    if (error instanceof Error && error.message.includes("packing_docs_printed_at")) {
+      console.error("confirmPackingDocsPrinted failed:", error)
       return {
         success: false,
         error: "Datenbank-Migration 21 fehlt (packing_docs_printed_at). Bitte pnpm db:migrate ausführen.",
       }
     }
-    return { success: false, error: message }
+    return { success: false, error: toSafeErrorMessage(error, "confirmPackingDocsPrinted") }
   }
 }
 

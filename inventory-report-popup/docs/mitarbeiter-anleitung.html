@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mitarbeiter-Anleitung – BraceLED / WIRKUNG.wristlink</title>
+  <style>
+    :root {
+      --ink: #1a1f2e;
+      --muted: #5a6378;
+      --line: #d8dde8;
+      --bg: #f7f8fb;
+      --card: #ffffff;
+      --accent: #0b6e4f;
+      --accent-soft: #e6f4ef;
+      --warn: #8a4b08;
+      --warn-bg: #fff6e8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .page {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    header.doc-header {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      margin-bottom: 1.75rem;
+    }
+
+    header.doc-header h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.65rem;
+      letter-spacing: -0.02em;
+    }
+
+    header.doc-header .subtitle {
+      color: var(--muted);
+      margin: 0 0 1rem;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      font-size: 0.9rem;
+    }
+
+    .meta a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .meta a:hover { text-decoration: underline; }
+
+    .toolbar {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin: 1rem 0 0;
+    }
+
+    .toolbar button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .toolbar button.secondary {
+      background: var(--card);
+      color: var(--ink);
+    }
+
+    .toolbar .hint {
+      align-self: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.75rem;
+    }
+
+    nav.toc h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1rem;
+    }
+
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    nav.toc a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    nav.toc a:hover { text-decoration: underline; }
+
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section h2 {
+      margin: 0 0 0.85rem;
+      font-size: 1.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    section h3 {
+      margin: 1.25rem 0 0.5rem;
+      font-size: 1.05rem;
+    }
+
+    p { margin: 0.65rem 0; }
+
+    a { color: var(--accent); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.85rem 0;
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 0.55rem 0.65rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+
+    code, .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88em;
+    }
+
+    .pipeline {
+      background: var(--bg);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      margin: 0.85rem 0;
+    }
+
+    .callout {
+      background: var(--warn-bg);
+      border-left: 4px solid #e0a040;
+      padding: 0.85rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1rem 0;
+      color: var(--warn);
+    }
+
+    .callout strong { color: var(--ink); }
+
+    .ok {
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      padding: 0.85rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1rem 0;
+    }
+
+    ul.checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0.75rem 0;
+    }
+
+    ul.checklist li {
+      padding: 0.35rem 0 0.35rem 1.75rem;
+      position: relative;
+    }
+
+    ul.checklist li::before {
+      content: "☐";
+      position: absolute;
+      left: 0;
+      color: var(--muted);
+    }
+
+    footer {
+      margin-top: 1.5rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+
+    @media print {
+      body { background: #fff; font-size: 11.5pt; }
+      .page { max-width: none; padding: 0; }
+      .toolbar { display: none !important; }
+      header.doc-header,
+      nav.toc,
+      section {
+        border: 1px solid #ccc;
+        break-inside: avoid;
+        box-shadow: none;
+      }
+      a { color: #000; text-decoration: none; }
+      a[href]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.8em;
+        color: #555;
+        word-break: break-all;
+      }
+      a[href^="#"]::after { content: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="doc-header">
+      <h1>Mitarbeiter-Anleitung</h1>
+      <p class="subtitle">BraceLED / WIRKUNG.wristlink – Was die Plattform kann, wie sie funktioniert, was man wissen muss</p>
+      <div class="meta">
+        <span>Stand: 16. Juli 2026</span>
+        <a href="https://braceled-led-armband.com">braceled-led-armband.com</a>
+        <a href="https://braceled-led-armband.com/login">Login</a>
+        <a href="https://braceled-led-armband.com/warenverwaltung">Warenverwaltung</a>
+      </div>
+      <div class="toolbar">
+        <button type="button" onclick="window.print()">Als PDF speichern / Drucken</button>
+        <button type="button" class="secondary" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })">Nach oben</button>
+        <span class="hint">Tipp: Im Druckdialog „Als PDF speichern“ wählen.</span>
+      </div>
+    </header>
+
+    <nav class="toc" aria-label="Inhalt">
+      <h2>Inhalt</h2>
+      <ol>
+        <li><a href="#was-kann">Was die Plattform kann</a></li>
+        <li><a href="#login">Anmeldung &amp; Navigation</a></li>
+        <li><a href="#ablauf">So läuft ein Auftrag</a></li>
+        <li><a href="#tagesablauf">Tagesablauf – konkrete Schritte</a></li>
+        <li><a href="#regeln">Wichtige Regeln</a></li>
+        <li><a href="#kunden">Was Kunden sehen</a></li>
+        <li><a href="#checkliste">Mini-Checkliste für den Start</a></li>
+      </ol>
+    </nav>
+
+    <section id="was-kann">
+      <h2>1. Was die Plattform kann</h2>
+      <p>
+        Die Plattform verbindet <strong>Kundenanfragen</strong> (Online-Konfigurator) mit
+        <strong>Lager, Freigabe, Zahlung und Versand</strong>. Mitarbeiter arbeiten vor allem in der
+        Warenverwaltung; Kunden sehen Landingpage, Konfigurator und ihre Statusseite.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Bereich</th>
+            <th>Für wen</th>
+            <th>Zweck</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="https://braceled-led-armband.com/">Startseite</a></td>
+            <td>Kunden</td>
+            <td>Produkt, Technik, Preise, FAQ</td>
+          </tr>
+          <tr>
+            <td><a href="https://braceled-led-armband.com/konfigurator">Konfigurator</a></td>
+            <td>Kunden (B2B)</td>
+            <td>Angebot online konfigurieren und absenden</td>
+          </tr>
+          <tr>
+            <td>Statusseite <span class="mono">/angebot/…</span></td>
+            <td>Kunden</td>
+            <td>Status, Zahlung, Fortschritt – Zugang per <strong>Firmen-PLZ</strong></td>
+          </tr>
+          <tr>
+            <td><a href="https://braceled-led-armband.com/warenverwaltung">Warenverwaltung</a></td>
+            <td>Team</td>
+            <td>Tagesgeschäft: Bestand, Aufträge, Kalender</td>
+          </tr>
+          <tr>
+            <td><a href="https://braceled-led-armband.com/admin">Admin / Stammdaten</a></td>
+            <td>Team</td>
+            <td>Leuchtgruppen, Chargen, Basen</td>
+          </tr>
+          <tr>
+            <td><a href="https://braceled-led-armband.com/admin/einstellungen/e-mails">E-Mail-Einstellungen</a></td>
+            <td>Team</td>
+            <td>Vorlagen + globale CC-Adresse</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Zusätzlich: Benachrichtigungen per <strong>E-Mail</strong> und optional <strong>Telegram</strong> (Freigabe/Ablehnung auch per Bot-Buttons).</p>
+    </section>
+
+    <section id="login">
+      <h2>2. Anmeldung &amp; Navigation</h2>
+      <ol>
+        <li>Öffne <a href="https://braceled-led-armband.com/login">/login</a> → E-Mail + Passwort.</li>
+        <li>Du landest in der <a href="https://braceled-led-armband.com/warenverwaltung">Warenverwaltung</a>.</li>
+      </ol>
+      <h3>Haupt-Tabs</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Tab</th>
+            <th>Link</th>
+            <th>Inhalt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Übersicht</td>
+            <td><a href="https://braceled-led-armband.com/warenverwaltung">/warenverwaltung</a></td>
+            <td>Bestand, KPIs, dringende Aufträge</td>
+          </tr>
+          <tr>
+            <td>Buchungen</td>
+            <td><a href="https://braceled-led-armband.com/warenverwaltung/buchungen">/warenverwaltung/buchungen</a></td>
+            <td>Manuelle Lagerbewegungen</td>
+          </tr>
+          <tr>
+            <td>Aufträge</td>
+            <td><a href="https://braceled-led-armband.com/warenverwaltung/auftraege">/warenverwaltung/auftraege</a></td>
+            <td>Alle Anfragen – Kernarbeitsplatz</td>
+          </tr>
+          <tr>
+            <td>Kalender</td>
+            <td><a href="https://braceled-led-armband.com/kalender">/kalender</a></td>
+            <td>Miet-/Verkaufszeiträume</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Zusätzlich oft im Header: <strong>Admin</strong>, <strong>E-Mails</strong>, <strong>CSV Export</strong>, <strong>Zugang</strong>.</p>
+    </section>
+
+    <section id="ablauf">
+      <h2>3. So läuft ein Auftrag (Kunde → Team)</h2>
+
+      <h3>Was der Kunde macht</h3>
+      <ol>
+        <li>E-Mail-Gate im Konfigurator (B2B-Bestätigung Pflicht).</li>
+        <li>Double-Opt-In per E-Mail.</li>
+        <li>Wizard: Event → Umfang → Zeitraum → Steuerung → Extras → Angebot absenden.</li>
+        <li>Danach: Team-Mail (+ ggf. Telegram). Status: <strong>In Prüfung</strong>.</li>
+      </ol>
+
+      <h3>Was ihr macht (Auftragsdetail)</h3>
+      <p>
+        Öffne den Auftrag unter
+        <a href="https://braceled-led-armband.com/warenverwaltung/auftraege">/warenverwaltung/auftraege</a>
+        → Detailseite. Dort drei Tabs:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Tab</th>
+            <th>Wofür</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Abwicklung</strong></td>
+            <td>Arbeiten – ein Schritt nach dem anderen</td>
+          </tr>
+          <tr>
+            <td><strong>Lager</strong></td>
+            <td>Nachschlagen: Buchung, Chargen, Basis, Rückgabe</td>
+          </tr>
+          <tr>
+            <td><strong>Info</strong></td>
+            <td>Konfiguration, Preise, Stripe-Link, Kunden-Status-URL, Notizen</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Pipeline (Abwicklung)</h3>
+      <div class="pipeline">Freigabe → Geldeingang → Angenommen → Vorbereitet
+  → Material zuweisen → Lagerunterlagen drucken → Zusammengepackt
+  → [Bedruckt, nur bei Druck] → Versand beauftragt → Versandt
+  → Rücksendung angekommen → Zurückgepackt</div>
+
+      <h3>Status-Labels</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Bedeutung</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>In Prüfung</td>
+            <td>Neu eingegangen, noch nicht freigegeben</td>
+          </tr>
+          <tr>
+            <td>Freigegeben / Zahlung ausstehend</td>
+            <td>Freigegeben; bei Stripe wartet Zahlung</td>
+          </tr>
+          <tr>
+            <td>Gebucht</td>
+            <td>Bezahlt / Geldeingang bestätigt – Fulfillment startet</td>
+          </tr>
+          <tr>
+            <td>Abgelehnt / Storniert / Abgelaufen</td>
+            <td>Auftrag beendet</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="tagesablauf">
+      <h2>4. Tagesablauf – konkrete Schritte</h2>
+
+      <h3>A) Neue Anfrage prüfen &amp; freigeben</h3>
+      <ol>
+        <li>Liste <strong>Aufträge</strong> öffnen (Badge zeigt offene Freigaben/Zahlungen).</li>
+        <li>Detail → Tab <strong>Abwicklung</strong>.</li>
+        <li>Optional <strong>vor Freigabe</strong>: Angebot in <strong>sevDesk</strong> erzeugen oder PDF hochladen (hängt dann an Kundenmails).</li>
+        <li>
+          Freigeben z.&nbsp;B. mit:
+          <ul>
+            <li><strong>Freigeben &amp; Stripe-Link senden</strong> (Online-Zahlung), oder</li>
+            <li><strong>Freigeben &amp; Mail senden</strong> / manuelle Überweisung, oder</li>
+            <li>bei n8n-Anfragen: <strong>Freigeben &amp; Angebot senden</strong></li>
+          </ul>
+        </li>
+        <li>Ablehnen nur mit Grund (z.&nbsp;B. nicht lieferbar, Zeitraum, Konfiguration).</li>
+      </ol>
+
+      <h3>B) Geldeingang</h3>
+      <ul>
+        <li><strong>Stripe:</strong> Nach Zahlung setzt das System meist automatisch <strong>Gebucht</strong>.</li>
+        <li><strong>Überweisung:</strong> Manuell <strong>Geldeingang bestätigen</strong> (mit oder ohne Mail).</li>
+      </ul>
+
+      <h3>C) Lager &amp; Packen</h3>
+      <ol>
+        <li><strong>Material zuweisen</strong> (Gruppen/Chargen/Basis vollständig).</li>
+        <li><strong>Lagerunterlagen drucken</strong> (Tüten-Labels, Checkliste, Übersicht) → dann „Druck erledigt“ bestätigen.</li>
+        <li><strong>Als gepackt markieren</strong> (Zusammengepackt).</li>
+        <li>Bei Bedruckung: erst packen, dann <strong>Bedruckt</strong>.</li>
+        <li><strong>Versand beauftragt:</strong> Tracking-Nummer + Dienstleister (UPS/DHL/TNT) sind Pflicht.</li>
+        <li><strong>Versandt</strong> → später Rücksendung → <strong>Zurückgepackt</strong>.</li>
+      </ol>
+
+      <h3>D) Manuelle Aufträge / Buchungen</h3>
+      <ul>
+        <li>
+          Auftrag ohne Konfigurator:
+          <a href="https://braceled-led-armband.com/warenverwaltung/auftraege/neu">/warenverwaltung/auftraege/neu</a>
+        </li>
+        <li>
+          Reine Lagerbuchungen (Zugang, Miete, Verkauf, Rückgabe):
+          <a href="https://braceled-led-armband.com/warenverwaltung/buchungen">/warenverwaltung/buchungen</a>
+          – <strong>nicht</strong> für normale Konfigurator-Aufträge nutzen; die laufen über <strong>Aufträge</strong>.
+        </li>
+      </ul>
+
+      <h3>E) Kalender &amp; Stammdaten</h3>
+      <ul>
+        <li><a href="https://braceled-led-armband.com/kalender">Kalender</a>: Belegung prüfen, Klick öffnet den Auftrag.</li>
+        <li><a href="https://braceled-led-armband.com/admin">Admin</a>: Leuchtgruppen, Chargen, Basen (inkl. Seriennummer).</li>
+      </ul>
+    </section>
+
+    <section id="regeln">
+      <h2>5. Wichtige Regeln (Support &amp; Fehlervermeidung)</h2>
+      <div class="callout">
+        <strong>Merksatz:</strong> Die Firmen-PLZ aus dem Angebot ist der Zugangscode zur Kunden-Statusseite.
+      </div>
+      <ol>
+        <li><strong>Firmen-PLZ = Zugangscode</strong> für die Kunden-Statusseite. Kunden brauchen den Link aus der Mail <strong>plus</strong> die PLZ aus dem Angebot.</li>
+        <li><strong>Nur B2B</strong> – gewerbliche Kunden; Preise sind <strong>netto</strong>, in DE zzgl. 19&nbsp;% MwSt.</li>
+        <li><strong>Online-Konfigurator:</strong> Versand derzeit nur <strong>Deutschland</strong>.</li>
+        <li><strong>Miete vs. Kauf:</strong> Bei Miete wird Bestand schon bei Anfrage reserviert (Hold); Verkaufsbuchung erst bei Zahlung. Ablehnen gibt den Hold frei.</li>
+        <li><strong>sevDesk</strong> erstellt nichts von allein – PDF/Angebot vor Freigabe anlegen, wenn ihr es mitschicken wollt. Rechnungen laufen nicht in der App.</li>
+        <li><strong>Reihenfolge Packen:</strong> Material → Unterlagen drucken → Zusammengepackt → ggf. Bedruckt → Versand.</li>
+        <li>Alte Links <span class="mono">/admin/anfragen</span> leiten auf die Warenverwaltung-Aufträge um – gleicher Inhalt.</li>
+        <li>
+          Globale <strong>CC</strong> unter
+          <a href="https://braceled-led-armband.com/admin/einstellungen/e-mails">E-Mail-Einstellungen</a>:
+          Kopie aller Transaktionsmails ans Team.
+        </li>
+      </ol>
+    </section>
+
+    <section id="kunden">
+      <h2>6. Was Kunden sehen (damit Support schnell hilft)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Link</th>
+            <th>Inhalt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="https://braceled-led-armband.com/">braceled-led-armband.com</a></td>
+            <td>Marketing / Produktinfo</td>
+          </tr>
+          <tr>
+            <td><a href="https://braceled-led-armband.com/konfigurator">Konfigurator</a></td>
+            <td>Angebot konfigurieren</td>
+          </tr>
+          <tr>
+            <td>Statusseite <span class="mono">/angebot/[token]</span></td>
+            <td>Status, Stripe-Link, Timeline – <strong>PLZ-Gate</strong></td>
+          </tr>
+          <tr>
+            <td>
+              <a href="https://braceled-led-armband.com/agb">AGB</a> ·
+              <a href="https://braceled-led-armband.com/datenschutz">Datenschutz</a> ·
+              <a href="https://braceled-led-armband.com/impressum">Impressum</a>
+            </td>
+            <td>Rechtliches</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="ok">
+        <strong>Typische Support-Fragen:</strong>
+        „Mail nicht da?“ → Spam + Double-Opt-In prüfen ·
+        „Statusseite zu?“ → Firmen-PLZ ·
+        „Zahlung?“ → Tab <strong>Info</strong> (Stripe-Link) oder Geldeingang manuell.
+      </div>
+    </section>
+
+    <section id="checkliste">
+      <h2>7. Mini-Checkliste für den Start</h2>
+      <ul class="checklist">
+        <li>Login funktioniert, Warenverwaltung öffnet sich</li>
+        <li>Tab <strong>Aufträge</strong> kennen und einen Testauftrag durchklicken</li>
+        <li>Pipeline im Tab <strong>Abwicklung</strong> einmal von Freigabe bis Versand nachvollziehen</li>
+        <li>Wissen: PLZ = Kundenzugangscode</li>
+        <li>Wissen: sevDesk/PDF vor Freigabe, wenn Angebot mitgeschickt werden soll</li>
+        <li>Bei Versand: Tracking + UPS/DHL/TNT eintragen</li>
+      </ul>
+    </section>
+
+    <footer>
+      Intern: WIRKUNG.wristlink · Kundenmarke: BraceLED · Datei:
+      <span class="mono">docs/mitarbeiter-anleitung.html</span>
+    </footer>
+  </div>
+</body>
+</html>

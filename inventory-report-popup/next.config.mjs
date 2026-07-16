@@ -47,6 +47,25 @@ const securityHeaders = [
     value: "strict-origin-when-cross-origin",
   },
   {
+    // Deaktiviert ungenutzte Browser-Feature-APIs; Stripe Checkout benötigt keine davon.
+    key: "Permissions-Policy",
+    value:
+      "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\"), usb=(), magnetometer=(), gyroscope=()",
+  },
+  {
+    // Schützt vor Cross-Window-Angriffen (z. B. tab-nabbing) über window.opener;
+    // Stripe Checkout läuft als Vollseiten-Redirect, kein Popup-postMessage-Flow betroffen.
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin",
+  },
+  {
+    // Verhindert, dass fremde Origins eigene Ressourcen dieser App per <script>/<img> einbetten.
+    // frame-ancestors 'none' verhindert ohnehin Framing; Stripe-Checkout ist ein Redirect zu
+    // checkout.stripe.com (fremde Origin), lädt keine Ressourcen dieser App cross-origin ein.
+    key: "Cross-Origin-Resource-Policy",
+    value: "same-origin",
+  },
+  {
     key: "Content-Security-Policy",
     value: contentSecurityPolicy,
   },

@@ -2,11 +2,15 @@ import { NextRequest } from "next/server"
 import { unauthorizedResponse, verifyApiKey } from "@/lib/api-auth"
 import { createN8nBooking } from "@/lib/actions/n8n-api"
 import { bookingRequestSchema, formatZodError } from "@/lib/api-schemas"
+import { checkN8nApiRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest) {
   if (!verifyApiKey(request)) return unauthorizedResponse()
+
+  const rateLimit = await checkN8nApiRateLimit(getClientIp(request))
+  if (!rateLimit.success) return rateLimitResponse(rateLimit)
 
   let body: unknown
   try {

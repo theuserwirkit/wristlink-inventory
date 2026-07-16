@@ -71,7 +71,6 @@ export default async function DashboardPage() {
           <OperationsHeaderActions
             userCanEdit={userCanEdit}
             userCanAdmin={userCanAdmin}
-            mode="operations"
           />
         }
       >

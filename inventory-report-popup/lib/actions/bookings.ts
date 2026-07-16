@@ -15,9 +15,10 @@ import type {
   BaseRow,
   BookingWithRelations,
 } from "@/lib/types"
-import { isAuthenticated } from "@/lib/auth"
+import { isAuthenticated, getUser, canEdit } from "@/lib/auth"
 import { computeStockFromItems } from "@/lib/utils/booking"
 import { addWorkdays as addWorkdaysServer, addDays as addDaysServer, rangesOverlap } from "@/lib/utils/date"
+import { createBookingInternal } from "@/lib/actions/bookings-internal"
 
 // Guard für lesende Admin-Actions. Wirft, wenn keine gültige Admin-Session vorliegt.
 async function ensureAuthed() {
@@ -26,130 +27,15 @@ async function ensureAuthed() {
 }
 
 export async function createBooking(input: CreateBookingInput) {
-  const authed = await isAuthenticated()
-  if (!authed) return { success: false, error: "Nicht authentifiziert" }
+  const user = await getUser()
+  if (!(await canEdit(user))) return { success: false, error: "Keine Berechtigung" }
   return createBookingInternal(input)
-}
-
-export async function createBookingInternal(input: CreateBookingInput) {
-  try {
-    const sql = getDb()
-
-    if (!input.items || input.items.length === 0) {
-      const hasBaseItems = input.baseItems && input.baseItems.length > 0
-      if (!hasBaseItems) {
-        return { success: false, error: "Mindestens eine Leuchtgruppe oder Basis muss ausgewählt werden" }
-      }
-    }
-
-    if (input.bookingType === "MIETE_RUECKGABE") {
-      const rentedItems = await getRentedItemsByGroup(input.batchId)
-      for (const item of input.items) {
-        const rentedAmount = rentedItems.get(item.groupId) || 0
-        const totalReturned = item.anzahl + (item.anzahlFehlt || 0)
-        if (rentedAmount < totalReturned) {
-          const groups = await sql`SELECT name FROM groups WHERE id = ${item.groupId}`
-          return {
-            success: false,
-            error: `Nicht genügend vermietete Artikel für ${groups[0]?.name || "Gruppe"}. In Vermietung: ${rentedAmount}, Rückgabe angefordert: ${totalReturned}`,
-          }
-        }
-      }
-    }
-
-    if (input.bookingType === "VERKAUF" || input.bookingType === "MIETE_AUSGABE") {
-      for (const item of input.items) {
-        const availability = await getAvailabilityForGroupInternal(item.groupId, item.batchId || input.batchId)
-        if (availability.verfuegbar < item.anzahl) {
-          const groups = await sql`SELECT name FROM groups WHERE id = ${item.groupId}`
-          const batchId = item.batchId || input.batchId
-          const batches = batchId ? await sql`SELECT code FROM batches WHERE id = ${batchId}` : []
-          return {
-            success: false,
-            error: `Nicht genügend verfügbare Artikel für ${groups[0]?.name || "Gruppe"} mit Charge ${batches[0]?.code || ""}. Verfügbar: ${availability.verfuegbar}, Angefordert: ${item.anzahl}`,
-          }
-        }
-      }
-    }
-
-    let customerId: number | null = null
-    if (input.customerName) {
-      const existing = await sql`SELECT id, name FROM customers WHERE LOWER(name) = LOWER(${input.customerName}) LIMIT 1`
-      if (existing.length > 0) {
-        customerId = existing[0].id
-      } else {
-        const newCustomer = await sql`INSERT INTO customers (name) VALUES (${input.customerName}) RETURNING id`
-        customerId = newCustomer[0].id
-      }
-    }
-
-    const bookings = await sql`
-      INSERT INTO bookings (booking_type, status, customer_id, datum_ausgabe, datum_rueckgabe_geplant, datum_rueckgabe_ist, reference_rental_id, bemerkung)
-      VALUES (${input.bookingType}, ${input.status || "BESTAETIGT"}, ${customerId}, ${input.datumAusgabe?.toISOString() || null}, ${input.datumRueckgabeGeplant?.toISOString() || null}, ${input.datumRueckgabeIst?.toISOString() || null}, ${input.referenceRentalId || null}, ${input.bemerkung || null})
-      RETURNING *
-    `
-    const booking = bookings[0]
-
-    for (const item of input.items) {
-      let skuId: number | null = null
-      const existingSku = await sql`SELECT id FROM skus WHERE item_type = 'LED_BAND' AND group_id = ${item.groupId} LIMIT 1`
-      if (existingSku.length > 0) {
-        skuId = existingSku[0].id
-      } else {
-        const newSku = await sql`INSERT INTO skus (item_type, group_id) VALUES ('LED_BAND', ${item.groupId}) RETURNING id`
-        skuId = newSku[0].id
-      }
-
-      let lotId: number | null = null
-      const batchIdToUse = item.batchId || input.batchId
-
-      if (batchIdToUse) {
-        const existingLot = await sql`SELECT id, menge FROM inventory_lots WHERE sku_id = ${skuId} AND batch_id = ${batchIdToUse} LIMIT 1`
-        if (existingLot.length > 0) {
-          lotId = existingLot[0].id
-          if (input.bookingType === "ZUGANG") {
-            await sql`UPDATE inventory_lots SET menge = ${existingLot[0].menge + item.anzahl} WHERE id = ${lotId}`
-          } else if (input.bookingType === "VERKAUF") {
-            await sql`UPDATE inventory_lots SET menge = ${existingLot[0].menge - item.anzahl} WHERE id = ${lotId}`
-          } else if (input.bookingType === "MIETE_RUECKGABE") {
-            await sql`UPDATE inventory_lots SET menge = ${existingLot[0].menge + item.anzahl} WHERE id = ${lotId}`
-          }
-        } else if (input.bookingType === "ZUGANG") {
-          const newLot = await sql`INSERT INTO inventory_lots (sku_id, batch_id, menge) VALUES (${skuId}, ${batchIdToUse}, ${item.anzahl}) RETURNING id`
-          lotId = newLot[0].id
-        }
-      }
-
-      const anzahlFehlt = (item.anzahlFehlt !== undefined && item.anzahlFehlt > 0) ? item.anzahlFehlt : 0
-      await sql`
-        INSERT INTO booking_items (booking_id, group_id, sku_id, lot_id, batch_id, anzahl, anzahl_fehlt)
-        VALUES (${booking.id}, ${item.groupId}, ${skuId}, ${lotId}, ${batchIdToUse}, ${item.anzahl}, ${anzahlFehlt})
-      `
-    }
-
-    // Handle base items
-    if (input.baseItems && input.baseItems.length > 0) {
-      for (const baseItem of input.baseItems) {
-        const anzahlFehlt = (baseItem.anzahlFehlt !== undefined && baseItem.anzahlFehlt > 0) ? baseItem.anzahlFehlt : 0
-        await sql`
-          INSERT INTO booking_items (booking_id, base_id, anzahl_basen, anzahl, anzahl_fehlt)
-          VALUES (${booking.id}, ${baseItem.baseId}, ${baseItem.anzahl}, ${baseItem.anzahl}, ${anzahlFehlt})
-        `
-      }
-    }
-
-    revalidatePath("/")
-    revalidatePath("/admin")
-    return { success: true, data: booking }
-  } catch (error) {
-    return { success: false, error: "Fehler beim Erstellen der Buchung" }
-  }
 }
 
 export async function updateBookingStatus(bookingId: number, status: BookingStatus) {
   try {
-  const authed = await isAuthenticated()
-  if (!authed) return { success: false, error: "Nicht authentifiziert" }
+  const user = await getUser()
+  if (!(await canEdit(user))) return { success: false, error: "Keine Berechtigung" }
 
   const sql = getDb()
     await sql`UPDATE bookings SET status = ${status} WHERE id = ${bookingId}`
@@ -381,6 +267,7 @@ export async function getBases(limit = 500): Promise<BaseRow[]> {
 }
 
 export async function getBasesByBatch(batchId: number) {
+  await ensureAuthed()
   const sql = getDb()
   return await sql`
     SELECT b.*, ba.code as batch_code
@@ -391,7 +278,11 @@ export async function getBasesByBatch(batchId: number) {
   `
 }
 
-export async function getBaseAvailability(baseId: number) {
+// Ungeschützte Kernlogik: wird auch vom öffentlichen Konfigurator (Verfügbarkeitsanzeige
+// für nicht angemeldete Interessenten, siehe lib/konfigurator/station-availability.ts)
+// ohne Admin-Session aufgerufen. Der auth-geschützte Wrapper unten ist für
+// Client-Komponenten im Warenverwaltungsbereich gedacht.
+export async function getBaseAvailabilityInternal(baseId: number) {
   const sql = getDb()
 
   const items = await sql`
@@ -425,10 +316,18 @@ export async function getBaseAvailability(baseId: number) {
   return { verfuegbar, inVermietung, gesamtsumme: totalStock }
 }
 
+export async function getBaseAvailability(baseId: number) {
+  await ensureAuthed()
+  return getBaseAvailabilityInternal(baseId)
+}
+
 // ─── Date-range-based availability ─────────────────────────────────────────
 // Computes how many items are available considering Vorlauf/Nachlauf and other bookings in the period.
 
-export const getBufferSettings = cache(async (): Promise<{ departureBufferDays: number; returnBufferDays: number }> => {
+// Ungeschützte Kernlogik: wird intern (u.a. vom öffentlichen Konfigurator über
+// getAvailabilityForGroupBatchesByDateRange/getBaseAvailabilityByDateRangeInternal) ohne
+// Admin-Session benötigt. Für Client-Zugriffe siehe auth-geschützten Wrapper unten.
+export const getBufferSettingsInternal = cache(async (): Promise<{ departureBufferDays: number; returnBufferDays: number }> => {
   const sql = getDb()
   const rows = await sql`SELECT key, value FROM system_settings WHERE key IN ('departure_buffer_days', 'return_buffer_days')`
   let departureBufferDays = 6
@@ -439,6 +338,11 @@ export const getBufferSettings = cache(async (): Promise<{ departureBufferDays: 
   }
   return { departureBufferDays, returnBufferDays }
 })
+
+export async function getBufferSettings(): Promise<{ departureBufferDays: number; returnBufferDays: number }> {
+  await ensureAuthed()
+  return getBufferSettingsInternal()
+}
 
 type GroupBatchAvailability = {
   groupId: number
@@ -457,7 +361,7 @@ export async function getAvailabilityForGroupBatchesByDateRange(
   if (normalizedGroupIds.length === 0) return []
 
   const sql = getDb()
-  const { departureBufferDays, returnBufferDays } = await getBufferSettings()
+  const { departureBufferDays, returnBufferDays } = await getBufferSettingsInternal()
   const newFrom = addWorkdaysServer(ausgabedatum, -departureBufferDays)
   const newTo = addDaysServer(rueckgabedatum, returnBufferDays)
 
@@ -613,6 +517,7 @@ export async function getAvailabilityForGroupByDateRange(
   ausgabedatum: Date,
   rueckgabedatum: Date,
 ) {
+  await ensureAuthed()
   const rows = await getAvailabilityForGroupBatchesByDateRange([groupId], ausgabedatum, rueckgabedatum)
   const row = rows.find((entry) => entry.groupId === groupId && entry.batchId === batchId)
   const totalStock = row?.gesamtsumme || 0
@@ -626,13 +531,17 @@ export async function getAvailabilityForGroupByDateRange(
   }
 }
 
-export async function getBaseAvailabilityByDateRange(
+// Ungeschützte Kernlogik: wird auch vom öffentlichen Konfigurator (Verfügbarkeitsanzeige
+// für nicht angemeldete Interessenten, siehe lib/konfigurator/station-availability.ts)
+// ohne Admin-Session aufgerufen. Der auth-geschützte Wrapper unten ist für
+// Client-Komponenten im Warenverwaltungsbereich gedacht.
+export async function getBaseAvailabilityByDateRangeInternal(
   baseId: number,
   ausgabedatum: Date,
   rueckgabedatum: Date,
 ) {
   const sql = getDb()
-  const { departureBufferDays, returnBufferDays } = await getBufferSettings()
+  const { departureBufferDays, returnBufferDays } = await getBufferSettingsInternal()
 
   const newFrom = addWorkdaysServer(ausgabedatum, -departureBufferDays)
   const newTo = addDaysServer(rueckgabedatum, returnBufferDays)
@@ -669,6 +578,15 @@ export async function getBaseAvailabilityByDateRange(
     inVermietung: blockedInPeriod,
     gesamtsumme: totalStock,
   }
+}
+
+export async function getBaseAvailabilityByDateRange(
+  baseId: number,
+  ausgabedatum: Date,
+  rueckgabedatum: Date,
+) {
+  await ensureAuthed()
+  return getBaseAvailabilityByDateRangeInternal(baseId, ausgabedatum, rueckgabedatum)
 }
 
 export async function getBaseTotalStats() {
@@ -795,6 +713,13 @@ export async function getInventoryLots(limit = 500): Promise<Array<Record<string
 }
 
 export async function getRentedItemsByGroup(batchId?: number) {
+  await ensureAuthed()
+  return getRentedItemsByGroupInternal(batchId)
+}
+
+// Ungeschützte Kernlogik: wird von createBookingInternal (lib/actions/bookings-internal.ts)
+// für interne, nicht-Session-gebundene Buchungspfade benötigt.
+export async function getRentedItemsByGroupInternal(batchId?: number) {
   const sql = getDb()
 
   let items
@@ -1154,6 +1079,7 @@ export async function getBookingById(bookingId: number): Promise<BookingWithRela
 }
 
 export async function getRemainingRentalAmounts(rentalBookingId: number) {
+  await ensureAuthed()
   const sql = getDb()
 
   const rentalItems = await sql`SELECT group_id, anzahl FROM booking_items WHERE booking_id = ${rentalBookingId}`

@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers"
 import { getDb } from "@/lib/db"
-import { verifyPasswordHash } from "@/lib/password"
+import { hashPassword, verifyPasswordHash } from "@/lib/password"
 import { checkLoginRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit"
 import {
   SESSION_COOKIE_NAME,
@@ -34,6 +34,11 @@ function mapDbUser(row: Pick<DbUserRow, "id" | "email" | "name" | "role">): Sess
     role: row.role,
   }
 }
+
+// Einmalig pro Prozessstart erzeugter Dummy-Hash (kein echtes Secret), der bei
+// unbekannter E-Mail trotzdem durch verifyPasswordHash geprüft wird, damit die
+// Login-Antwortzeit nicht verrät, ob die E-Mail existiert (Timing-Seitenkanal, A-08).
+const DUMMY_PASSWORD_HASH = hashPassword("dummy-password-for-constant-time-login-check")
 
 async function findUserByEmail(email: string): Promise<DbUserRow | null> {
   const sql = getDb()
@@ -104,7 +109,10 @@ export async function login(email: string, password: string) {
 
   try {
     const user = await findUserByEmail(normalizedEmail)
-    if (!user || !verifyPasswordHash(password, user.password)) {
+    // Immer verifyPasswordHash aufrufen (auch bei unbekanntem User, gegen Dummy-Hash),
+    // damit die Antwortzeit nicht verrät, ob die E-Mail existiert.
+    const passwordValid = verifyPasswordHash(password, user?.password ?? DUMMY_PASSWORD_HASH)
+    if (!user || !passwordValid) {
       return { success: false, error: "Ungültige E-Mail oder Passwort" }
     }
 

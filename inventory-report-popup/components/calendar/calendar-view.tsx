@@ -136,15 +136,6 @@ function utilizationColor(used: number, total: number): string {
   return "bg-green-500 text-white"
 }
 
-function utilizationBg(used: number, total: number): string {
-  if (total === 0) return ""
-  const pct = used / total
-  if (pct >= 1) return "bg-red-50 dark:bg-red-950/20"
-  if (pct >= 0.8) return "bg-amber-50 dark:bg-amber-950/20"
-  if (pct >= 0.5) return "bg-yellow-50 dark:bg-yellow-950/10"
-  return ""
-}
-
 // ─── Calendar Day Cell ─────────────────────────────────────────────────────────
 
 function DayCell({

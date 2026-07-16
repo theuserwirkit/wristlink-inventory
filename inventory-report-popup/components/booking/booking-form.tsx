@@ -17,7 +17,7 @@ import {
   getAvailabilityForGroupByDateRange,
   getBaseAvailabilityByDateRange,
 } from "@/lib/actions/bookings"
-import type { BookingType, BookingWithRelations, BookingStatus } from "@/lib/types"
+import type { BaseRow, BookingType, BookingWithRelations, BookingStatus } from "@/lib/types"
 import { Loader2, Plus, Trash2, Package } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Combobox } from "@/components/ui/combobox"
@@ -27,8 +27,6 @@ interface BookingFormProps {
   batches: Array<{ id: number; code: string; funktionsumfang: string; lieferant?: string | null; lieferdatum?: string | Date }>
   customers: Array<{ id: number; name: string; email: string | null; telefon: string | null }>
   bases: Array<{ id: number; bezeichnung: string; hersteller: string; kanalanzahl: number; firmwareversion: string | null; funktionsumfang: string | null; batch_id?: number | null }>
-  inventoryLots: Array<Record<string, unknown>>
-  openRentals: Array<Record<string, unknown>>
   onSuccess: () => void
   onBookingCreated?: (bookingId: number) => void
   prefilledBooking?: BookingWithRelations | null
@@ -40,8 +38,6 @@ export function BookingForm({
   batches,
   customers,
   bases,
-  inventoryLots,
-  openRentals,
   onSuccess,
   onBookingCreated,
   prefilledBooking,
@@ -72,7 +68,7 @@ export function BookingForm({
     setBaseItems(baseItems.filter((item) => item.id !== id))
   }
 
-  const updateBaseItem = async (id: string, field: keyof BaseItemInput, value: any) => {
+  const updateBaseItem = async <K extends keyof BaseItemInput>(id: string, field: K, value: BaseItemInput[K]) => {
     setBaseItems((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)))
 
     if (field === "baseId" && value) {
@@ -100,7 +96,7 @@ export function BookingForm({
   useEffect(() => {
     const effectiveBatchId = prefilledBatchId || batchId
     if (effectiveBatchId) {
-      getBasesByBatch(effectiveBatchId as number).then((data) => setFilteredBases(data as any))
+      getBasesByBatch(effectiveBatchId as number).then((data) => setFilteredBases(data as unknown as BaseRow[]))
     } else {
       setFilteredBases(bases)
     }
@@ -132,8 +128,8 @@ export function BookingForm({
       if (prefilledBooking.items && prefilledBooking.items.length > 0) {
         getRemainingRentalAmounts(prefilledBooking.id).then((remainingAmounts) => {
           const prefilledItems = prefilledBooking.items
-            .filter((item: any) => item.group_id)
-            .map((item: any) => {
+            .filter((item): item is typeof item & { group_id: number } => Boolean(item.group_id))
+            .map((item) => {
               const remaining = remainingAmounts.get(item.group_id) || item.anzahl
               return {
                 id: crypto.randomUUID(),
@@ -148,8 +144,8 @@ export function BookingForm({
 
           // Pre-fill base items from the original rental
           const prefilledBaseItems = prefilledBooking.items
-            .filter((item: any) => item.base_id)
-            .map((item: any) => ({
+            .filter((item): item is typeof item & { base_id: number } => Boolean(item.base_id))
+            .map((item) => ({
               id: crypto.randomUUID(),
               baseId: item.base_id,
               anzahl: 0,
@@ -267,7 +263,7 @@ export function BookingForm({
     setBookingItems(remaining.length === 0 ? [] : remaining)
   }
 
-  const updateBookingItem = async (id: string, field: keyof BookingItemInput, value: any) => {
+  const updateBookingItem = async <K extends keyof BookingItemInput>(id: string, field: K, value: BookingItemInput[K]) => {
     const updatedItems = bookingItems.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     setBookingItems(updatedItems)
 

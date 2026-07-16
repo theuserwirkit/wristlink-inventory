@@ -61,7 +61,6 @@ export default async function BuchungenPage() {
           <OperationsHeaderActions
             userCanEdit={userCanEdit}
             userCanAdmin={userCanAdmin}
-            mode="ledger"
           />
         }
       >

@@ -21,7 +21,7 @@ import {
   rejectQuoteRequest,
   type ExternalQuoteInput,
 } from "@/lib/quotes-internal"
-import { getLeadById } from "@/lib/actions/leads"
+import { getLeadById } from "@/lib/actions/leads-internal"
 import {
   compareFulfillmentUrgency,
   isFulfillmentWorkOpen,

@@ -29,7 +29,6 @@
     "components/ui/aspect-ratio.tsx",
     "components/ui/calendar.tsx",
     "components/ui/carousel.tsx",
-    "components/ui/chart.tsx",
     "components/ui/collapsible.tsx",
     "components/ui/context-menu.tsx",
     "components/ui/drawer.tsx",

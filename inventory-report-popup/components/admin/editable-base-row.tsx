@@ -36,6 +36,7 @@ export function EditableBaseRow({ base }: EditableBaseRowProps) {
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
+    if (saving) return
     if (!bezeichnung.trim() || !seriennummer.trim()) {
       toast({
         title: "Fehler",

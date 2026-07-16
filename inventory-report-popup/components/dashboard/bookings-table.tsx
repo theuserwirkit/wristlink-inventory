@@ -23,6 +23,11 @@ interface BookingsTableProps {
   onReturnClick?: (booking: BookingWithRelations) => void
 }
 
+/** Eine Buchung, aufgeteilt auf eine Zeile je Position (`item`) für die Tabellendarstellung. */
+type FlattenedBookingRow = BookingWithRelations & {
+  item: BookingWithRelations["items"][number] | null
+}
+
 type SortField = "date" | "type" | "group" | "batch" | "customer" | "amount" | "notes"
 type SortDirection = "asc" | "desc"
 type FilterMode = "all" | "aktuell_vermietet"
@@ -109,11 +114,11 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
   }, [bookings, returnedRentalIds])
 
   const flattenedBookings = useMemo(() => {
-    return bookings.flatMap((booking) => {
+    return bookings.flatMap((booking): FlattenedBookingRow[] => {
       if (!booking.items || booking.items.length === 0) {
         return [{ ...booking, item: null }]
       }
-      return booking.items.map((item: any) => ({ ...booking, item }))
+      return booking.items.map((item) => ({ ...booking, item }))
     })
   }, [bookings])
 
@@ -122,7 +127,7 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
 
     // Filter by "aktuell vermietet"
     if (filterMode === "aktuell_vermietet") {
-      filtered = filtered.filter((row: any) =>
+      filtered = filtered.filter((row) =>
         row.booking_type === "MIETE_AUSGABE" && !returnedRentalIds.has(row.id)
       )
     }
@@ -130,14 +135,14 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
     // Filter by booking type
     if (typeFilter !== "all") {
       const targetType = TYPE_FILTER_MAP[typeFilter]
-      filtered = filtered.filter((row: any) => row.booking_type === targetType)
+      filtered = filtered.filter((row) => row.booking_type === targetType)
     }
 
     // Filter by search term (customer, notes, quote_id)
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
       const quoteTerm = term.replace(/^#/, "")
-      filtered = filtered.filter((row: any) => {
+      filtered = filtered.filter((row) => {
         const customerName = row.customer?.name?.toLowerCase() || ""
         const notes = row.bemerkung?.toLowerCase() || ""
         const quoteId = row.quote_id != null ? String(row.quote_id) : ""
@@ -150,14 +155,14 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
     }
 
     // Sort
-    filtered.sort((a: any, b: any) => {
-      let aValue: any
-      let bValue: any
+    filtered.sort((a, b) => {
+      let aValue: string | number
+      let bValue: string | number
 
       switch (sortField) {
         case "date":
-          aValue = new Date(a.created_at).getTime()
-          bValue = new Date(b.created_at).getTime()
+          aValue = a.created_at ? new Date(a.created_at).getTime() : 0
+          bValue = b.created_at ? new Date(b.created_at).getTime() : 0
           break
         case "type":
           aValue = getBookingTypeLabel(a.booking_type)
@@ -365,7 +370,7 @@ function BookingsTableContent({ bookings, onReturnClick, highlightId = null }: B
                 </TableRow>
               ) : (
                 filteredAndSortedBookings.map((row, index) => {
-                  const booking = row as any
+                  const booking = row
                   const item = booking.item
                   const isRental = booking.booking_type === "MIETE_AUSGABE"
                   const isActiveRental = isRental && !returnedRentalIds.has(booking.id)
