@@ -1,6 +1,6 @@
 # WIRKUNG Wristlink – Produktwissen (für KI-Antworten)
 
-> **Technische Details Konfigurator:** `inventory-report-popup/docs/konfigurator.md`
+> **Technische Details Konfigurator:** `braceled-konfigurator-warenverwaltung/docs/konfigurator.md`
 
 ## Produkte
 

@@ -6,7 +6,7 @@ Dieses Dokument übergibt den aktuellen Stand an eine weiterarbeitende KI. Es gi
 
 ## 0. Aktueller Produktivstand (2026)
 
-Neben dem ursprünglichen **n8n + Google Sheets**-Gerüst (dieses Dokument) existiert die **Next.js-App** `inventory-report-popup`:
+Neben dem ursprünglichen **n8n + Google Sheets**-Gerüst (dieses Dokument) existiert die **Next.js-App** `braceled-konfigurator-warenverwaltung`:
 
 | Komponente | Pfad / URL |
 |------------|------------|
@@ -15,8 +15,8 @@ Neben dem ursprünglichen **n8n + Google Sheets**-Gerüst (dieses Dokument) exis
 | Anfragen & Fulfillment | `/admin/anfragen`, `/admin/anfragen/[id]` |
 | E-Mail-Templates (Admin) | `/admin/einstellungen/e-mails` |
 | Verfügbarkeit & Preise | Neon Postgres + `lib/actions/n8n-api.ts`, `lib/pricing/preis-engine.ts` |
-| Fachliche Doku Konfigurator | `inventory-report-popup/docs/konfigurator.md` |
-| DB-Migration & Admin-Workflows | `inventory-report-popup/MIGRATION.md` |
+| Fachliche Doku Konfigurator | `braceled-konfigurator-warenverwaltung/docs/konfigurator.md` |
+| DB-Migration & Admin-Workflows | `braceled-konfigurator-warenverwaltung/MIGRATION.md` |
 
 **Preise sind netto (B2B).** Maßgebliche Quelle: `lib/pricing/constants.ts` und `docs/konfigurator.md` – nicht die veralteten Werte in Abschnitt 5 unten (n8n-Prototype).
 
@@ -127,7 +127,7 @@ Nach Freigabe schreibt „Buchung schreiben" eine neue Zeile (Status `reserviert
 ## 5. Preise & Berechnungslogik
 
 > **Hinweis:** Die folgenden Tabellen stammen aus dem **n8n-Prototyp** und sind teilweise veraltet.
-> Für die Live-App gilt: **alle Preise netto (B2B)**, siehe `inventory-report-popup/lib/pricing/constants.ts`.
+> Für die Live-App gilt: **alle Preise netto (B2B)**, siehe `braceled-konfigurator-warenverwaltung/lib/pricing/constants.ts`.
 
 ### Aktuelle Zuschläge (Live-App, Auszug)
 

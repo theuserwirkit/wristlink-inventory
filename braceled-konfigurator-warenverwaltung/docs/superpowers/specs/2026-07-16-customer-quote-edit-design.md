@@ -5,7 +5,7 @@
 **Plan:** `docs/superpowers/plans/2026-07-16-customer-quote-edit.md`  
 **Verwandt:** `docs/superpowers/specs/2026-07-16-availability-soft-submit-design.md` (Soft-Submit bei Rot auch für Erst-Anfrage)
 
-**Kontext:** Wristlink / inventory-report-popup — öffentliche Statusseite `/angebot/[token]`
+**Kontext:** Wristlink / braceled-konfigurator-warenverwaltung — öffentliche Statusseite `/angebot/[token]`
 
 ## Problem
 

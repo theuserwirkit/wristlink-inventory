@@ -59,7 +59,7 @@ Allgemeine Firmenadressen (Impressum, Datenschutz): `@wirkung-digital.de` (`info
 > Vercel Environment Variables. Optional getrennt: `WRISTLINK_SESSION_SECRET` für die
 > Cookie-Signatur (Fallback: `WRISTLINK_PASSWORD`).
 >
-> **Lokal starten:** `pnpm dev` aus `inventory-report-popup/` (setzt intern
+> **Lokal starten:** `pnpm dev` aus `braceled-konfigurator-warenverwaltung/` (setzt intern
 > `env -u WRISTLINK_PASSWORD`, damit ein leerer Shell-Wert `.env.local` nicht blockiert).
 
 ---
@@ -220,11 +220,11 @@ psql "$DATABASE_URL" -f dump.sql
 
 `DATABASE_URL` und `WRISTLINK_PASSWORD` im Vercel-Projekt setzen und deployen.
 
-**Deploy-Workflow (Monorepo, Root Directory = `inventory-report-popup`):**
+**Deploy-Workflow (Monorepo, Root Directory = `braceled-konfigurator-warenverwaltung`):**
 
 ```bash
 git push origin main          # Auto-Deploy auf Production (braceled-led-armband.com)
-# Manuell vom Repo-Root (NICHT aus inventory-report-popup/):
+# Manuell vom Repo-Root (NICHT aus braceled-konfigurator-warenverwaltung/):
 vercel --prod
 ```
 

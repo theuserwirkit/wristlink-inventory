@@ -94,7 +94,7 @@ EOF
 )"
 ```
 
-Paths relativ zu `inventory-report-popup/` im Repo-Root.
+Paths relativ zu `braceled-konfigurator-warenverwaltung/` im Repo-Root.
 
 ---
 

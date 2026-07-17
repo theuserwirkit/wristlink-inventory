@@ -53,7 +53,7 @@ Diese Checkliste beschreibt, welche Secrets **manuell** rotiert werden müssen
 - **Wo eintragen:** `WRISTLINK_PASSWORD` in Vercel + `.env.local` (Zeile **ohne** Anführungszeichen, auch bei Sonderzeichen wie `!`).
 - **Nicht eintragen:** `next.config.mjs` → `env` (würde Secret beim Build ins Bundle schreiben).
 - **Optional getrennt:** `WRISTLINK_SESSION_SECRET` für Cookie-HMAC (`lib/auth-core.ts`); Fallback: `WRISTLINK_PASSWORD`.
-- **Lokal:** `pnpm dev` aus `inventory-report-popup/` – entfernt ggf. leeren Shell-Wert via `env -u WRISTLINK_PASSWORD`.
+- **Lokal:** `pnpm dev` aus `braceled-konfigurator-warenverwaltung/` – entfernt ggf. leeren Shell-Wert via `env -u WRISTLINK_PASSWORD`.
 - **Hinweis:** Wird ggf. auch als Fallback für die Lead-Session-Verschlüsselung genutzt
   (siehe `LEAD_SESSION_SECRET`). Nach Rotation bestehende Lead-Sessions ggf. ungültig.
 - **Verifikation:** Login unter `/login` → Redirect auf `/warenverwaltung`.

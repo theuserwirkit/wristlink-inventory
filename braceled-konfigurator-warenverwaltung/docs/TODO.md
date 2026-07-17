@@ -93,7 +93,7 @@ Zentrale Konstanten: `lib/contact-emails.ts` · Consent-Texte: `lib/konfigurator
 **Automatisiert** (lokal, vor jedem Deploy):
 
 ```bash
-cd inventory-report-popup
+cd braceled-konfigurator-warenverwaltung
 pnpm build
 pnpm test:preis-engine
 npx tsx scripts/test-fulfillment-timing.ts
@@ -151,7 +151,7 @@ Erwartung: Build grün, Unit-Tests ohne Fehler, öffentliche Routen → `200` od
 **Production ausführen** (Credentials aus `.env.production.local`, nicht committen):
 
 ```bash
-cd inventory-report-popup
+cd braceled-konfigurator-warenverwaltung
 set -a && source .env.production.local && set +a
 pnpm db:migrate
 pnpm db:indexes
@@ -241,7 +241,7 @@ Aktuelle Seite: `app/agb/page.tsx` (17 Abschnitte, Stand Juli 2026) · Review: `
 ## Nützliche Befehle
 
 ```bash
-cd inventory-report-popup
+cd braceled-konfigurator-warenverwaltung
 pnpm dev                  # lokal http://localhost:3000
 pnpm build                # Production-Build (Dev-Server vorher stoppen – .next-Konflikt)
 pnpm db:migrate           # alle Migrationen 01–22 (lokal: .env.local laden)
@@ -253,7 +253,7 @@ pnpm test:preis-engine    # Preisberechnung
 pnpm telegram:webhook     # Telegram-Webhook setzen
 vercel env ls production  # Vercel-Env prüfen (aus Repo-Root, siehe unten)
 
-# Deploy (Monorepo: Root Directory in Vercel = inventory-report-popup)
+# Deploy (Monorepo: Root Directory in Vercel = braceled-konfigurator-warenverwaltung)
 git push origin main      # Auto-Deploy auf Production (braceled-led-armband.com)
-cd .. && vercel --prod    # Manuell vom Repo-Root – NICHT aus inventory-report-popup/
+cd .. && vercel --prod    # Manuell vom Repo-Root – NICHT aus braceled-konfigurator-warenverwaltung/
 ```

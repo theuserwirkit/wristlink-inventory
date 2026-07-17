@@ -163,7 +163,7 @@ Legacy (nicht mehr in der Haupt-UI): `components/admin/order-primary-action.tsx`
 ## Migration
 
 ```bash
-cd inventory-report-popup
+cd braceled-konfigurator-warenverwaltung
 set -a && source .env.local && set +a && pnpm db:migrate
 ```
 

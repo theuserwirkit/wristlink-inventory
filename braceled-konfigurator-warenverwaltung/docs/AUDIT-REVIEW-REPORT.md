@@ -1,6 +1,6 @@
 # Review-Report: Security-Audit & Refactoring
 
-**Projekt:** `inventory-report-popup` (Wristlink / BraceLED)  
+**Projekt:** `braceled-konfigurator-warenverwaltung` (Wristlink / BraceLED)  
 **Zeitraum:** 16. Juli 2026  
 **Zweck:** Gesamtergebnis der Audit-/Fix-Session zur Zweitprüfung (z. B. mit Fable)  
 **Detailliste aller Findings:** `docs/audit-findings.md`  

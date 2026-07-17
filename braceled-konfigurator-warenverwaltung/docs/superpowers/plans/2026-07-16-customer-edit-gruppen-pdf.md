@@ -153,7 +153,7 @@ Count-Slider (ca. Zeile mit `onValueChange={([v]) => updateConfig({ gruppen: v }
 
 - [ ] **Step 2: Smoke — keine neuen TS-Fehler an den geänderten Stellen**
 
-Run (aus `inventory-report-popup`): `npx tsc --noEmit`  
+Run (aus `braceled-konfigurator-warenverwaltung`): `npx tsc --noEmit`  
 Expected: Exit 0 (oder nur vorbestehende Fehler außerhalb dieser Datei — neue Fehler an den Slider-Zeilen beheben)
 
 - [ ] **Step 3: Commit**

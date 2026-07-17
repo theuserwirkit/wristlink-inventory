@@ -4,8 +4,8 @@
 **Datum:** 2026-07-16  
 **Branch:** `feature/customer-quote-edit`  
 **HEAD (bei Erstellung dieses Docs):** siehe `git rev-parse HEAD` auf dem Branch  
-**Repo-Root:** Elternverzeichnis von `inventory-report-popup/` (Git-Root)  
-**App:** `inventory-report-popup/`
+**Repo-Root:** Elternverzeichnis von `braceled-konfigurator-warenverwaltung/` (Git-Root)  
+**App:** `braceled-konfigurator-warenverwaltung/`
 
 ---
 

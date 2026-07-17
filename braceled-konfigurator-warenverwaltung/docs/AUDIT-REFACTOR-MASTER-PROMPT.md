@@ -1,7 +1,7 @@
 # Master-Prompt: Vollständiges Refactoring & Security-Audit
 
 > Zweck: Vorlage zum Dispatchen von Subagents (z. B. via Cursor `Task`-Tool), die das
-> gesamte Projekt `inventory-report-popup` (Wristlink/BraceLED) refactoren und auf
+> gesamte Projekt `braceled-konfigurator-warenverwaltung` (Wristlink/BraceLED) refactoren und auf
 > Fehler & Sicherheitslücken prüfen. Dieses Dokument ist der "Orchestrator-Prompt" –
 > Abschnitt 5 enthält fertige, copy-paste-fähige Einzelprompts pro Subagent.
 

@@ -5,7 +5,7 @@
  * - API-URLs hardcoden, Credential-Referenzen setzen
  * - PDF-Knoten umgehen (kein Endpoint vorhanden)
  *
- * Env aus inventory-report-popup/.env.local + .env.production.local
+ * Env aus braceled-konfigurator-warenverwaltung/.env.local + .env.production.local
  */
 import { existsSync, readFileSync } from "fs"
 import { dirname, join } from "path"
@@ -35,8 +35,8 @@ function loadEnvFile(path) {
   }
 }
 
-loadEnvFile(join(__dirname, "../inventory-report-popup/.env.local"))
-loadEnvFile(join(__dirname, "../inventory-report-popup/.env.production.local"))
+loadEnvFile(join(__dirname, "../braceled-konfigurator-warenverwaltung/.env.local"))
+loadEnvFile(join(__dirname, "../braceled-konfigurator-warenverwaltung/.env.production.local"))
 
 const baseUrl = (process.env.N8N_BASE_URL || "https://wirkungdigital.app.n8n.cloud").replace(
   /\/$/,

@@ -3,7 +3,7 @@
 **Datum:** 2026-07-16  
 **Status:** Freigegeben — implementiert  
 **Plan:** `docs/superpowers/plans/2026-07-16-lieferpaket-werktage-vorlauf.md`  
-**Kontext:** Wristlink / inventory-report-popup — `lib/konfigurator/lieferpaket.ts`, Packlisten in `fulfillment-timing.ts`
+**Kontext:** Wristlink / braceled-konfigurator-warenverwaltung — `lib/konfigurator/lieferpaket.ts`, Packlisten in `fulfillment-timing.ts`
 
 ## Problem
 

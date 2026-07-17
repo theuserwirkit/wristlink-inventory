@@ -31,7 +31,7 @@ function loadEnvFile(path) {
   }
 }
 
-loadEnvFile(join(__dirname, "../inventory-report-popup/.env.local"))
+loadEnvFile(join(__dirname, "../braceled-konfigurator-warenverwaltung/.env.local"))
 const baseUrl = (process.env.N8N_BASE_URL || "https://wirkungdigital.app.n8n.cloud").replace(/\/$/, "")
 const apiKey = process.env.N8N_API_KEY
 

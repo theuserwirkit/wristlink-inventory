@@ -3,7 +3,7 @@
 **Datum:** 2026-07-16  
 **Status:** Freigegeben — implementiert  
 **Plan:** `docs/superpowers/plans/2026-07-16-gruppen-multi-thumb-slider.md`  
-**Kontext:** Wristlink / inventory-report-popup — `components/konfigurator/configurator-wizard.tsx`, Schritt Gruppenprogrammierung (PRO)
+**Kontext:** Wristlink / braceled-konfigurator-warenverwaltung — `components/konfigurator/configurator-wizard.tsx`, Schritt Gruppenprogrammierung (PRO)
 
 ## Problem
 
